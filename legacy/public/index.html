@@ -29,12 +29,19 @@
   <section class="section">
     <div class="attention-panel" id="attentionPanel">
       <p class="attention-panel__title">דורש תשומת לב היום</p>
+      <p class="sc-meta" id="lastReview"></p>
       <div id="attentionContent">
         <div class="skeleton skeleton-text" style="width:60%;height:16px"></div>
         <div class="skeleton skeleton-text" style="width:40%;height:16px;margin-top:8px"></div>
       </div>
     </div>
   </section>
+
+  <nav class="filter-bar" aria-label="מסכים">
+    <a class="chip" href="/review">🗓 סקירה שבועית</a>
+    <a class="chip" href="/scorecard">📊 Scorecard</a>
+    <a class="chip" href="/health">🩺 שלמות נתונים</a>
+  </nav>
 
   <!-- Hero KPI row -->
   <section class="section">
@@ -68,6 +75,12 @@
 const ILS = n => new Intl.NumberFormat('he-IL', {
   style: 'currency', currency: 'ILS', maximumFractionDigits: 0
 }).format(n);
+
+const NO_DATA = 'אין נתונים עדיין';
+// Value cell for a KPI: formatted number, or the no-data text (never 0)
+const kpiValue = (v, fmt) => v === null || v === undefined
+  ? `<span class="kpi-card__value kpi-value--empty">${NO_DATA}</span>`
+  : `<span class="kpi-card__value"><bdi class="amount">${fmt(v)}</bdi></span>`;
 
 const DOMAIN_LABELS = {
   business: 'עסקים', personal: 'אישי', ventures: 'השקעות'
@@ -108,41 +121,78 @@ function formatSyncAge(ts) {
   return `לפני ${Math.round(age/1440)} ימים`;
 }
 
-function renderAttention(items) {
+const RULE_ICONS = {
+  allocation_missing: '📋', overdue_debt: '💸', promise_broken: '🤝',
+  notice_deadline: '📅', task_overdue: '⏰', stale_data: '🔄', review_stale: '🗓'
+};
+const SEVERITY_LABEL = { red: 'דחוף', orange: 'לטיפול' };
+
+function addDays(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+function renderAttention(d) {
   const el = document.getElementById('attentionContent');
-  if (!items || items.length === 0) {
-    el.innerHTML = `<p class="attention-panel__empty">✓ הכול תקין</p>`;
+  const items = d.attention_items || [];
+  if (items.length === 0) {
+    el.innerHTML = d.alerts_evaluated
+      ? `<p class="attention-panel__empty">✓ הכול תקין${d.attention_snoozed ? ` (${d.attention_snoozed} נדחו)` : ''}</p>`
+      : `<p class="attention-panel__empty">אין נתונים עדיין: ההתראות יחושבו בסנכרון הבא</p>`;
     return;
   }
-  const icons = { allocation_missing: '📋', task_overdue: '⏰' };
-  el.innerHTML = `<ul class="attention-list">${items.map(it => `
+  el.innerHTML = `<ul class="attention-list">${items.map(it => {
+    const meta = [
+      it.counterparty ? escHtml(it.counterparty) : '',
+      it.amount != null ? `<bdi class="amount">${ILS(it.amount)}</bdi>` : '',
+      it.days != null && it.rule_id !== 'notice_deadline' ? `${it.days} ימים` : '',
+      it.open_days != null ? `פתוח ${it.open_days} ימים` : '',
+    ].filter(Boolean).join(' · ');
+    return `
     <li class="attention-item attention-item--${it.severity}">
-      <span class="attention-item__icon" aria-hidden="true">${icons[it.type] || '⚠'}</span>
+      <span class="attention-item__icon" role="img" aria-label="${SEVERITY_LABEL[it.severity] || ''}">${RULE_ICONS[it.rule_id] || '⚠'}</span>
       <div class="attention-item__body">
-        <div class="attention-item__text">${escHtml(it.text)}</div>
-        <div class="attention-item__action">${escHtml(it.action || '')}</div>
+        <div class="attention-item__text">${escHtml(it.title)}</div>
+        ${meta ? `<div class="attention-item__meta">${meta}</div>` : ''}
+        ${it.suggested_action ? `<div class="attention-item__action">${escHtml(it.suggested_action)}${it.owner ? ` · ${escHtml(it.owner)}` : ''}</div>` : ''}
+        ${it.id ? `<form class="snooze-form" data-id="${it.id}">
+          <label class="snooze-form__label">דחה עד <input class="form-input snooze-form__date" type="date" name="until" value="${addDays(7)}" min="${addDays(1)}" required></label>
+          <button class="btn-secondary" type="submit">דחה</button>
+        </form>` : ''}
       </div>
-    </li>`).join('')}</ul>`;
+    </li>`; }).join('')}</ul>
+    ${d.attention_more ? `<p class="attention-panel__more">ועוד ${d.attention_more} התראות · <a href="/health">לכל ההתראות</a></p>` : ''}`;
+
+  el.querySelectorAll('.snooze-form').forEach(f => f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const res = await fetch(`/api/alerts/${f.dataset.id}/snooze`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: f.until.value })
+    });
+    if (res.ok) init(); else alert((await res.json()).error || 'שגיאה בדחייה');
+  }));
 }
 
 function renderKPI(hero, vatRate) {
   const el = document.getElementById('kpiRow');
-  const mrrGross = Math.round(hero.mrr.value * (1 + vatRate));
-  const overdueClass = hero.overdue_tasks.value > 0 ? 'kpi-card--danger' : '';
-  const debtClass    = hero.open_debts.value  > 0 ? 'kpi-card--warning' : '';
+  const mrr = hero.mrr.value, debts = hero.open_debts.value, overdue = hero.overdue_tasks.value;
+  const mrrGross = mrr !== null && vatRate !== null ? Math.round(mrr * (1 + vatRate)) : null;
+  const overdueClass = overdue > 0 ? 'kpi-card--danger' : '';
+  const debtClass    = debts   > 0 ? 'kpi-card--warning' : '';
   el.innerHTML = `
     <div class="kpi-card">
       <span class="kpi-card__label">הכנסה חודשית (ללא מע"מ)</span>
-      <span class="kpi-card__value"><bdi class="amount">${ILS(hero.mrr.value)}</bdi></span>
-      <span class="kpi-card__sub amount">${ILS(mrrGross)} כולל מע"מ</span>
+      ${kpiValue(mrr, ILS)}
+      ${mrrGross !== null ? `<span class="kpi-card__sub amount">${ILS(mrrGross)} כולל מע"מ</span>` : ''}
     </div>
     <div class="kpi-card ${debtClass}">
       <span class="kpi-card__label">חובות פתוחים (כולל מע"מ)</span>
-      <span class="kpi-card__value"><bdi class="amount">${ILS(hero.open_debts.value)}</bdi></span>
+      ${kpiValue(debts, ILS)}
     </div>
     <div class="kpi-card ${overdueClass}">
       <span class="kpi-card__label">משימות באיחור</span>
-      <span class="kpi-card__value">${hero.overdue_tasks.value}</span>
+      ${kpiValue(overdue, String)}
     </div>`;
 }
 
@@ -217,7 +267,10 @@ async function init() {
   document.getElementById('syncDot').className = syncDotClass(latest);
   document.getElementById('syncLabel').textContent = formatSyncAge(latest);
 
-  renderAttention(d.attention_items);
+  renderAttention(d);
+  document.getElementById('lastReview').innerHTML = d.last_review
+    ? `נסקר לאחרונה: ${new Date(d.last_review).toLocaleDateString('he-IL')} · <a href="/review">סקירה שבועית</a>`
+    : `עוד לא נעשתה סקירה שבועית · <a href="/review">לפתוח סקירה</a>`;
   renderKPI(d.hero, d.vat_rate);
   renderDomains(d.domain_cards);
   renderHorizon(d.horizon_30);

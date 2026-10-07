@@ -98,27 +98,33 @@ function escHtml(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+const NO_DATA = 'אין נתונים עדיין';
+// Value cell for a KPI: formatted number, or the no-data text (never 0)
+const kpiValue = (v, fmt) => v === null || v === undefined
+  ? `<span class="kpi-card__value kpi-value--empty">${NO_DATA}</span>`
+  : `<span class="kpi-card__value"><bdi class="amount">${fmt(v)}</bdi></span>`;
+
 function renderKPI(d) {
   const el = document.getElementById('kpiRow');
-  const conMax = d.concentration?.max_pct ?? 0;
+  const conMax = d.concentration?.max_pct ?? null;
   const concClass = conMax >= 60 ? 'kpi-card--danger' : conMax >= 40 ? 'kpi-card--warning' : '';
   const debtClass = d.open_debts?.total > 0 ? 'kpi-card--warning' : '';
 
   el.innerHTML = `
     <div class="kpi-card">
       <span class="kpi-card__label">MRR (ללא מע"מ)</span>
-      <span class="kpi-card__value"><bdi class="amount">${ILS(d.mrr)}</bdi></span>
-      <span class="kpi-card__sub amount">${ILS(d.mrr_gross)} כולל מע"מ</span>
+      ${kpiValue(d.mrr, ILS)}
+      ${d.mrr_gross !== null ? `<span class="kpi-card__sub amount">${ILS(d.mrr_gross)} כולל מע"מ</span>` : ''}
     </div>
     <div class="kpi-card ${debtClass}">
       <span class="kpi-card__label">חובות פתוחים</span>
-      <span class="kpi-card__value"><bdi class="amount">${ILS(d.open_debts?.total ?? 0)}</bdi></span>
-      <span class="kpi-card__sub">${(d.open_debts?.items ?? []).length} חשבוניות</span>
+      ${kpiValue(d.open_debts?.total ?? null, ILS)}
+      ${d.open_debts?.items?.length ? `<span class="kpi-card__sub">${d.open_debts.items.length} יתרות</span>` : ''}
     </div>
     <div class="kpi-card ${concClass}">
       <span class="kpi-card__label">ריכוז מקסימלי</span>
-      <span class="kpi-card__value">${conMax}%</span>
-      <span class="kpi-card__sub">${d.concentration?.total_clients ?? 0} לקוחות</span>
+      ${kpiValue(conMax, v => `${v}%`)}
+      ${d.concentration ? `<span class="kpi-card__sub">${d.concentration.total_clients} לקוחות</span>` : ''}
     </div>
     <div class="kpi-card">
       <span class="kpi-card__label">סנכרון אחרון</span>
@@ -153,7 +159,7 @@ function renderRetainers(retainers) {
 
     return `<div class="retainer-card ${isNearNotice ? 'retainer-card--notice' : ''}">
       <div class="retainer-card__name">${escHtml(r.client)}</div>
-      <div class="retainer-card__fee amount">${ILS(parseFloat(r.fee_net || 0))}</div>
+      <div class="retainer-card__fee amount">${r.fee_net !== null ? ILS(parseFloat(r.fee_net)) : NO_DATA}</div>
       <div class="retainer-card__meta">
         ${end   ? `<span>חוזה עד ${escHtml(end)}</span>` : ''}
         ${notice ? `<span class="${isNearNotice ? 'text-warning-strong' : ''}">הודעה עד ${escHtml(notice)}</span>` : ''}
