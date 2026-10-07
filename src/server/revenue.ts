@@ -17,7 +17,8 @@ export type OspaLocation = { location: string; name_he: string; connected: boole
 
 const BRANCH = 'head-spa-israel';
 
-export async function ospa(basis: Basis) {
+// location = one branch of the business (e.g. 'modiin'); null = the whole business
+export async function ospa(basis: Basis, location: string | null = null) {
   const today = todayIL();
   const { rows: params } = await db().query(
     `SELECT key, to_char(effective_from, 'YYYY-MM-DD') AS effective_from, value FROM parameters`);
@@ -38,8 +39,8 @@ export async function ospa(basis: Basis) {
       FROM locations l
       LEFT JOIN revenue_sources s ON s.branch = l.branch AND s.location = l.location AND s.active
       LEFT JOIN revenue_monthly m ON m.source = s.source AND m.source_account = s.source_account AND m.month >= $2::date
-      WHERE l.branch = $1 AND l.active
-      ORDER BY l.sort NULLS LAST, l.location, m.month`, [BRANCH, `${addDays(today, -366).slice(0, 7)}-01`]);
+      WHERE l.branch = $1 AND l.active AND ($3::text IS NULL OR l.location = $3)
+      ORDER BY l.sort NULLS LAST, l.location, m.month`, [BRANCH, `${addDays(today, -366).slice(0, 7)}-01`, location]);
     const byLoc = new Map<string, OspaLocation>();
     for (const r of rows) {
       const loc: OspaLocation = byLoc.get(r.location) ?? { location: r.location, name_he: r.name_he, connected: r.connected, months: [], last_fetched: null };
@@ -72,9 +73,11 @@ export async function ospa(basis: Basis) {
   const ytd = monthly.filter(m => m.month.slice(0, 4) === today.slice(0, 4));
   const sum = (xs: (number | null)[]) => (xs.length && xs.every(x => x !== null) ? xs.reduce((a, b) => a! + b!, 0) : null);
 
-  // Live detail for this month (summary, methods, sales, daily). One Buyz key = one location for now.
-  const live = await buyzReport({ period: 'this_month' });
-  const report: BuyzReport | null = live.ok ? live.report : null;
+  // Live detail for this month (summary, methods, sales, daily). One Buyz key = one location for now,
+  // so a branch without a Buyz mapping gets no live call (its numbers would be another branch's).
+  const wantLive = ready ? locations.some(l => l.connected) : location === null;
+  const live = wantLive ? await buyzReport({ period: 'this_month' }) : null;
+  const report: BuyzReport | null = live?.ok ? live.report : null;
   const liveScaled = report && {
     revenue_ex: scale(exVat(report.summary.revenue_total, vatNow)),
     revenue_incl: scale(report.summary.revenue_total),
@@ -89,9 +92,14 @@ export async function ospa(basis: Basis) {
 
   return {
     today, basis, share, vat_rate: vatNow, ready,
-    live_error: live.ok ? null : BUYZ_ERROR[live.reason],
-    fetched_at: live.ok ? live.fetched_at : null,
-    locations: locations.map(l => ({ location: l.location, name_he: l.name_he, connected: l.connected, has_data: l.months.length > 0, last_fetched: l.last_fetched })),
+    live_error: !live || live.ok ? null : BUYZ_ERROR[live.reason],
+    fetched_at: live?.ok ? live.fetched_at : null,
+    locations: locations.map(l => {
+      const lm = l.months.find(m => m.month === lastMonth)?.ex_vat ?? null;
+      const ly = l.months.filter(m => m.month.slice(0, 4) === today.slice(0, 4));
+      return { location: l.location, name_he: l.name_he, connected: l.connected, has_data: l.months.length > 0, last_fetched: l.last_fetched,
+        last_month: scale(lm), ytd: scale(sum(ly.map(m => m.ex_vat))) };
+    }),
     monthly,
     this_month: liveScaled?.revenue_ex ?? pick(thisMonth)?.ex_vat ?? null,
     this_month_incl: liveScaled?.revenue_incl ?? pick(thisMonth)?.incl_vat ?? null,

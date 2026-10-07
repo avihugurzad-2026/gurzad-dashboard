@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CalendarClock, HandCoins, ListChecks, TrendingUp, Wallet } from 'lucide-react';
 import { overview, resolveWorkspace, workspaces } from '@/server/data';
+import { openCounts } from '@/server/entries';
 import { parseRange, rangeLabel } from '@/lib/period';
 import { greeting, ils, longDate, num, shortDate, stamp } from '@/lib/format';
 import { Filters } from '@/components/shell/filters';
@@ -8,7 +9,6 @@ import { Attention } from '@/components/dash/attention';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { TrendChart } from '@/components/charts/trend-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
 
@@ -17,10 +17,27 @@ export const dynamic = 'force-dynamic';
 
 const KIND_LABEL = { task: 'משימה', notice: 'מועד הודעה', payment: 'תשלום' } as const;
 
+// The three areas, each linking to its pages; counts come from openCounts() keys
+const AREAS = [
+  { title: 'עסקים', items: [
+    { label: 'a-digital', href: '/business/adigital', key: 'business/adigital' },
+    { label: 'הד ספא ישראל', href: '/business/head-spa-israel', key: 'business/head-spa-israel' },
+  ] },
+  { title: 'אישי', items: [
+    { label: 'משימות בית, אישי ולימודים', href: '/personal/tasks', key: 'personal' },
+  ] },
+  { title: 'יזמות', items: [
+    { label: 'נכסים', href: '/ventures/real-estate', key: 'ventures/real-estate' },
+    { label: 'השקעות', href: '/ventures/investments', key: 'ventures/investments' },
+    { label: 'משפטי', href: '/ventures/legal-and-tasks', key: 'ventures/legal-and-tasks' },
+    { label: 'פיננסים', href: '/ventures/finance', key: 'ventures/finance' },
+  ] },
+];
+
 export default async function OverviewPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const range = parseRange(sp.range);
-  const [ws, branch] = await Promise.all([workspaces(), resolveWorkspace(sp.w)]);
+  const [ws, branch, counts] = await Promise.all([workspaces(), resolveWorkspace(sp.w), openCounts()]);
   const d = await overview(branch, range);
   const trend = d.trend.mrr.map((p, i) => ({ period: p.period, mrr: p.value, debts: d.trend.open_debts[i].value }));
   const hasTrend = trend.filter(p => p.mrr !== null || p.debts !== null).length >= 2;
@@ -47,13 +64,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="הכנסה חודשית קבועה" icon={<TrendingUp className="size-4" />}
-          value={ils(d.mrr.net)} href="/finance"
+          value={ils(d.mrr.net)} href="/business/adigital?tab=clients"
           hint={d.mrr.gross !== null ? `${ils(d.mrr.gross)} כולל מע״מ · ${d.mrr.clients} לקוחות` : undefined}
           reason="אין ריטיינרים פעילים"
           foot={d.concentration ? <>הלקוח הגדול: {d.concentration.max_pct}% מההכנסה</> : null} />
 
         <KpiCard label="כסף שמחכה לגבייה" icon={<HandCoins className="size-4" />}
-          value={ils(d.receivables.total)} href="/finance"
+          value={ils(d.receivables.total)} href="/business/adigital?tab=collections"
           hint={`${d.receivables.count} יתרות · ${d.receivables.clients} לקוחות`}
           reason="אין יתרות פתוחות"
           foot={d.receivables.oldest_due
@@ -69,7 +86,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             : null} />
 
         <KpiCard label="משימות באיחור" icon={<ListChecks className="size-4" />} amount={false}
-          value={d.tasks ? num(d.tasks.overdue) : null} href="/tasks"
+          value={d.tasks ? num(d.tasks.overdue) : null} href="/personal/tasks"
           hint={d.tasks ? `מתוך ${d.tasks.open} משימות פתוחות` : undefined}
           reason="עוד לא סונכרנו משימות" />
       </div>
@@ -121,20 +138,26 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>העסקים</CardTitle></CardHeader>
-          <CardContent>
-            <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-              {ws.map(w => (
-                <li key={w.branch} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <Link href={`/finance?w=${w.branch}`} className="text-sm font-medium text-ink hover:text-accent">
-                    <bdi>{w.name_he || w.branch}</bdi>
-                  </Link>
-                  {w.entity_count === 0
-                    ? <Badge>אין נתונים עדיין</Badge>
-                    : <span className="text-xs text-muted">{w.entity_count} רשומות · סונכרן {stamp(w.last_synced)}</span>}
-                </li>
-              ))}
-            </ul>
+          <CardHeader><CardTitle>האזורים</CardTitle><span className="text-sm text-muted">משימות פתוחות</span></CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {AREAS.map(a => (
+              <section key={a.title} aria-label={a.title}>
+                <h3 className="mb-1 text-xs font-medium text-muted">{a.title}</h3>
+                <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                  {a.items.map(it => {
+                    const c = counts[it.key];
+                    return (
+                      <li key={it.href} className="flex items-center justify-between gap-3 py-2">
+                        <Link href={it.href} className="text-sm font-medium text-ink hover:text-accent"><bdi>{it.label}</bdi></Link>
+                        {c?.open
+                          ? <span className="text-xs text-muted">{c.open} פתוחות{c.overdue ? <span className="text-critical-ink"> · {c.overdue} באיחור</span> : null}</span>
+                          : <span className="text-xs text-muted">אין משימות פתוחות</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </CardContent>
         </Card>
 
