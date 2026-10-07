@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>לוח בקרה עסקי</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: #f5f7fa;
+      color: #333;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 24px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-small {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid white;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Heebo', sans-serif;
+      transition: all 0.3s;
+    }
+
+    .btn-small:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #ddd;
+    }
+
+    .tab-btn {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      font-family: 'Heebo', sans-serif;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .tab-btn.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    .card h3 {
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-box {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 8px;
+      border-right: 4px solid #667eea;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #333;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 14px;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Heebo', sans-serif;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+
+    .list-item.completed {
+      opacity: 0.6;
+      text-decoration: line-through;
+    }
+
+    .btn-small-action {
+      background: #e74c3c;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.3s;
+    }
+
+    .btn-small-action:hover {
+      background: #c0392b;
+    }
+
+    .btn-mark {
+      background: #27ae60;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 5px;
+      transition: all 0.3s;
+    }
+
+    .btn-mark:hover {
+      background: #229954;
+    }
+
+    .error {
+      color: #e74c3c;
+      padding: 10px;
+      background: #fadbd8;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .success {
+      color: #27ae60;
+      padding: 10px;
+      background: #d5f4e6;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1 id="businessName">עסק</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn-small" onclick="goBack()">חזור לעסקים</button>
+      <button class="btn-small" onclick="logout()">התנתק</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('overview')">סקירה כללית</button>
+      <button class="tab-btn" onclick="switchTab('retainers')">ריטיינרים</button>
+      <button class="tab-btn" onclick="switchTab('debts')">חובות</button>
+      <button class="tab-btn" onclick="switchTab('tasks')">משימות</button>
+      <button class="tab-btn" onclick="switchTab('ledger')">דוח כלכלי</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="overview" class="tab-content active">
+      <div class="card">
+        <h3>📊 סיכום עסקי</h3>
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-label">הכנסה צפויה חודשית</div>
+            <div class="stat-value" id="monthlyRevenue">₪0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">ריטיינרים פעילים</div>
+            <div class="stat-value" id="retainerCount">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">חובות פתוחים</div>
+            <div class="stat-value" id="debtCount">₪0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">משימות לסגירה</div>
+            <div class="stat-value" id="taskCount">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>💰 מצב כלכלי</h3>
+        <div class="stat-row">
+          <div class="stat-box">
+            <div class="stat-label">סה"כ הכנסות</div>
+            <div class="stat-value" id="totalIncome">₪0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">סה"כ הוצאות</div>
+            <div class="stat-value" id="totalExpenses">₪0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">רווח נקי</div>
+            <div class="stat-value" id="netProfit">₪0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retainers Tab -->
+    <div id="retainers" class="tab-content">
+      <div class="card">
+        <h3>➕ הוסף ריטיינר חדש</h3>
+        <div class="error" id="retainerError"></div>
+        <div class="form-group">
+          <label>שם הלקוח</label>
+          <input type="text" id="retainerName" placeholder="שם הלקוח">
+        </div>
+        <div class="form-group">
+          <label>סכום חודשי (₪)</label>
+          <input type="number" id="retainerAmount" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>הערות</label>
+          <textarea id="retainerNote" placeholder="הערות או תנאים מיוחדים" rows="3"></textarea>
+        </div>
+        <button class="btn-primary" onclick="addRetainer()">הוסף ריטיינר</button>
+      </div>
+
+      <div class="card">
+        <h3>📋 ריטיינרים קיימים</h3>
+        <div id="retainersList" class="loading">טוען...</div>
+      </div>
+    </div>
+
+    <!-- Debts Tab -->
+    <div id="debts" class="tab-content">
+      <div class="card">
+        <h3>➕ הוסף חוב חדש</h3>
+        <div class="error" id="debtError"></div>
+        <div class="form-group">
+          <label>שם הלקוח</label>
+          <input type="text" id="debtClient" placeholder="שם הלקוח שחייב">
+        </div>
+        <div class="form-group">
+          <label>סכום (₪)</label>
+          <input type="number" id="debtAmount" placeholder="0">
+        </div>
+        <button class="btn-primary" onclick="addDebt()">הוסף חוב</button>
+      </div>
+
+      <div class="card">
+        <h3>💳 חובות פתוחים</h3>
+        <div id="debtsList" class="loading">טוען...</div>
+      </div>
+    </div>
+
+    <!-- Tasks Tab -->
+    <div id="tasks" class="tab-content">
+      <div class="card">
+        <h3>➕ הוסף משימה חדשה</h3>
+        <div class="error" id="taskError"></div>
+        <div class="form-group">
+          <label>משימה</label>
+          <textarea id="taskName" placeholder="תיאור המשימה" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>עדיפות</label>
+          <select id="taskPriority">
+            <option value="low">נמוכה</option>
+            <option value="medium" selected>בינונית</option>
+            <option value="high">גבוהה</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="addTask()">הוסף משימה</button>
+      </div>
+
+      <div class="card">
+        <h3>✅ משימות פתוחות</h3>
+        <div id="tasksList" class="loading">טוען...</div>
+      </div>
+    </div>
+
+    <!-- Ledger Tab -->
+    <div id="ledger" class="tab-content">
+      <div class="card">
+        <h3>➕ הוסף רשומה חדשה</h3>
+        <div class="error" id="ledgerError"></div>
+        <div class="form-group">
+          <label>סוג</label>
+          <select id="ledgerType">
+            <option value="income">הכנסה</option>
+            <option value="expense">הוצאה</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>תיאור</label>
+          <input type="text" id="ledgerDescription" placeholder="תיאור הרשומה">
+        </div>
+        <div class="form-group">
+          <label>סכום (₪)</label>
+          <input type="number" id="ledgerAmount" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>תאריך</label>
+          <input type="date" id="ledgerDate">
+        </div>
+        <button class="btn-primary" onclick="addLedgerEntry()">הוסף רשומה</button>
+      </div>
+
+      <div class="card">
+        <h3>📊 סיכום חודשי</h3>
+        <div id="ledgerSummary" class="loading">טוען...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const businessId = new URLSearchParams(window.location.search).get('id');
+    const token = localStorage.getItem('token');
+
+    if (!token || !businessId) {
+      window.location.href = '/dashboard.html';
+    }
+
+    // Format currency
+    function formatCurrency(amount) {
+      return '₪' + amount.toLocaleString('he-IL');
+    }
+
+    // Get current date
+    function getTodayDate() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    document.getElementById('ledgerDate').value = getTodayDate();
+
+    // Load business data
+    async function loadBusiness() {
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/retainers`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        document.getElementById('monthlyRevenue').textContent = formatCurrency(data.totalWithVat);
+        document.getElementById('retainerCount').textContent = data.retainers.length;
+        displayRetainers(data.retainers);
+      } catch (err) {
+        console.error('Error loading business:', err);
+      }
+    }
+
+    function displayRetainers(retainers) {
+      const list = document.getElementById('retainersList');
+      if (retainers.length === 0) {
+        list.innerHTML = '<p style="color: #999;">אין ריטיינרים</p>';
+        return;
+      }
+      list.innerHTML = retainers.map(r => `
+        <div class="list-item">
+          <div>
+            <strong>${r.name}</strong><br>
+            <small style="color: #666;">${formatCurrency(r.amount)} + מעמ</small>
+            ${r.note ? `<br><small>${r.note}</small>` : ''}
+          </div>
+          <button class="btn-small-action" onclick="deleteRetainer(${r.id})">מחק</button>
+        </div>
+      `).join('');
+    }
+
+    async function loadDebts() {
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/debts`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        document.getElementById('debtCount').textContent = formatCurrency(data.total);
+        displayDebts(data.debts);
+      } catch (err) {
+        console.error('Error loading debts:', err);
+      }
+    }
+
+    function displayDebts(debts) {
+      const list = document.getElementById('debtsList');
+      if (debts.length === 0) {
+        list.innerHTML = '<p style="color: #999;">אין חובות פתוחים</p>';
+        return;
+      }
+      list.innerHTML = debts.map(d => `
+        <div class="list-item">
+          <div>
+            <strong>${d.client}</strong><br>
+            <small>${formatCurrency(d.amount)}</small>
+          </div>
+          <button class="btn-mark" onclick="markDebtPaid(${d.id})">סימן כשולם</button>
+        </div>
+      `).join('');
+    }
+
+    async function loadTasks() {
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/tasks`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        document.getElementById('taskCount').textContent = data.count;
+        displayTasks(data.tasks);
+      } catch (err) {
+        console.error('Error loading tasks:', err);
+      }
+    }
+
+    function displayTasks(tasks) {
+      const list = document.getElementById('tasksList');
+      if (tasks.length === 0) {
+        list.innerHTML = '<p style="color: #999;">אין משימות פתוחות</p>';
+        return;
+      }
+      list.innerHTML = tasks.map(t => `
+        <div class="list-item">
+          <div>
+            <strong>${t.task}</strong><br>
+            <small style="color: #666; margin-top: 5px;">עדיפות: ${t.priority}</small>
+          </div>
+          <div>
+            <button class="btn-mark" onclick="completeTask(${t.id})">הושלם</button>
+            <button class="btn-small-action" onclick="deleteTask(${t.id})">מחק</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadLedger() {
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/ledger/summary`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        document.getElementById('totalIncome').textContent = formatCurrency(data.income);
+        document.getElementById('totalExpenses').textContent = formatCurrency(data.expenses);
+        document.getElementById('netProfit').textContent = formatCurrency(data.net);
+        document.getElementById('ledgerSummary').innerHTML = `
+          <div class="stat-row">
+            <div class="stat-box">
+              <div class="stat-label">סה"כ הכנסות</div>
+              <div class="stat-value">${formatCurrency(data.income)}</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">סה"כ הוצאות</div>
+              <div class="stat-value">${formatCurrency(data.expenses)}</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">רווח נקי</div>
+              <div class="stat-value">${formatCurrency(data.net)}</div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error('Error loading ledger:', err);
+      }
+    }
+
+    async function addRetainer() {
+      const name = document.getElementById('retainerName').value;
+      const amount = parseInt(document.getElementById('retainerAmount').value);
+      const note = document.getElementById('retainerNote').value;
+      const errorEl = document.getElementById('retainerError');
+
+      if (!name || !amount) {
+        errorEl.textContent = 'אנא מלא את כל השדות הנדרשים';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/retainers`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, amount, note })
+        });
+
+        if (!response.ok) throw new Error('Failed to add retainer');
+
+        document.getElementById('retainerName').value = '';
+        document.getElementById('retainerAmount').value = '';
+        document.getElementById('retainerNote').value = '';
+        errorEl.style.display = 'none';
+        loadBusiness();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function addDebt() {
+      const client = document.getElementById('debtClient').value;
+      const amount = parseInt(document.getElementById('debtAmount').value);
+      const errorEl = document.getElementById('debtError');
+
+      if (!client || !amount) {
+        errorEl.textContent = 'אנא מלא את כל השדות הנדרשים';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/debts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ client, amount })
+        });
+
+        if (!response.ok) throw new Error('Failed to add debt');
+
+        document.getElementById('debtClient').value = '';
+        document.getElementById('debtAmount').value = '';
+        errorEl.style.display = 'none';
+        loadDebts();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function addTask() {
+      const task = document.getElementById('taskName').value;
+      const priority = document.getElementById('taskPriority').value;
+      const errorEl = document.getElementById('taskError');
+
+      if (!task) {
+        errorEl.textContent = 'אנא תאר את המשימה';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/tasks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ task, priority })
+        });
+
+        if (!response.ok) throw new Error('Failed to add task');
+
+        document.getElementById('taskName').value = '';
+        document.getElementById('taskPriority').value = 'medium';
+        errorEl.style.display = 'none';
+        loadTasks();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function addLedgerEntry() {
+      const type = document.getElementById('ledgerType').value;
+      const description = document.getElementById('ledgerDescription').value;
+      const amount = parseInt(document.getElementById('ledgerAmount').value);
+      const date = document.getElementById('ledgerDate').value;
+      const errorEl = document.getElementById('ledgerError');
+
+      if (!description || !amount) {
+        errorEl.textContent = 'אנא מלא את כל השדות הנדרשים';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/businesses/${businessId}/ledger`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ type, description, amount, date })
+        });
+
+        if (!response.ok) throw new Error('Failed to add entry');
+
+        document.getElementById('ledgerDescription').value = '';
+        document.getElementById('ledgerAmount').value = '';
+        document.getElementById('ledgerDate').value = getTodayDate();
+        errorEl.style.display = 'none';
+        loadLedger();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function markDebtPaid(debtId) {
+      try {
+        await fetch(`/api/businesses/${businessId}/debts/${debtId}/paid`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadDebts();
+      } catch (err) {
+        console.error('Error marking debt as paid:', err);
+      }
+    }
+
+    async function completeTask(taskId) {
+      try {
+        await fetch(`/api/businesses/${businessId}/tasks/${taskId}/complete`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadTasks();
+      } catch (err) {
+        console.error('Error completing task:', err);
+      }
+    }
+
+    async function deleteRetainer(retainerId) {
+      if (!confirm('בטוח שרוצה למחוק?')) return;
+      try {
+        await fetch(`/api/businesses/${businessId}/retainers/${retainerId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadBusiness();
+      } catch (err) {
+        console.error('Error deleting retainer:', err);
+      }
+    }
+
+    async function deleteTask(taskId) {
+      if (!confirm('בטוח שרוצה למחוק?')) return;
+      try {
+        await fetch(`/api/businesses/${businessId}/tasks/${taskId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        loadTasks();
+      } catch (err) {
+        console.error('Error deleting task:', err);
+      }
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function goBack() {
+      window.location.href = '/dashboard.html';
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('currentBusinessId');
+      window.location.href = '/';
+    }
+
+    // Initial load
+    loadBusiness();
+    loadDebts();
+    loadTasks();
+    loadLedger();
+  </script>
+</body>
+</html>

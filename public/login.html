@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>כניסה - לוח בקרה כלל-ב-אחד</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #eee;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      font-family: 'Heebo', sans-serif;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .tab-btn.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 16px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-family: 'Heebo', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      background: #5568d3;
+    }
+
+    .error {
+      color: #e74c3c;
+      padding: 10px;
+      background: #fadbd8;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .success {
+      color: #27ae60;
+      padding: 10px;
+      background: #d5f4e6;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 לוח בקרה כלל-ב-אחד</h1>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('login')">כניסה</button>
+      <button class="tab-btn" onclick="showTab('register')">הרשמה</button>
+    </div>
+
+    <!-- Login Tab -->
+    <div id="login" class="tab-content active">
+      <div class="error" id="loginError"></div>
+      <div class="success" id="loginSuccess"></div>
+
+      <div class="form-group">
+        <label>אימייל</label>
+        <input type="email" id="loginEmail" placeholder="your@email.com">
+      </div>
+
+      <div class="form-group">
+        <label>סיסמה</label>
+        <input type="password" id="loginPassword" placeholder="••••••••">
+      </div>
+
+      <button onclick="login()">כנס</button>
+    </div>
+
+    <!-- Register Tab -->
+    <div id="register" class="tab-content">
+      <div class="error" id="registerError"></div>
+      <div class="success" id="registerSuccess"></div>
+
+      <div class="form-group">
+        <label>שם מלא</label>
+        <input type="text" id="registerName" placeholder="שם שלך">
+      </div>
+
+      <div class="form-group">
+        <label>אימייל</label>
+        <input type="email" id="registerEmail" placeholder="your@email.com">
+      </div>
+
+      <div class="form-group">
+        <label>סיסמה</label>
+        <input type="password" id="registerPassword" placeholder="••••••••">
+      </div>
+
+      <button onclick="register()">הירשם</button>
+    </div>
+  </div>
+
+  <script>
+    function showTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    async function login() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const errorEl = document.getElementById('loginError');
+      const successEl = document.getElementById('loginSuccess');
+
+      if (!email || !password) {
+        errorEl.textContent = 'אנא מלא את כל השדות';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          errorEl.textContent = data.error || 'שגיאה בהתחברות';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+        successEl.textContent = 'כניסה בהצלחה! מעביר אותך...';
+        successEl.style.display = 'block';
+
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1500);
+      } catch (err) {
+        errorEl.textContent = 'שגיאה בחיבור לשרת';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function register() {
+      const name = document.getElementById('registerName').value;
+      const email = document.getElementById('registerEmail').value;
+      const password = document.getElementById('registerPassword').value;
+      const errorEl = document.getElementById('registerError');
+      const successEl = document.getElementById('registerSuccess');
+
+      if (!name || !email || !password) {
+        errorEl.textContent = 'אנא מלא את כל השדות';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          errorEl.textContent = data.error || 'שגיאה בהרשמה';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+        successEl.textContent = 'הרשמה בהצלחה! מעביר אותך...';
+        successEl.style.display = 'block';
+
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1500);
+      } catch (err) {
+        errorEl.textContent = 'שגיאה בחיבור לשרת';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    // Check if already logged in
+    if (localStorage.getItem('token')) {
+      window.location.href = '/dashboard.html';
+    }
+  </script>
+</body>
+</html>

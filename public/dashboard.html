@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>לוח בקרה כלל-ב-אחד</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: #f5f7fa;
+      color: #333;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 24px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .logout-btn {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid white;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Heebo', sans-serif;
+      transition: all 0.3s;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    .businesses-section {
+      display: none;
+    }
+
+    .businesses-section.active {
+      display: block;
+    }
+
+    .businesses-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .business-card {
+      background: white;
+      border-radius: 10px;
+      padding: 25px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      cursor: pointer;
+      transition: all 0.3s;
+      border-left: 4px solid #667eea;
+    }
+
+    .business-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+
+    .business-card h3 {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .business-type {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      margin-bottom: 15px;
+    }
+
+    .new-business-btn {
+      background: white;
+      border-radius: 10px;
+      padding: 25px;
+      text-align: center;
+      border: 2px dashed #667eea;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .new-business-btn:hover {
+      background: #f0f2ff;
+    }
+
+    .new-business-btn h3 {
+      color: #667eea;
+      font-size: 20px;
+      margin-top: 10px;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 10px;
+      padding: 40px;
+      width: 90%;
+      max-width: 500px;
+    }
+
+    .modal-content h2 {
+      margin-bottom: 25px;
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 500;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 16px;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 25px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-family: 'Heebo', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+
+    .btn-secondary {
+      background: #eee;
+      color: #333;
+    }
+
+    .btn-secondary:hover {
+      background: #ddd;
+    }
+
+    .error {
+      color: #e74c3c;
+      padding: 10px;
+      background: #fadbd8;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .success {
+      color: #27ae60;
+      padding: 10px;
+      background: #d5f4e6;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎯 לוח בקרה כלל-ב-אחד</h1>
+    <div class="user-info">
+      <span id="userName">משתמש</span>
+      <button class="logout-btn" onclick="logout()">התנתק</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="businesses-section active">
+      <h2 style="margin-bottom: 20px; color: #333;">העסקים שלי</h2>
+      <div class="businesses-grid" id="businessesGrid">
+        <!-- Business cards will be loaded here -->
+      </div>
+
+      <div class="new-business-btn" onclick="openNewBusinessModal()">
+        <div style="font-size: 40px;">➕</div>
+        <h3>הוסף עסק חדש</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Business Modal -->
+  <div class="modal" id="newBusinessModal">
+    <div class="modal-content">
+      <h2>עסק חדש</h2>
+      <div class="error" id="businessError"></div>
+
+      <div class="form-group">
+        <label>שם העסק</label>
+        <input type="text" id="businessName" placeholder="לדוגמה: משרד פרסום">
+      </div>
+
+      <div class="form-group">
+        <label>סוג עסק</label>
+        <select id="businessType">
+          <option value="advertising">משרד פרסום</option>
+          <option value="ospa">OSPA</option>
+          <option value="personal">אישי</option>
+          <option value="entrepreneurship">יזמות</option>
+          <option value="other">אחר</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>סיסמת עסק (אופציונלי)</label>
+        <input type="password" id="businessPassword" placeholder="סיסמה לגישה לעסק">
+      </div>
+
+      <div class="form-buttons">
+        <button class="btn btn-primary" onclick="createBusiness()">צור</button>
+        <button class="btn btn-secondary" onclick="closeNewBusinessModal()">בטל</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function loadBusinesses() {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user'));
+
+      if (!token) {
+        window.location.href = '/';
+        return;
+      }
+
+      document.getElementById('userName').textContent = user.name || user.email;
+
+      try {
+        const response = await fetch('/api/businesses', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await response.json();
+        displayBusinesses(data.businesses);
+      } catch (err) {
+        console.error('Error loading businesses:', err);
+      }
+    }
+
+    function displayBusinesses(businesses) {
+      const grid = document.getElementById('businessesGrid');
+      grid.innerHTML = '';
+
+      businesses.forEach(business => {
+        const card = document.createElement('div');
+        card.className = 'business-card';
+        card.innerHTML = `
+          <div class="business-type">${getBusinessTypeLabel(business.type)}</div>
+          <h3>${business.name}</h3>
+          <p style="color: #666; font-size: 14px;">נוצר: ${new Date(business.created_at).toLocaleDateString('he-IL')}</p>
+        `;
+        card.onclick = () => openBusiness(business.id);
+        grid.appendChild(card);
+      });
+    }
+
+    function getBusinessTypeLabel(type) {
+      const labels = {
+        advertising: 'משרד פרסום',
+        ospa: 'OSPA',
+        personal: 'אישי',
+        entrepreneurship: 'יזמות',
+        other: 'אחר'
+      };
+      return labels[type] || type;
+    }
+
+    function openNewBusinessModal() {
+      document.getElementById('newBusinessModal').classList.add('active');
+    }
+
+    function closeNewBusinessModal() {
+      document.getElementById('newBusinessModal').classList.remove('active');
+      document.getElementById('businessName').value = '';
+      document.getElementById('businessType').value = 'advertising';
+      document.getElementById('businessPassword').value = '';
+      document.getElementById('businessError').style.display = 'none';
+    }
+
+    async function createBusiness() {
+      const name = document.getElementById('businessName').value;
+      const type = document.getElementById('businessType').value;
+      const password = document.getElementById('businessPassword').value;
+      const errorEl = document.getElementById('businessError');
+      const token = localStorage.getItem('token');
+
+      if (!name) {
+        errorEl.textContent = 'אנא הכנס שם עסק';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/businesses', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, type, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          errorEl.textContent = data.error || 'שגיאה ביצירת עסק';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        closeNewBusinessModal();
+        loadBusinesses();
+      } catch (err) {
+        errorEl.textContent = 'שגיאה בחיבור לשרת';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    function openBusiness(businessId) {
+      localStorage.setItem('currentBusinessId', businessId);
+      window.location.href = `/business.html?id=${businessId}`;
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('currentBusinessId');
+      window.location.href = '/';
+    }
+
+    // Load businesses on page load
+    loadBusinesses();
+  </script>
+</body>
+</html>
