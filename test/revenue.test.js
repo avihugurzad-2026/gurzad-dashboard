@@ -60,3 +60,12 @@ test('fetch sends the key in X-API-Key, never in the URL, and never asks for tra
   assert.match(seen.url, /months=3&include=summary%2Cmonthly$/);
   await assert.rejects(r.fetchBuyz({ key: '', query: {}, fetchImpl }), /BUYZ_API_KEY/);
 });
+
+test('normalizeBuyz: leading zero months (before opening) are dropped, later zero months kept', () => {
+  const n = r.normalizeBuyz({ success: true, supplier: { id: 1 }, monthly: [
+    { month: '2025-01', revenue_total: 0, count: 0 },
+    { month: '2025-02', revenue_total: 500, count: 2 },
+    { month: '2025-03', revenue_total: 0, count: 0 },
+  ] });
+  assert.deepEqual(n.months.map(m => m.month), ['2025-02-01', '2025-03-01']);
+});
