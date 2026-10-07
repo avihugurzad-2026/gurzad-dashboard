@@ -1,8 +1,20 @@
 -- Migration: external revenue sources (Buyz for Head Spa Israel). Only creates new tables
 -- and inserts new rows; nothing existing is altered or dropped.
 --
--- Hierarchy: business (domain) → head-spa-israel (branch) → location (a spa, e.g. Modiin).
--- One Buyz supplier account = one location. A new spa = one more revenue_sources row.
+-- Hierarchy: domain (business / personal / ventures) → branch (adigital, head-spa-israel, …)
+-- → location (a spa: Modiin, Jerusalem, …). A new spa = one `locations` row, no schema change.
+-- One Buyz supplier account = one location (revenue_sources). A location may have no source yet.
+
+CREATE TABLE IF NOT EXISTS locations (
+  domain    text    NOT NULL,
+  branch    text    NOT NULL,
+  location  text    NOT NULL,
+  name_he   text    NOT NULL,
+  active    boolean NOT NULL DEFAULT true,
+  sort      int,
+  PRIMARY KEY (branch, location),
+  FOREIGN KEY (domain, branch) REFERENCES branches (domain, branch)
+);
 
 CREATE TABLE IF NOT EXISTS revenue_sources (
   source          text    NOT NULL,                 -- 'buyz'
@@ -14,7 +26,8 @@ CREATE TABLE IF NOT EXISTS revenue_sources (
   amounts_include_vat boolean NOT NULL,             -- confirmed by avihu 2026-10-07 for Buyz
   active          boolean NOT NULL DEFAULT true,
   PRIMARY KEY (source, source_account),
-  FOREIGN KEY (domain, branch) REFERENCES branches (domain, branch)
+  FOREIGN KEY (domain, branch) REFERENCES branches (domain, branch),
+  FOREIGN KEY (branch, location) REFERENCES locations (branch, location)
 );
 
 -- Monthly revenue per location, as reported by the source (incl. VAT for Buyz).
@@ -47,9 +60,15 @@ CREATE TABLE IF NOT EXISTS revenue_monthly_history (
   replaced_at     timestamptz   NOT NULL DEFAULT now()
 );
 
+ALTER TABLE locations               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE revenue_sources         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE revenue_monthly         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE revenue_monthly_history ENABLE ROW LEVEL SECURITY;
+
+INSERT INTO locations (domain, branch, location, name_he, sort) VALUES
+  ('business', 'head-spa-israel', 'modiin',    'מודיעין', 1),
+  ('business', 'head-spa-israel', 'jerusalem', 'ירושלים', 2)   -- no activity yet, no Buyz account
+ON CONFLICT DO NOTHING;
 
 INSERT INTO revenue_sources (source, source_account, domain, branch, location, name_he, amounts_include_vat)
 VALUES ('buyz', '1', 'business', 'head-spa-israel', 'modiin', 'ספא ראש מודיעין', true)

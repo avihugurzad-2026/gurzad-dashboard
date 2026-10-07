@@ -13,7 +13,7 @@ export type Basis = 'all' | 'mine';
 export const parseBasis = (v: unknown): Basis => (v === 'mine' ? 'mine' : 'all');
 
 export type OspaMonth = { month: string; incl_vat: number; ex_vat: number | null; tx_count: number | null };
-export type OspaLocation = { location: string; name_he: string; months: OspaMonth[]; last_fetched: string | null };
+export type OspaLocation = { location: string; name_he: string; connected: boolean; months: OspaMonth[]; last_fetched: string | null };
 
 const BRANCH = 'head-spa-israel';
 
@@ -32,15 +32,17 @@ export async function ospa(basis: Basis) {
   let locations: OspaLocation[] = [];
   try {
     const { rows } = await db().query(`
-      SELECT s.location, s.name_he, to_char(m.month, 'YYYY-MM-DD') AS month,
+      SELECT l.location, l.name_he, (s.source IS NOT NULL) AS connected,
+             to_char(m.month, 'YYYY-MM-DD') AS month,
              m.revenue_total::float AS incl_vat, m.tx_count, m.fetched_at
-      FROM revenue_sources s
-      LEFT JOIN revenue_monthly m USING (source, source_account)
-      WHERE s.branch = $1 AND s.active AND (m.month IS NULL OR m.month >= $2::date)
-      ORDER BY s.location, m.month`, [BRANCH, `${addDays(today, -366).slice(0, 7)}-01`]);
+      FROM locations l
+      LEFT JOIN revenue_sources s ON s.branch = l.branch AND s.location = l.location AND s.active
+      LEFT JOIN revenue_monthly m ON m.source = s.source AND m.source_account = s.source_account AND m.month >= $2::date
+      WHERE l.branch = $1 AND l.active
+      ORDER BY l.sort NULLS LAST, l.location, m.month`, [BRANCH, `${addDays(today, -366).slice(0, 7)}-01`]);
     const byLoc = new Map<string, OspaLocation>();
     for (const r of rows) {
-      const loc: OspaLocation = byLoc.get(r.location) ?? { location: r.location, name_he: r.name_he, months: [], last_fetched: null };
+      const loc: OspaLocation = byLoc.get(r.location) ?? { location: r.location, name_he: r.name_he, connected: r.connected, months: [], last_fetched: null };
       if (r.month) {
         loc.months.push({ month: r.month, incl_vat: r.incl_vat, ex_vat: exVat(r.incl_vat, paramsLib.vatRateAt(params, r.month)), tx_count: r.tx_count });
         const f = new Date(r.fetched_at).toISOString();
@@ -89,7 +91,7 @@ export async function ospa(basis: Basis) {
     today, basis, share, vat_rate: vatNow, ready,
     live_error: live.ok ? null : BUYZ_ERROR[live.reason],
     fetched_at: live.ok ? live.fetched_at : null,
-    locations: locations.map(l => ({ location: l.location, name_he: l.name_he, last_fetched: l.last_fetched })),
+    locations: locations.map(l => ({ location: l.location, name_he: l.name_he, connected: l.connected, has_data: l.months.length > 0, last_fetched: l.last_fetched })),
     monthly,
     this_month: liveScaled?.revenue_ex ?? pick(thisMonth)?.ex_vat ?? null,
     this_month_incl: liveScaled?.revenue_incl ?? pick(thisMonth)?.incl_vat ?? null,

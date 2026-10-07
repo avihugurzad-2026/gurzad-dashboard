@@ -52,10 +52,18 @@ export default async function OspaPage({ searchParams }: { searchParams: Promise
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-xl font-semibold">הד ספא ישראל</h1>
-          <p className="text-sm text-muted">
-            {d.locations.length ? d.locations.map(l => l.name_he).join(' · ') : 'אין סניפים מחוברים'}
-            {' · '}הכנסה לפני מע״מ{vatPct ? ` (${vatPct})` : ''}, מתוך Buyz
-          </p>
+          <p className="text-sm text-muted">עסקי · הכנסה לפני מע״מ{vatPct ? ` (${vatPct})` : ''}, מתוך Buyz</p>
+          {d.locations.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="סניפים">
+              {d.locations.map(l => (
+                <li key={l.location}>
+                  <Badge tone={l.has_data ? 'good' : undefined}>
+                    סניף {l.name_he}{l.has_data ? '' : l.connected ? ' · אין נתונים עדיין' : ' · לא מחובר עדיין'}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <BasisToggle basis={d.basis} share={d.share} />
