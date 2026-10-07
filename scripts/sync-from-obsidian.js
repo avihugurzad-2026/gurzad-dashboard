@@ -62,6 +62,10 @@ function stripBidi(s) {
 function deepStripBidi(v) {
   if (typeof v === 'string') return stripBidi(v);
   if (Array.isArray(v))      return v.map(deepStripBidi);
+  // js-yaml auto-parses bare YAML dates into Date objects.
+  // Date has no enumerable own-props, so the generic object branch returns {}.
+  // Convert to ISO date string (js-yaml uses UTC midnight, so split('T')[0] is safe).
+  if (v instanceof Date)     return v.toISOString().split('T')[0];
   if (v && typeof v === 'object') {
     const o = {};
     for (const [k, val] of Object.entries(v)) o[k] = deepStripBidi(val);
@@ -395,7 +399,10 @@ async function run() {
       }
 
       // Compute allocation_required
-      const issueDate = fm.issue_date ?? fm.date ?? new Date().toISOString().split('T')[0];
+      // deepStripBidi already converted any Date objects to ISO date strings.
+      // Normalise to string just in case a Date somehow survived.
+      const rawDate  = fm.issue_date ?? fm.date ?? new Date().toISOString().split('T')[0];
+      const issueDate = rawDate instanceof Date ? rawDate.toISOString().split('T')[0] : String(rawDate);
       const threshold = await getThresholdInTx(client, issueDate);
       const amountNet = parseFloat(fm.amount_net ?? fm.monthly_fee_net ?? 0);
       const allocationRequired = amountNet > 0 && amountNet > threshold;
