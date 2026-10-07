@@ -3,7 +3,10 @@ import { finance } from '@/server/data';
 import { goalsFor, openCounts } from '@/server/entries';
 import { ils, num } from '@/lib/format';
 import { KpiCard } from '@/components/dash/kpi-card';
-import { DebtsTable, RetainersTable } from '@/components/dash/finance-tables';
+import { RetainersTable } from '@/components/dash/finance-tables';
+import { ReceivablesTable } from '@/components/finance/receivables-table';
+import { parseReceivableFilter, receivables } from '@/server/finance';
+import { requirePlace } from '@/server/auth';
 import { Tabs, pickTab } from '@/components/shell/tabs';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
@@ -16,8 +19,17 @@ const PLACE = { domain: 'business', branch: 'adigital', location: null } as cons
 const TABS = ['overview', 'tasks', 'clients', 'collections', 'goals'] as const;
 
 export default async function AdigitalPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const tab = pickTab((await searchParams).tab, TABS);
-  const [d, counts, g] = await Promise.all([finance('adigital'), openCounts(), goalsFor(PLACE)]);
+  const sp = await searchParams;
+  const tab = pickTab(sp.tab, TABS);
+  const u = await requirePlace({ domain: 'business', branch: 'adigital' });
+  const rf = parseReceivableFilter(sp.rf);
+  const [d, counts, g, rec] = await Promise.all([finance('adigital'), openCounts(), goalsFor(PLACE), receivables(u, rf, PLACE)]);
+  // Money owed: dashboard receivables (open part) + open vault debts. null only when neither has anything.
+  const owed = rec.open_total === null && d.debt_total === null ? null : (rec.open_total ?? 0) + (d.debt_total ?? 0);
+  const openRec = rec.counts.all - rec.counts.paid;
+  const collections = (tabKey: string) => (
+    <ReceivablesTable d={rec} vault={d} base={BASE} place="business|adigital|" extraQuery={`tab=${tabKey}`} />
+  );
   const open = counts['business/adigital'];
   const activeGoals = g.goals.filter(x => x.status === 'active').length;
 
@@ -31,7 +43,7 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
         { key: 'overview', label: 'סקירה' },
         { key: 'tasks', label: 'משימות', count: open?.open },
         { key: 'clients', label: 'לקוחות', count: d.retainers.length },
-        { key: 'collections', label: 'גבייה', count: d.debts.length },
+        { key: 'collections', label: 'גבייה', count: openRec + d.debts.length },
         { key: 'goals', label: 'יעדים', count: activeGoals },
       ]} />
 
@@ -40,8 +52,8 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard label="הכנסה חודשית קבועה" icon={<TrendingUp className="size-4" />} value={ils(d.mrr)} href={`${BASE}?tab=clients`}
               hint={d.mrr_gross !== null ? `${ils(d.mrr_gross)} כולל מע״מ` : undefined} reason="אין ריטיינרים פעילים" />
-            <KpiCard label="כסף שמחכה לגבייה" icon={<HandCoins className="size-4" />} value={ils(d.debt_total)} href={`${BASE}?tab=collections`}
-              hint={`${d.debts.length} יתרות`} reason="אין יתרות פתוחות" />
+            <KpiCard label="כסף שמחכה לגבייה" icon={<HandCoins className="size-4" />} value={ils(owed)} href={`${BASE}?tab=collections`}
+              hint={`${openRec + d.debts.length} יתרות${rec.counts.overdue ? ` · ${rec.counts.overdue} באיחור` : ''}`} reason="אין יתרות פתוחות" />
             <KpiCard label="לקוחות פעילים" icon={<Users className="size-4" />} amount={false} href={`${BASE}?tab=clients`}
               value={d.retainers.length ? num(d.retainers.length) : null}
               hint={d.concentration ? `הלקוח הגדול: ${d.concentration.max_pct}% מההכנסה` : undefined} reason="אין ריטיינרים פעילים" />
@@ -52,13 +64,13 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
           </div>
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
             <TaskBoard place={PLACE} path={BASE} title="משימות a-digital" />
-            <DebtsTable d={d} />
+            {collections('overview')}
           </div>
         </>
       )}
       {tab === 'tasks' && <TaskBoard place={PLACE} path={BASE} title="משימות a-digital" />}
       {tab === 'clients' && <RetainersTable d={d} />}
-      {tab === 'collections' && <DebtsTable d={d} />}
+      {tab === 'collections' && collections('collections')}
       {tab === 'goals' && <GoalsPanel place={PLACE} path={BASE} title="יעדי a-digital" />}
     </div>
   );

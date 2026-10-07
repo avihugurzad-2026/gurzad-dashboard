@@ -1,5 +1,5 @@
 import { Target } from 'lucide-react';
-import { goalsFor, PEOPLE, type Place } from '@/server/entries';
+import { goalsFor, type Place } from '@/server/entries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { GoalForm } from './goal-form';
@@ -18,7 +18,7 @@ export async function GoalsPanel({ place, path, title = 'יעדים', defaultUni
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {ready ? <GoalForm domain={place.domain} branch={place.branch} location={place.location} path={path}
-          defaultUnit={defaultUnit} owners={withOwner ? PEOPLE : undefined} /> : <NotReady what="יעדים" />}
+          defaultUnit={defaultUnit} owners={withOwner} /> : <NotReady what="יעדים" />}
         {goals.length === 0 ? (
           <Empty icon={<Target className="size-6" />} title="עוד אין יעדים">יעד עם מספר ותאריך יופיע כאן עם פס התקדמות.</Empty>
         ) : (

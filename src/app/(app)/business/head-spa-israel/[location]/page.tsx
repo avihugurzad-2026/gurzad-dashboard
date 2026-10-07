@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { requirePlace } from '@/server/auth';
 import { PlugZap } from 'lucide-react';
 import { ospa, parseBasis } from '@/server/revenue';
 import { goalsFor, openCounts } from '@/server/entries';
@@ -24,6 +25,7 @@ export default async function BranchPage({ params, searchParams }: {
 }) {
   const [{ location }, sp] = await Promise.all([params, searchParams]);
   if (!/^[a-z0-9-]{1,40}$/.test(location)) notFound();
+  await requirePlace({ domain: 'business', branch: 'head-spa-israel', location });
   const tab = pickTab(sp.tab, TABS);
   const d = await ospa(parseBasis(sp.basis), location);
   const loc = d.locations[0];

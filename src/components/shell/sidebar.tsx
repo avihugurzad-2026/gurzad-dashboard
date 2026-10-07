@@ -4,15 +4,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Activity, Bell, Briefcase, Building2, CalendarDays, CalendarClock, ChartColumn, ChevronDown, ClipboardCheck, Gauge, House, Inbox,
-  MapPin, Rocket, Search, Settings, Sparkles, User, UserRound,
+  MapPin, Rocket, Search, Settings, Sparkles, Target, User, UserRound, Wallet,
 } from 'lucide-react';
 import { NAV_AREAS, NAV_BOTTOM, NAV_TOOLS, NAV_TOP, type NavItem } from './nav';
+import { useSession } from './session-context';
 import { cn } from '@/lib/utils';
 
 const ICONS = {
   home: House, today: CalendarClock, calendar: CalendarDays, inbox: Inbox, personal: UserRound, ventures: Rocket, business: Building2,
   agency: Briefcase, spa: Sparkles, branch: MapPin, chart: ChartColumn, review: ClipboardCheck, scorecard: Gauge, health: Activity,
-  search: Search, bell: Bell, settings: Settings, profile: User,
+  search: Search, bell: Bell, settings: Settings, profile: User, money: Wallet, goal: Target,
 } as const;
 
 export type Counts = { inbox: number; alerts: number };
@@ -60,28 +61,41 @@ function Tree({ items, depth = 0, ...rest }: { items: NavItem[]; depth?: number;
   );
 }
 
+// Only the links this user may open (the pages check again on the server)
+function allowedOnly(items: NavItem[], hrefs: Set<string> | null): NavItem[] {
+  if (!hrefs) return items;
+  return items.filter(i => hrefs.has(i.href)).map(i => (i.children ? { ...i, children: allowedOnly(i.children, hrefs) } : i));
+}
+
 export function SidebarNav({ collapsed = false, counts, onNavigate }: { collapsed?: boolean; counts: Counts; onNavigate?: () => void }) {
   const path = usePathname();
-  const [tools, setTools] = useState(NAV_TOOLS.some(t => path.startsWith(t.href)));
+  const session = useSession();
+  const hrefs = session ? new Set(session.hrefs) : null;
+  const areas = allowedOnly(NAV_AREAS, hrefs), tools = allowedOnly(NAV_TOOLS, hrefs);
+  const [showTools, setTools] = useState(NAV_TOOLS.some(t => path.startsWith(t.href)));
   const props = { path, collapsed, counts, onNavigate };
   return (
     <nav aria-label="ניווט ראשי" className="flex flex-1 flex-col gap-5">
-      <Tree items={NAV_TOP} {...props} />
-      <div>
-        {!collapsed && <p className="mb-1 px-3 text-xs font-medium text-muted">אזורים</p>}
-        <Tree items={NAV_AREAS} {...props} />
-      </div>
-      <div>
-        {!collapsed && (
-          <button type="button" onClick={() => setTools(t => !t)} aria-expanded={tools}
-            className="mb-1 flex w-full items-center justify-between px-3 text-xs font-medium text-muted hover:text-ink">
-            כלים<ChevronDown className={cn('size-3.5 transition-transform', tools && 'rotate-180')} aria-hidden />
-          </button>
-        )}
-        {(tools || collapsed) && <Tree items={NAV_TOOLS} {...props} />}
-      </div>
+      <Tree items={allowedOnly(NAV_TOP, hrefs)} {...props} />
+      {areas.length > 0 && (
+        <div>
+          {!collapsed && <p className="mb-1 px-3 text-xs font-medium text-muted">אזורים</p>}
+          <Tree items={areas} {...props} />
+        </div>
+      )}
+      {tools.length > 0 && (
+        <div>
+          {!collapsed && (
+            <button type="button" onClick={() => setTools(t => !t)} aria-expanded={showTools}
+              className="mb-1 flex w-full items-center justify-between px-3 text-xs font-medium text-muted hover:text-ink">
+              כלים<ChevronDown className={cn('size-3.5 transition-transform', showTools && 'rotate-180')} aria-hidden />
+            </button>
+          )}
+          {(showTools || collapsed) && <Tree items={tools} {...props} />}
+        </div>
+      )}
       <div className="mt-auto border-t border-line pt-3">
-        <Tree items={NAV_BOTTOM} {...props} />
+        <Tree items={allowedOnly(NAV_BOTTOM, hrefs)} {...props} />
       </div>
     </nav>
   );

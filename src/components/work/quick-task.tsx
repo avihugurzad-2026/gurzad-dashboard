@@ -6,6 +6,7 @@ import { addTask, type ActionResult } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { categoriesFor, decodePlace, encodePlace, placeFromPath, placeOptions, PRIORITIES, type Place } from '@/lib/places';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/components/shell/session-context';
 import { inputClass } from './fields';
 
 const WHEN = [
@@ -24,22 +25,31 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
   place?: Place; path?: string; autoFocus?: boolean; onSaved?: () => void; className?: string;
 }) {
   const pathname = usePathname();
-  const context = place ?? placeFromPath(pathname);
+  const session = useSession();
+  const options = useMemo(() => {
+    const all = placeOptions();
+    return session ? all.filter(o => session.places.includes(o.value)) : all;
+  }, [session]);
+  // "Context first", but only a place this user may add to
+  const wanted = place ?? placeFromPath(pathname);
+  const context = options.some(o => o.value === encodePlace(wanted)) ? wanted : (options[0]?.place ?? wanted);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(addTask, null);
   const [open, setOpen] = useState(false);
   const [where, setWhere] = useState(encodePlace(context));
   const [when, setWhen] = useState<(typeof WHEN)[number]['key']>('none');
+  const [time, setTime] = useState('');
+  const me = session?.user.id ?? null;
+  const [assignee, setAssignee] = useState(me ?? '');
   const form = useRef<HTMLFormElement>(null);
   const title = useRef<HTMLInputElement>(null);
   const id = useId();
-  const options = useMemo(placeOptions, []);
   const domain = decodePlace(where)?.domain ?? 'personal';
   const cats = categoriesFor(domain);
 
   useEffect(() => { setWhere(encodePlace(context)); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!state?.ok) return;
-    form.current?.reset(); setOpen(false); setWhen('none');
+    form.current?.reset(); setOpen(false); setWhen('none'); setTime(''); setAssignee(me ?? '');
     title.current?.focus(); onSaved?.();
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -91,9 +101,30 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
           ) : dueDate ? <input type="hidden" name="due_date" value={dueDate} /> : null}
           {when !== 'none' && (
             <label className="flex flex-col gap-1 text-xs text-muted">שעה (לא חובה)
-              <input type="time" name="due_time" className={inputClass} />
+              <input type="time" name="due_time" value={time} onChange={e => setTime(e.target.value)} className={inputClass} />
             </label>
           )}
+          {session && session.people.length > 1 && (
+            <label className="flex flex-col gap-1 text-xs text-muted">מי עושה
+              <select name="assigned_to" value={assignee} onChange={e => setAssignee(e.target.value)} className={inputClass}>
+                {session.people.map(p => <option key={p.id} value={p.id}>{p.id === me ? `אני (${p.name})` : p.name}</option>)}
+              </select>
+            </label>
+          )}
+          <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-2 sm:col-span-4">
+            {session && session.people.length > 1 && (
+              <label className="inline-flex items-center gap-1.5">
+                <input key={assignee === me ? 'free' : 'handed'} type="checkbox" name="scope" value="shared"
+                  defaultChecked={assignee !== me} disabled={assignee !== me} className="size-4" />
+                משותף (גם אחרים עם גישה למקום הזה יראו)
+              </label>
+            )}
+            {when !== 'none' && time && (
+              <label className="inline-flex items-center gap-1.5">
+                <input type="checkbox" name="show_in_calendar" className="size-4" />הצג ביומן Google
+              </label>
+            )}
+          </div>
           <div className="col-span-2 flex items-end gap-2 sm:col-span-4">
             <button type="submit" name="mode" value="inbox" disabled={pending}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline">

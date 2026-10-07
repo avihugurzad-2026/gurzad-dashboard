@@ -9,6 +9,7 @@ import { NewButton } from './new-button';
 import { cn } from '@/lib/utils';
 import { ThemeToggle, PrivacyToggle, LogoutButton } from './toggles';
 import { buttonClass } from '@/components/ui/button';
+import { SessionProvider, type ClientSession } from './session-context';
 
 function Brand({ compact }: { compact?: boolean }) {
   return (
@@ -19,7 +20,7 @@ function Brand({ compact }: { compact?: boolean }) {
   );
 }
 
-export function AppShell({ counts, children }: { counts: Counts; children: React.ReactNode }) {
+export function AppShell({ counts, session, children }: { counts: Counts; session: ClientSession; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const path = usePathname();
@@ -31,6 +32,7 @@ export function AppShell({ counts, children }: { counts: Counts; children: React
   });
 
   return (
+    <SessionProvider value={session}>
     <div className={cn('min-h-dvh lg:grid', collapsed ? 'lg:grid-cols-[64px_1fr]' : 'lg:grid-cols-[240px_1fr]')}>
       {/* Desktop sidebar (inline-start = right in RTL), collapsible to icons */}
       <aside className={cn('sticky top-0 hidden h-dvh flex-col gap-5 overflow-y-auto border-e border-line bg-surface py-5 lg:flex', collapsed ? 'px-2' : 'px-3')}>
@@ -76,5 +78,6 @@ export function AppShell({ counts, children }: { counts: Counts; children: React
         </main>
       </div>
     </div>
+    </SessionProvider>
   );
 }

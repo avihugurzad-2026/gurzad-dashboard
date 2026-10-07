@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Scale, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-import { householdMonth, PEOPLE } from '@/server/entries';
+import { requireUser } from '@/server/auth';
+import { householdTransactions } from '@/server/finance';
+import { SPLIT_PEOPLE } from '@/lib/finance';
 import { addDays, todayIL } from '@/lib/period';
 import { ils } from '@/lib/format';
 import { KpiCard } from '@/components/dash/kpi-card';
-import { MoneyForm } from '@/components/work/money-form';
-import { MoneyRow } from '@/components/work/money-row';
+import { HouseholdForm } from '@/components/finance/household-form';
+import { RemoveButton } from '@/components/finance/remove-button';
+import { shortDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { NotReady } from '@/components/work/not-ready';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -24,13 +28,14 @@ const shift = (m: string, n: number) => {
 
 // The shared household book: what came in and what went out, typed in by hand
 export default async function PersonalFinancePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const u = await requireUser();
   const today = todayIL();
   const current = today.slice(0, 7);
   const req = (await searchParams).m;
   const month = req && /^\d{4}-(0[1-9]|1[0-2])$/.test(req) && req <= current ? req : current;
-  const d = await householdMonth(month);
+  const d = await householdTransactions(u, month);
   const balance = d.income !== null || d.expense !== null ? (d.income ?? 0) - (d.expense ?? 0) : null;
-  const ownerName = (id: string) => PEOPLE.find(p => p.id === id)?.name ?? id;
+  const name = (id: string) => SPLIT_PEOPLE.find(p => p.id === id)?.name ?? id;
   const path = month === current ? BASE : `${BASE}?m=${month}`;
   const formDate = month === current ? today : addDays(`${shift(month, 1)}-01`, -1);
   const maxCat = d.by_category[0]?.total ?? 0;
@@ -62,7 +67,7 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
       <Card>
         <CardHeader><CardTitle>רשומה חדשה</CardTitle><span className="text-sm text-muted">הוצאה או הכנסה, בשקלים</span></CardHeader>
         <CardContent>
-          {d.ready ? <MoneyForm path={path} today={formDate} categories={d.categories} owners={PEOPLE} /> : <NotReady what="הכנסות והוצאות" />}
+          {d.ready ? <HouseholdForm path={path} today={formDate} /> : <NotReady what="הכנסות והוצאות" />}
         </CardContent>
       </Card>
 
@@ -82,7 +87,22 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
                     <th scope="col" className="py-2 text-end font-medium">סכום</th>
                     <th scope="col"><span className="sr-only">פעולות</span></th>
                   </tr></thead>
-                  <tbody>{d.entries.map(e => <MoneyRow key={e.id} entry={e} path={path} ownerName={ownerName(e.owner)} />)}</tbody>
+                  <tbody>{d.entries.map(e => (
+                    <tr key={e.id} className="border-b border-line last:border-0">
+                      <td className="py-2 text-xs text-muted whitespace-nowrap">{shortDate(e.occurred_on)}</td>
+                      <th scope="row" className="py-2 text-start font-normal">
+                        <bdi>{e.category_label}</bdi>
+                        {e.description && <span className="block text-xs text-muted"><bdi>{e.description}</bdi></span>}
+                      </th>
+                      <td className="py-2 text-xs text-muted">
+                        {e.splits.length ? e.splits.map(s => `${name(s.user_id)} ${s.share_pct}%`).join(' · ') : name(e.owner_user_id)}
+                      </td>
+                      <td className={cn('py-2 text-end font-medium whitespace-nowrap', e.direction === 'income' ? 'text-good-ink' : 'text-ink')}>
+                        <bdi>{e.direction === 'income' ? '+' : '−'}</bdi><Money value={e.amount_gross} />
+                      </td>
+                      <td className="w-8 py-2 text-end">{e.can_delete && <RemoveButton kind="transaction" id={e.id} path={path} label="מחק רשומה" />}</td>
+                    </tr>
+                  ))}</tbody>
                 </table>
               </div>
             )}
@@ -98,7 +118,7 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
                   {d.by_category.map(c => (
                     <li key={c.category} className="flex flex-col gap-1">
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <bdi className="text-ink-2">{c.category}</bdi>
+                        <bdi className="text-ink-2">{c.label}</bdi>
                         <span className="flex items-center gap-2">
                           {d.expense ? <span className="text-xs text-muted tabular">{Math.round((c.total / d.expense) * 100)}%</span> : null}
                           <Money value={c.total} className="font-medium" />

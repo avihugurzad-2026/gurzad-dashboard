@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { requireUser } from '@/server/auth';
+import { householdTransactions } from '@/server/finance';
 import { ListChecks, Scale, Target } from 'lucide-react';
-import { goalsFor, householdMonth, openCounts, PERSONAL_LISTS } from '@/server/entries';
+import { goalsFor, openCounts, PERSONAL_LISTS } from '@/server/entries';
 import { todayIL } from '@/lib/period';
 import { ils, num } from '@/lib/format';
 import { KpiCard } from '@/components/dash/kpi-card';
@@ -13,7 +15,7 @@ export const dynamic = 'force-dynamic';
 const PLACE = { domain: 'personal', branch: null, location: null } as const;
 
 export default async function PersonalOverview() {
-  const [counts, money, goals] = await Promise.all([openCounts(), householdMonth(todayIL().slice(0, 7)), goalsFor(PLACE)]);
+  const [counts, money, goals] = await Promise.all([openCounts(), requireUser().then(u => householdTransactions(u, todayIL().slice(0, 7))), goalsFor(PLACE)]);
   const balance = money.income !== null || money.expense !== null ? (money.income ?? 0) - (money.expense ?? 0) : null;
   const active = goals.goals.filter(g => g.status === 'active');
   return (

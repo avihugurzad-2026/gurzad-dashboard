@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { requirePlace } from '@/server/auth';
 import { FolderOpen } from 'lucide-react';
 import { branchName, vaultRecords } from '@/server/entries';
 import { stamp } from '@/lib/format';
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ branch: s
 }
 
 export default async function VenturePage({ params }: { params: Promise<{ branch: string }> }) {
+  await requirePlace({ domain: 'ventures', branch: (await params).branch });
   const { branch } = await params;
   if (!/^[a-z0-9-]{1,40}$/.test(branch)) notFound();
   const name = await branchName('ventures', branch);

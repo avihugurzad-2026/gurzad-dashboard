@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requirePlace } from '@/server/auth';
 import { MapPin } from 'lucide-react';
 import { openCounts } from '@/server/entries';
 import { ENTITIES, LOCATIONS } from '@/lib/places';
@@ -9,6 +10,7 @@ export const metadata = { title: 'עסקים — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
 
 export default async function BusinessOverview() {
+  await requirePlace({ domain: 'business' });
   const counts = await openCounts();
   return (
     <div className="flex flex-col gap-5">

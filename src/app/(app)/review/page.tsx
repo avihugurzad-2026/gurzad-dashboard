@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireAdmin } from '@/server/auth';
 import { CircleCheck, Download, OctagonAlert, TriangleAlert } from 'lucide-react';
 import { review } from '@/server/data';
 import { ils, longDate, shortDate, stamp } from '@/lib/format';
@@ -21,6 +22,7 @@ const SCENARIOS = [
 ] as const;
 
 export default async function ReviewPage() {
+  await requireAdmin();
   const d = await review();
   const base = d.forecast.base;
 

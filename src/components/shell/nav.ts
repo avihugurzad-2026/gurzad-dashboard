@@ -6,6 +6,8 @@ export const NAV_TOP: NavItem[] = [
   { href: '/today', label: 'היום', icon: 'today' },
   { href: '/calendar', label: 'לוח שנה', icon: 'calendar' },
   { href: '/inbox', label: 'Inbox', icon: 'inbox', count: 'inbox' },
+  { href: '/finance', label: 'כספים', icon: 'money' },
+  { href: '/goals', label: 'יעדים', icon: 'goal' },
 ];
 
 export const NAV_AREAS: NavItem[] = [

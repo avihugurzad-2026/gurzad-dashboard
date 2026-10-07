@@ -1,5 +1,6 @@
 import { ListChecks } from 'lucide-react';
-import { workItems, PEOPLE } from '@/server/entries';
+import { peopleNames, workItems } from '@/server/entries';
+import { requireUser } from '@/server/auth';
 import type { Place } from '@/lib/places';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
@@ -11,10 +12,14 @@ import { NotReady } from './not-ready';
 export async function TaskBoard({ place, path, title = 'משימות', category, withOwner = false, showContext = false }: {
   place: Place; path: string; title?: string; category?: string | null; withOwner?: boolean; showContext?: boolean;
 }) {
-  const { ready, items } = await workItems({ ...place, category });
+  const [{ ready, items }, names, me] = await Promise.all([workItems({ ...place, category }), peopleNames(), requireUser()]);
   const open = items.filter(i => i.status !== 'done' && i.status !== 'cancelled');
   const overdue = open.filter(i => i.days_past).length;
-  const ownerLabel = (o: string | null) => (withOwner && o ? PEOPLE.find(p => p.id === o)?.name : undefined);
+  // Who does it: shown when it's someone else's, or always on shared lists
+  const ownerLabel = (i: (typeof items)[number]) => {
+    const who = i.assigned_to ?? i.owner;
+    return who && (withOwner || who !== me.id) ? names[who] : undefined;
+  };
 
   return (
     <Card>
@@ -28,7 +33,7 @@ export async function TaskBoard({ place, path, title = 'משימות', category,
           <Empty icon={<ListChecks className="size-6" />} title="אין משימות פתוחות">משימה חדשה נכנסת מהשורה למעלה.</Empty>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-            {items.map(i => <TaskRow key={`${i.source}-${i.id}`} item={i} path={path} ownerLabel={ownerLabel(i.owner)}
+            {items.map(i => <TaskRow key={`${i.source}-${i.id}`} item={i} path={path} ownerLabel={ownerLabel(i)}
               showContext={showContext || (place.domain === 'business' && !place.location && !!i.location)} />)}
           </ul>
         )}

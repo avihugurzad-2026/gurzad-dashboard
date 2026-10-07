@@ -1,13 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { isAuthed } from '@/server/auth';
+import { currentUser } from '@/server/auth';
 import gcal from '@domain/gcal';
 
 export const dynamic = 'force-dynamic';
 
-// Start Google OAuth (calendar.readonly). The state is kept in a short-lived httpOnly cookie.
+// Start Google OAuth for the signed-in user (calendar.events + calendar.readonly). The state is
+// kept in a short-lived httpOnly cookie.
 export async function GET(req: Request) {
-  if (!(await isAuthed())) return NextResponse.redirect(new URL('/login', req.url));
+  if (!(await currentUser())) return NextResponse.redirect(new URL('/login', req.url));
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId || !process.env.GOOGLE_CLIENT_SECRET || !process.env.CALENDAR_TOKEN_KEY) {
     return NextResponse.redirect(new URL('/settings?calendar=not_configured', req.url));

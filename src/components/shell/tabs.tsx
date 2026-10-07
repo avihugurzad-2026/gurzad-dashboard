@@ -6,7 +6,7 @@ export function Tabs({ base, tabs, active }: {
   base: string; active: string; tabs: { key: string; label: string; count?: number | null }[];
 }) {
   return (
-    <nav aria-label="לשוניות" className="-mx-1 overflow-x-auto">
+    <nav aria-label="לשוניות" className="relative -mx-1 overflow-x-auto">
       <ul className="flex min-w-max gap-1 border-b border-line px-1">
         {tabs.map((t, i) => {
           const on = t.key === active;

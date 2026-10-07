@@ -2,10 +2,13 @@
 import { useEffect, useState } from 'react';
 import { CalendarDays, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EventChip } from '@/components/calendar/event-editor';
+import type { CalEvent } from '@/server/calendar';
 
 export type TimelineItem = {
   key: string; kind: 'event' | 'task'; title: string; start: string | null; end: string | null; // Israel "HH:MM"; null = all day / no time
   context?: string | null; place?: string | null; color?: string | null; href?: string | null; done?: boolean;
+  event?: CalEvent; // events: opens the event dialog when inside an EventEditorProvider and writable
 };
 
 const nowHM = () => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Jerusalem' }).format(new Date());
@@ -75,6 +78,7 @@ function Row({ item }: { item: TimelineItem }) {
       </div>
     </div>
   );
+  if (item.event) return <EventChip event={item.event} className="block rounded-md hover:bg-surface-2/60">{body}</EventChip>;
   return item.href
     ? <a href={item.href} target="_blank" rel="noreferrer" className="block rounded-md hover:bg-surface-2/60">{body}</a>
     : body;

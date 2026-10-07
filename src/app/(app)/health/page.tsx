@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireAdmin } from '@/server/auth';
 import { CircleCheck, Info, OctagonAlert, TriangleAlert } from 'lucide-react';
 import { integrity } from '@/server/data';
 import { daysAgo, longDate, stamp } from '@/lib/format';
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
 const DOMAIN: Record<string, string> = { business: 'עסקים', personal: 'אישי', ventures: 'השקעות' };
 
 export default async function HealthPage() {
+  await requireAdmin();
   const d = await integrity();
   const today = todayIL();
 

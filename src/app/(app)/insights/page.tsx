@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { requireAdmin } from '@/server/auth';
 import { CalendarClock, HandCoins, ListChecks, TrendingUp, Wallet } from 'lucide-react';
 import { overview, resolveWorkspace, workspaces } from '@/server/data';
 import { openCounts } from '@/server/entries';
@@ -35,6 +36,7 @@ const AREAS = [
 ];
 
 export default async function OverviewPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  await requireAdmin();
   const sp = await searchParams;
   const range = parseRange(sp.range);
   const [ws, branch, counts] = await Promise.all([workspaces(), resolveWorkspace(sp.w), openCounts()]);

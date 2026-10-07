@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { AlertTriangle, CalendarDays, CircleDollarSign, HandCoins, ListChecks } from 'lucide-react';
 import { agenda } from '@/server/day';
 import { taskGroups, type WorkItem } from '@/server/entries';
-import { num } from '@/lib/format';
+import { ils, num } from '@/lib/format';
+import { requireUser } from '@/server/auth';
+import { monthRevenue, openReceivablesTotal } from '@/server/finance';
 import { todayIL } from '@/lib/period';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { GreetingClock } from '@/components/day/clock';
@@ -26,13 +28,18 @@ const GROUPS = [
 ] as const;
 
 export default async function HomePage() {
-  const [week, t] = await Promise.all([agenda(todayIL(), 7), taskGroups()]);
+  const u = await requireUser();
+  const money = u.isOwner || u.memberships.some(m => ['admin', 'manager', 'viewer'].includes(m.role));
+  const [week, t, rev, owed] = await Promise.all([
+    agenda(todayIL(), 7), taskGroups(),
+    money ? monthRevenue(u) : null, money ? openReceivablesTotal(u) : null,
+  ]);
   const today = week.days[0];
   const eventsToday = today.events.length;
 
   return (
     <div className="flex flex-col gap-5">
-      <GreetingClock name="אביהו" initial={new Date().toISOString()} />
+      <GreetingClock name={u.name} initial={new Date().toISOString()} />
 
       <Card>
         <CardContent className="pt-4">
@@ -48,10 +55,17 @@ export default async function HomePage() {
           value={week.connected ? num(eventsToday) : null}
           reason={week.configured ? 'יומן Google עוד לא חובר' : 'חיבור ליומן Google עוד לא הוגדר'}
           hint={week.connected ? (eventsToday ? undefined : 'יום פנוי ביומן') : undefined} />
-        <KpiCard label="הכנסות החודש עד היום" icon={<CircleDollarSign className="size-4" />} value={null} reason="יגיע בשלב 2"
-          foot={<Link href="/business/head-spa-israel" className="hover:underline">בינתיים: הכנסות Head Spa מ-Buyz</Link>} />
-        <KpiCard label="גבייה פתוחה" icon={<HandCoins className="size-4" />} value={null} reason="יגיע בשלב 2"
-          foot={<Link href="/business/adigital?tab=collections" className="hover:underline">בינתיים: גבייה ב-a-digital</Link>} />
+        {rev && (
+          <KpiCard label="הכנסות החודש עד היום" icon={<CircleDollarSign className="size-4" />} href="/finance"
+            value={ils(rev.net)} reason="אין הכנסות עסקיות רשומות החודש"
+            hint={rev.gross !== null ? `${ils(rev.gross)} כולל מע״מ · ${rev.count} תנועות` : undefined}
+            foot="בלי הכנסות Head Spa מ-Buyz" />
+        )}
+        {owed && (
+          <KpiCard label="גבייה פתוחה" icon={<HandCoins className="size-4" />} href="/business/adigital?tab=collections"
+            value={ils(owed.total)} reason="אין חובות פתוחים"
+            hint={owed.overdue_count ? `${owed.overdue_count} באיחור` : `${owed.dashboard_count + owed.vault_count} פתוחים, כולל מע״מ`} />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">

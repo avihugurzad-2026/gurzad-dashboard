@@ -14,7 +14,7 @@ export function toItems(day: DayBucket): TimelineItem[] {
       start: allDay ? null : startsHere ? ilTime(e.start_at) : '00:00',
       end: allDay ? null : endsHere ? ilTime(e.end_at) : null,
       context: e.domain ? contextLabel({ domain: e.domain, branch: e.branch, location: e.location }) : e.calendar_name,
-      place: e.place, color: e.color, href: e.html_link,
+      place: e.place, color: e.color, href: e.html_link, event: e,
     };
   });
   const tasks: TimelineItem[] = day.tasks.map(t => ({

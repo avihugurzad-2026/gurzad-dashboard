@@ -1,6 +1,6 @@
 'use client';
 import { useActionState, useMemo, useState, useTransition } from 'react';
-import { FileText, Trash2 } from 'lucide-react';
+import { FileText, Sparkles, Trash2 } from 'lucide-react';
 import { classifyInbox, removeInbox, type ActionResult } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,19 +9,38 @@ import { stamp } from '@/lib/format';
 import { categoriesFor, decodePlace, placeOptions } from '@/lib/places';
 import type { InboxItem } from '@/server/entries';
 import { cn } from '@/lib/utils';
+import { useSession } from '@/components/shell/session-context';
 
 const MODULES = [{ key: 'task', label: 'משימה' }, { key: 'note', label: 'הערה' }, { key: 'document', label: 'מסמך' }] as const;
 const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
 
-// One unsorted item. "שייך" opens the sorting form: where it belongs and what it is.
+// The four answers to "where does this belong?", then the finer place inside it
+const ROOTS = [
+  { key: 'personal', label: 'אישי', prefix: 'personal|' },
+  { key: 'adigital', label: 'a-digital', prefix: 'business|adigital|' },
+  { key: 'head-spa', label: 'Head Spa', prefix: 'business|head-spa-israel|' },
+  { key: 'ventures', label: 'יזמות', prefix: 'ventures|' },
+] as const;
+const rootOf = (place: string) => ROOTS.find(r => place.startsWith(r.prefix))?.key ?? null;
+
+// One unsorted item. A file asks right away "למה המסמך הזה שייך?"; text opens with "שייך".
+// When an earlier item looked the same (same words in the name), its answers are pre-filled.
 export function InboxRow({ item }: { item: InboxItem }) {
-  const [open, setOpen] = useState(false);
+  const session = useSession();
+  const [open, setOpen] = useState(Boolean(item.file));
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(classifyInbox, null);
   const [removing, startRemove] = useTransition();
-  const options = useMemo(placeOptions, []);
-  const [where, setWhere] = useState(options[0].value);
-  const [module, setModule] = useState<string>(item.file ? 'document' : 'task');
-  const domain = decodePlace(where)?.domain ?? 'personal';
+  const options = useMemo(() => {
+    const all = placeOptions();
+    return session ? all.filter(o => session.places.includes(o.value)) : all;
+  }, [session]);
+  const sug = item.suggestion && options.some(o => o.value === item.suggestion!.place) ? item.suggestion : null;
+  const [where, setWhere] = useState<string | null>(sug?.place ?? null);
+  const [module, setModule] = useState<string>(sug?.module ?? (item.file ? 'document' : 'task'));
+  const root = where ? rootOf(where) : null;
+  const domain = where ? decodePlace(where)?.domain ?? 'personal' : 'personal';
+  const roots = ROOTS.filter(r => options.some(o => o.value.startsWith(r.prefix)));
+  const inside = root ? options.filter(o => o.value.startsWith(ROOTS.find(r => r.key === root)!.prefix)) : [];
 
   return (
     <li className={cn('flex flex-col gap-2 py-3', removing && 'opacity-60')}>
@@ -43,30 +62,52 @@ export function InboxRow({ item }: { item: InboxItem }) {
         </div>
       </div>
       {open && (
-        <form action={action} className="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface-2/40 p-3 sm:grid-cols-4">
+        <form action={action} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-2/40 p-3">
           <input type="hidden" name="id" value={item.id} />
-          <input type="hidden" name="place" value={where} />
-          <label className="flex flex-col gap-1 text-xs text-muted">שייך ל
-            <select value={where} onChange={e => setWhere(e.target.value)} className={inputClass}>
-              {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-muted">מודול
-            <select name="module" value={module} onChange={e => setModule(e.target.value)} className={inputClass}>
-              {MODULES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-            </select>
-          </label>
-          {module === 'task' && (
-            <label className="flex flex-col gap-1 text-xs text-muted">קטגוריה
-              <select key={domain} name="category" defaultValue="general" className={inputClass}>
-                {categoriesFor(domain).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            </label>
+          {where && <input type="hidden" name="place" value={where} />}
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">{item.file ? 'למה המסמך הזה שייך?' : 'למה זה שייך?'}</legend>
+            {sug && (
+              <p className="mb-2 flex items-center gap-1.5 text-xs text-accent-ink">
+                <Sparkles className="size-3.5" aria-hidden />מילאתי כמו בפעם הקודמת (<bdi>{sug.from}</bdi>). אפשר לשנות.
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {roots.map(r => (
+                <button key={r.key} type="button" aria-pressed={root === r.key}
+                  onClick={() => setWhere(options.find(o => o.value.startsWith(r.prefix))!.value)}
+                  className={cn('h-11 rounded-lg border text-sm font-medium transition-colors',
+                    root === r.key ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line-strong bg-surface hover:bg-surface-2')}>
+                  <bdi>{r.label}</bdi>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          {where && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {inside.length > 1 && (
+                <label className="flex flex-col gap-1 text-xs text-muted">איפה בדיוק
+                  <select value={where} onChange={e => setWhere(e.target.value)} className={inputClass}>
+                    {inside.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="flex flex-col gap-1 text-xs text-muted">קטגוריה
+                <select key={domain} name="category" defaultValue={sug && sug.place === where && sug.category ? sug.category : 'general'} className={inputClass}>
+                  {categoriesFor(domain).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-muted">מה זה
+                <select name="module" value={module} onChange={e => setModule(e.target.value)} className={inputClass}>
+                  {MODULES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                </select>
+              </label>
+              <div className="col-span-2 flex items-end sm:col-span-1">
+                <Button type="submit" variant="primary" disabled={pending} className="w-full">{module === 'task' ? 'צור משימה' : 'שייך'}</Button>
+              </div>
+            </div>
           )}
-          <div className="col-span-2 flex items-end sm:col-span-1">
-            <Button type="submit" variant="primary" disabled={pending} className="w-full">{module === 'task' ? 'צור משימה' : 'שייך'}</Button>
-          </div>
-          {state && !state.ok && <p role="alert" className="col-span-full text-xs text-critical-ink">{state.error}</p>}
+          {state && !state.ok && <p role="alert" className="text-xs text-critical-ink">{state.error}</p>}
         </form>
       )}
     </li>

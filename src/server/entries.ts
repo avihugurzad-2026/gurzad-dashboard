@@ -1,16 +1,23 @@
 import 'server-only';
 import { db } from './db';
 import { todayIL } from '@/lib/period';
+import { requireUser, visibleSql, params, type SessionUser } from './auth';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Things typed into the dashboard: tasks, goals, household money. Vault tasks stay read-only
 // and are listed next to these (source 'vault'). Missing tables (migration not applied yet)
 // read as `ready: false`, never as an error page.
+// Every query is filtered for the signed-in user in SQL (visibleSql), not in the screen.
 
 export type { Domain, Place, Status } from '@/lib/places';
-import { contextLabel, type Domain, type Place, type Status } from '@/lib/places';
+import { contextLabel, encodePlace, type Domain, type Place, type Status } from '@/lib/places';
+import { fingerprint, similarity } from '@/lib/fingerprint';
 
-export const PEOPLE = [{ id: 'avihu', name: 'אביהו' }, { id: 'eden', name: 'עדן' }] as const;
+// Names of everyone (for "who does it" labels)
+export async function peopleNames(): Promise<Record<string, string>> {
+  const { rows } = await db().query(`SELECT id, name FROM users`);
+  return Object.fromEntries(rows.map((r: any) => [r.id, r.name]));
+}
 export const PERSONAL_LISTS = [
   { key: 'home', label: 'בית' }, { key: 'personal', label: 'אישי' }, { key: 'study', label: 'לימודים' },
 ] as const;
@@ -21,30 +28,35 @@ export type WorkItem = {
   due_date: string | null; due_time: string | null; owner: string | null; category_id: string | null;
   domain: string; branch: string | null; location: string | null; context: string;
   days_past: number | null; completed_at: string | null;
+  assigned_to: string | null; scope: 'user' | 'shared'; event_id: string | null;
 };
 export type Goal = {
   id: string; title: string; unit: 'ils' | 'count' | 'pct'; target: number | null; current: number | null;
   due: string | null; status: 'active' | 'done' | 'dropped'; owner: string; location: string | null;
+  goal_type: string | null; notes: string | null; scope: 'user' | 'shared'; domain: string; branch: string | null;
 };
 export type MoneyEntry = {
   id: string; kind: 'income' | 'expense'; amount: number; category: string;
   occurred_on: string; note: string | null; owner: string;
 };
 
-const missing = (e: any) => e?.code === '42P01';
+const missing = (e: any) => e?.code === '42P01' || e?.code === '42703';
 
 type Filter = Partial<Place> & { domain?: Domain; category?: string | null };
+type P = ReturnType<typeof params>;
 
-function where(p: Filter, start = 1) {
-  const params: unknown[] = [];
+function where(f: Filter, q: P) {
   const parts = ['deleted_at IS NULL'];
-  const add = (sql: string, v: unknown) => { params.push(v); parts.push(sql.replace('?', `$${start + params.length - 1}`)); };
-  if (p.domain) add('domain = ?', p.domain);
-  if (p.branch) add('branch = ?', p.branch);
-  if (p.location) add('location = ?', p.location);
-  if (p.category) add('category_id = ?', p.category);
-  return { sql: parts.join(' AND '), params };
+  if (f.domain) parts.push(`domain = ${q.p(f.domain)}`);
+  if (f.branch) parts.push(`branch = ${q.p(f.branch)}`);
+  if (f.location) parts.push(`location = ${q.p(f.location)}`);
+  if (f.category) parts.push(`category_id = ${q.p(f.category)}`);
+  return parts.join(' AND ');
 }
+
+// Vault tasks have no owner, scope or location: they are shared records of their place
+const VAULT_TASKS = `(SELECT *, NULL::text AS location FROM tasks)`;
+const vaultVisible = (u: SessionUser, alias: string, q: P) => visibleSql(u, 'task', alias, q.p, { owner: null, scope: null, assigned: null });
 
 // Vault priority strings → P1..P4 (vault "high" is P2: urgent-but-not-on-fire by default)
 const vaultPriority = (p: string | null): 1 | 2 | 3 | 4 => (/high|גבוה|1/i.test(p ?? '') ? 2 : /low|נמוך|3/i.test(p ?? '') ? 4 : 3);
@@ -58,44 +70,49 @@ function fromRow(r: any): WorkItem {
     domain: r.domain, branch: r.branch, location: r.location, context: contextLabel(r, r.category_id),
     days_past: r.days_past === null ? null : Number(r.days_past),
     completed_at: r.completed_at ? new Date(r.completed_at).toISOString() : null,
+    assigned_to: r.assigned_to ?? null, scope: r.scope, event_id: r.event_id ?? null,
   };
 }
 
 const COLS = `id, title, description, priority, status, waiting_on, to_char(due_date, 'YYYY-MM-DD') AS due_date,
-  to_char(due_time, 'HH24:MI') AS due_time, owner_user_id, category_id, domain, branch, location, completed_at`;
+  to_char(due_time, 'HH24:MI') AS due_time, owner_user_id, category_id, domain, branch, location, completed_at,
+  assigned_to, scope, event_id`;
 
 // Tasks for one place (or everywhere when the filter is empty): dashboard rows plus read-only vault tasks.
 // Done/cancelled rows stay visible for 7 days so a tick can be undone.
 export async function workItems(p: Filter, { includeDone = false } = {}) {
+  const u = await requireUser();
   const today = todayIL();
   const items: WorkItem[] = [];
   let ready = true;
   try {
-    const w = where(p, 2);
+    const q = params([today]);
+    const w = where(p, q);
     const { rows } = await db().query(
       `SELECT ${COLS}, CASE WHEN due_date < $1::date AND ${OPEN} THEN ($1::date - due_date) END AS days_past
-       FROM work_items WHERE ${w.sql} ${includeDone ? '' : `AND (${OPEN} OR completed_at > now() - interval '7 days')`}`,
-      [today, ...w.params]);
+       FROM work_items WHERE ${w} AND ${visibleSql(u, 'task', '', q.p)}
+         ${includeDone ? '' : `AND (${OPEN} OR completed_at > now() - interval '7 days')`}`,
+      q.values);
     for (const r of rows) items.push(fromRow(r));
   } catch (e) {
     if (!missing(e)) throw e;
     ready = false;
   }
-  if (!p.location && !p.category) items.push(...await vaultTasks(p, today));
+  if (!p.location && !p.category) items.push(...await vaultTasks(u, p, today));
   const rank: Record<Status, number> = { in_progress: 0, todo: 1, waiting: 2, done: 3, cancelled: 4 };
   items.sort((a, b) => rank[a.status] - rank[b.status] || a.priority - b.priority
     || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title, 'he'));
   return { ready, today, items };
 }
 
-async function vaultTasks(p: Filter, today: string): Promise<WorkItem[]> {
-  const params: unknown[] = [today];
+async function vaultTasks(u: SessionUser, p: Filter, today: string): Promise<WorkItem[]> {
+  const q = params([today]);
   let sql = `SELECT id, text AS title, priority, to_char(due, 'YYYY-MM-DD') AS due, domain, branch,
                     CASE WHEN due < $1 AND NOT done THEN ($1::date - due) END AS days_past
-             FROM tasks WHERE deleted_at IS NULL AND NOT done`;
-  if (p.domain) { params.push(p.domain); sql += ` AND domain = $${params.length}`; }
-  if (p.branch) { params.push(p.branch); sql += ` AND branch = $${params.length}`; }
-  const { rows } = await db().query(sql, params);
+             FROM ${VAULT_TASKS} t WHERE deleted_at IS NULL AND NOT done AND ${vaultVisible(u, 't', q)}`;
+  if (p.domain) sql += ` AND domain = ${q.p(p.domain)}`;
+  if (p.branch) sql += ` AND branch = ${q.p(p.branch)}`;
+  const { rows } = await db().query(sql, q.values);
   return rows.map((r: any) => {
     const place = { domain: r.domain, branch: r.domain === 'personal' ? null : r.branch, location: null };
     return {
@@ -103,6 +120,7 @@ async function vaultTasks(p: Filter, today: string): Promise<WorkItem[]> {
       waiting_on: null, due_date: r.due, due_time: null, owner: null, category_id: null, ...place,
       context: contextLabel(place, r.domain === 'personal' && r.branch === 'home' ? 'home' : null),
       days_past: r.days_past === null ? null : Number(r.days_past), completed_at: null,
+      assigned_to: null, scope: 'shared' as const, event_id: null,
     };
   });
 }
@@ -130,12 +148,16 @@ export async function tasksBetween(start: string, end: string) {
   return items.filter(i => i.due_date && i.due_date >= start && i.due_date <= end && i.status !== 'cancelled');
 }
 
-export async function goalsFor(p: Place) {
+export async function goalsFor(p: Partial<Place>) {
+  const u = await requireUser();
   try {
-    const w = where(p);
+    const q = params();
+    const w = where(p, q);
     const { rows } = await db().query(
-      `SELECT id, title, unit, target::float, current::float, to_char(due, 'YYYY-MM-DD') AS due, status, owner_user_id AS owner, location
-       FROM goals WHERE ${w.sql} AND status <> 'dropped' ORDER BY status, due NULLS LAST, created_at`, w.params);
+      `SELECT id, title, unit, target::float, current::float, to_char(due, 'YYYY-MM-DD') AS due, status, owner_user_id AS owner,
+              location, goal_type, notes, scope, domain, branch
+       FROM goals WHERE ${w} AND status <> 'dropped' AND ${visibleSql(u, 'goal', '', q.p)}
+       ORDER BY status, due NULLS LAST, created_at`, q.values);
     return { ready: true, goals: rows as Goal[] };
   } catch (e) {
     if (!missing(e)) throw e;
@@ -146,19 +168,22 @@ export async function goalsFor(p: Place) {
 // One month of the shared household book, plus 6-month totals for the trend line
 export async function householdMonth(month: string /* YYYY-MM */) {
   const start = `${month}-01`;
+  const u = await requireUser();
   try {
+    const q = params([start]);
+    const vis = visibleSql(u, 'money', '', q.p);
     const { rows } = await db().query(
       `SELECT id, kind, amount::float, category, to_char(occurred_on, 'YYYY-MM-DD') AS occurred_on, note, owner_user_id AS owner
-       FROM money_entries WHERE book = 'shared' AND deleted_at IS NULL
+       FROM money_entries WHERE book = 'shared' AND deleted_at IS NULL AND ${vis}
          AND occurred_on >= $1::date AND occurred_on < ($1::date + interval '1 month')
-       ORDER BY occurred_on DESC, created_at DESC`, [start]);
+       ORDER BY occurred_on DESC, created_at DESC`, q.values);
     const { rows: months } = await db().query(
       `SELECT to_char(date_trunc('month', occurred_on), 'YYYY-MM') AS month,
               SUM(amount) FILTER (WHERE kind = 'income')::float AS income,
               SUM(amount) FILTER (WHERE kind = 'expense')::float AS expense
-       FROM money_entries WHERE book = 'shared' AND deleted_at IS NULL
+       FROM money_entries WHERE book = 'shared' AND deleted_at IS NULL AND ${vis}
          AND occurred_on >= ($1::date - interval '5 months')
-       GROUP BY 1 ORDER BY 1`, [start]);
+       GROUP BY 1 ORDER BY 1`, q.values);
     const entries = rows as MoneyEntry[];
     const sum = (k: 'income' | 'expense') => entries.filter(e => e.kind === k).reduce((a, e) => a + e.amount, 0);
     const byCat = new Map<string, number>();
@@ -182,13 +207,15 @@ export async function householdMonth(month: string /* YYYY-MM */) {
 
 // Open counts per place, for the overview and the area landing cards
 export async function openCounts() {
+  const u = await requireUser();
   const today = todayIL();
   const out: Record<string, { open: number; overdue: number }> = {};
   const add = (k: string, overdue: boolean) => { out[k] ??= { open: 0, overdue: 0 }; out[k].open++; if (overdue) out[k].overdue++; };
   try {
+    const q = params([today]);
     const { rows } = await db().query(
       `SELECT domain, branch, location, category_id AS list, (due_date < $1::date) AS overdue
-       FROM work_items WHERE deleted_at IS NULL AND status NOT IN ('done', 'cancelled')`, [today]);
+       FROM work_items WHERE deleted_at IS NULL AND status NOT IN ('done', 'cancelled') AND ${visibleSql(u, 'task', '', q.p)}`, q.values);
     for (const r of rows) {
       add(r.domain, r.overdue);
       if (r.branch) add(`${r.domain}/${r.branch}`, r.overdue);
@@ -196,8 +223,10 @@ export async function openCounts() {
       if (r.list) add(`${r.domain}:${r.list}`, r.overdue);
     }
   } catch (e) { if (!missing(e)) throw e; }
+  const q = params([today]);
   const { rows } = await db().query(
-    `SELECT domain, branch, (due < $1::date) AS overdue FROM tasks WHERE deleted_at IS NULL AND NOT done`, [today]);
+    `SELECT domain, branch, (due < $1::date) AS overdue FROM ${VAULT_TASKS} t
+     WHERE deleted_at IS NULL AND NOT done AND ${vaultVisible(u, 't', q)}`, q.values);
   for (const r of rows) { add(r.domain, r.overdue); add(`${r.domain}/${r.branch}`, r.overdue); }
   return out;
 }
@@ -220,15 +249,25 @@ export type InboxItem = {
   id: string; raw_text: string | null; status: 'unclassified' | 'classified'; created_at: string;
   file: { id: string; name: string; mime: string; size: number } | null;
   classified: { context: string; module: string | null; at: string | null } | null;
+  // Smart Inbox: how the user filed the most similar earlier item
+  suggestion: { place: string; category: string | null; module: string; from: string } | null;
 };
 
+// Inbox items have no place until classified; they belong to whoever captured them
+const inboxVisible = (u: SessionUser, q: P) =>
+  `(i.created_by = ${q.p(u.id)} OR (i.scope = 'shared' AND ${u.isAdmin ? 'TRUE' : 'FALSE'}))`;
+
 export async function inbox() {
+  const u = await requireUser();
+  const q = params();
   const { rows } = await db().query(
     `SELECT i.id, i.raw_text, i.status, i.created_at, i.classified_domain, i.classified_branch, i.classified_location,
-            i.classified_module, i.classified_at, f.id AS file_id, f.name AS file_name, f.mime, f.size_bytes
+            i.classified_module, i.classified_at, i.classified_category, i.fingerprint,
+            f.id AS file_id, f.name AS file_name, f.mime, f.size_bytes
      FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
      WHERE i.deleted_at IS NULL AND (i.status = 'unclassified' OR i.classified_at > now() - interval '14 days')
-     ORDER BY i.created_at DESC LIMIT 200`);
+       AND ${inboxVisible(u, q)}
+     ORDER BY i.created_at DESC LIMIT 200`, q.values);
   const items: InboxItem[] = rows.map((r: any) => ({
     id: r.id, raw_text: r.raw_text, status: r.status, created_at: new Date(r.created_at).toISOString(),
     file: r.file_id ? { id: r.file_id, name: r.file_name, mime: r.mime, size: r.size_bytes } : null,
@@ -236,13 +275,46 @@ export async function inbox() {
       context: contextLabel({ domain: r.classified_domain, branch: r.classified_branch, location: r.classified_location }),
       module: r.classified_module, at: r.classified_at ? new Date(r.classified_at).toISOString() : null,
     } : null,
+    suggestion: null,
   }));
-  return { open: items.filter(i => i.status === 'unclassified'), recent: items.filter(i => i.status === 'classified') };
+  const open = items.filter(i => i.status === 'unclassified');
+  if (open.length) {
+    // The user's own past decisions (last 300), most recent first
+    const { rows: past } = await db().query(
+      `SELECT i.fingerprint, i.raw_text, f.name AS file_name, i.classified_domain, i.classified_branch, i.classified_location,
+              i.classified_category, i.classified_module, (i.file_id IS NOT NULL) AS has_file
+       FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
+       WHERE i.created_by = $1 AND i.status = 'classified' AND i.deleted_at IS NULL AND i.classified_domain IS NOT NULL
+       ORDER BY i.classified_at DESC LIMIT 300`, [u.id]);
+    const prints = past.map((r: any) => ({ r, fp: r.fingerprint || fingerprint(r.file_name ?? r.raw_text) }));
+    for (const item of open) {
+      const raw = rows.find((r: any) => r.id === item.id);
+      const fp = raw?.fingerprint || fingerprint(item.file?.name ?? item.raw_text);
+      let best: { r: any; score: number } | null = null;
+      for (const p of prints) {
+        if (Boolean(item.file) !== p.r.has_file) continue;            // files with files, text with text
+        const score = similarity(fp, p.fp);
+        if (score >= 0.5 && (!best || score > best.score)) best = { r: p.r, score };
+      }
+      if (best) {
+        const r = best.r;
+        item.suggestion = {
+          place: encodePlace({ domain: r.classified_domain, branch: r.classified_branch, location: r.classified_location }),
+          category: r.classified_category, module: r.classified_module,
+          from: (r.file_name ?? r.raw_text ?? '').slice(0, 60),
+        };
+      }
+    }
+  }
+  return { open, recent: items.filter(i => i.status === 'classified') };
 }
 
 export async function inboxCount(): Promise<number> {
+  const u = await requireUser();
   try {
-    const { rows } = await db().query(`SELECT count(*)::int AS n FROM inbox_items WHERE status = 'unclassified' AND deleted_at IS NULL`);
+    const q = params();
+    const { rows } = await db().query(
+      `SELECT count(*)::int AS n FROM inbox_items i WHERE status = 'unclassified' AND deleted_at IS NULL AND ${inboxVisible(u, q)}`, q.values);
     return rows[0].n;
   } catch (e) {
     if (missing(e)) return 0;
@@ -251,16 +323,20 @@ export async function inboxCount(): Promise<number> {
 }
 
 // ── Search (titles and inbox text; plain ILIKE, enough for one person's data) ──
-export async function search(q: string) {
-  const like = `%${q.replace(/[\\%_]/g, m => `\\${m}`)}%`;
+export async function search(text: string) {
+  const u = await requireUser();
+  const like = `%${text.replace(/[\\%_]/g, m => `\\${m}`)}%`;
+  const q1 = params([like]), q2 = params([like]), q3 = params([like]), q4 = params([like]);
   const [tasks, vault, inboxRows, events] = await Promise.all([
     db().query(`SELECT ${COLS}, NULL AS days_past FROM work_items WHERE deleted_at IS NULL AND (title ILIKE $1 OR description ILIKE $1)
-                ORDER BY updated_at DESC LIMIT 30`, [like]),
-    db().query(`SELECT id, text, domain, branch FROM tasks WHERE deleted_at IS NULL AND text ILIKE $1 LIMIT 20`, [like]),
+                AND ${visibleSql(u, 'task', '', q1.p)} ORDER BY updated_at DESC LIMIT 30`, q1.values),
+    db().query(`SELECT id, text, domain, branch FROM ${VAULT_TASKS} t WHERE deleted_at IS NULL AND text ILIKE $1
+                AND ${vaultVisible(u, 't', q2)} LIMIT 20`, q2.values),
     db().query(`SELECT i.id, coalesce(i.raw_text, f.name) AS text, i.status FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
-                WHERE i.deleted_at IS NULL AND (i.raw_text ILIKE $1 OR f.name ILIKE $1) ORDER BY i.created_at DESC LIMIT 20`, [like]),
-    db().query(`SELECT id, title, start_at FROM events WHERE deleted_at IS NULL AND status <> 'cancelled' AND title ILIKE $1
-                ORDER BY start_at DESC LIMIT 20`, [like]),
+                WHERE i.deleted_at IS NULL AND (i.raw_text ILIKE $1 OR f.name ILIKE $1) AND ${inboxVisible(u, q3)}
+                ORDER BY i.created_at DESC LIMIT 20`, q3.values),
+    db().query(`SELECT id, title, start_at FROM events e WHERE deleted_at IS NULL AND status <> 'cancelled' AND title ILIKE $1
+                AND ${visibleSql(u, 'event', 'e', q4.p)} ORDER BY start_at DESC LIMIT 20`, q4.values),
   ]);
   return {
     tasks: tasks.rows.map(fromRow),

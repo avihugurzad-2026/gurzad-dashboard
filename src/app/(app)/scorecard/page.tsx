@@ -1,4 +1,5 @@
 import { scorecard } from '@/server/data';
+import { requireAdmin } from '@/server/auth';
 import { longDate } from '@/lib/format';
 import { ScorecardTable } from '@/components/dash/scorecard-table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +8,7 @@ export const metadata = { title: 'יעדים — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
 
 export default async function ScorecardPage() {
+  await requireAdmin();
   const d = await scorecard();
   return (
     <div className="flex flex-col gap-5">

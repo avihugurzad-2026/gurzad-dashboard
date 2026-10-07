@@ -6,11 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { ils, num, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Goal } from '@/server/entries';
+import { goalTypeLabel } from '@/lib/goals';
 
 const fmt = (unit: Goal['unit'], v: number | null) =>
   v === null ? null : unit === 'ils' ? ils(v) : unit === 'pct' ? `${num(v)}%` : num(v);
 
-export function GoalRow({ goal, path }: { goal: Goal; path: string }) {
+export function GoalRow({ goal, path, context }: { goal: Goal; path: string; context?: string }) {
   const [pending, start] = useTransition();
   const [edit, setEdit] = useState(false);
   const [val, setVal] = useState(goal.current === null ? '' : String(goal.current));
@@ -26,6 +27,12 @@ export function GoalRow({ goal, path }: { goal: Goal; path: string }) {
             {goal.target !== null ? <>יעד: <bdi className={cn('tabular', goal.unit === 'ils' && 'amount')}>{fmt(goal.unit, goal.target)}</bdi></> : 'בלי יעד מספרי'}
             {goal.due && <> · עד {shortDate(goal.due)}</>}
           </p>
+          <p className="mt-1 flex flex-wrap items-center gap-1">
+            {goalTypeLabel(goal.goal_type) && <Badge>{goalTypeLabel(goal.goal_type)}</Badge>}
+            {context && <Badge tone="accent"><bdi dir="rtl">{context}</bdi></Badge>}
+            {goal.scope === 'shared' && <Badge>משותף</Badge>}
+          </p>
+          {goal.notes && <p className="mt-1 text-xs text-ink-2"><bdi>{goal.notes}</bdi></p>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {done ? <Badge tone="good">הושג</Badge> : (

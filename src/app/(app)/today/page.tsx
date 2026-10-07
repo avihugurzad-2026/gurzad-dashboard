@@ -6,6 +6,8 @@ import { addDays, todayIL } from '@/lib/period';
 import { Timeline } from '@/components/day/timeline';
 import { toItems } from '@/components/day/to-items';
 import { CalendarCta } from '@/components/day/calendar-cta';
+import { EventEditorProvider, NewEventButton } from '@/components/calendar/event-editor';
+import { eventEditor } from '@/server/calendar';
 import { QuickTask } from '@/components/work/quick-task';
 import { TaskRow } from '@/components/work/task-row';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,12 +26,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const req = (await searchParams).d;
   const date = req && DATE.test(req) && !Number.isNaN(Date.parse(req)) ? req : today;
   const isToday = date === today;
-  const [a, g] = await Promise.all([agenda(date, 1), isToday ? taskGroups() : null]);
+  const [a, g, editor] = await Promise.all([agenda(date, 1), isToday ? taskGroups() : null, eventEditor()]);
   const day = a.days[0];
   const items = toItems(day);
   const link = (d: string) => (d === today ? '/today' : `/today?d=${d}`);
 
   return (
+    <EventEditorProvider editor={editor}>
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -40,6 +43,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <Link href={link(addDays(date, -1))} className={buttonClass('ghost', 'icon')} aria-label="יום קודם"><ChevronRight className="size-4" /></Link>
           {!isToday && <Link href="/today" className={buttonClass('secondary', 'sm')}>היום</Link>}
           <Link href={link(addDays(date, 1))} className={buttonClass('ghost', 'icon')} aria-label="יום הבא"><ChevronLeft className="size-4" /></Link>
+          <NewEventButton date={date} className="ms-1" />
         </nav>
       </div>
 
@@ -91,5 +95,6 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
     </div>
+    </EventEditorProvider>
   );
 }

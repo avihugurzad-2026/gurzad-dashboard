@@ -5,6 +5,8 @@ import { addDays, ilTime, todayIL } from '@/lib/period';
 import { Timeline } from '@/components/day/timeline';
 import { toItems } from '@/components/day/to-items';
 import { CalendarCta } from '@/components/day/calendar-cta';
+import { EventChip, EventEditorProvider, NewEventButton } from '@/components/calendar/event-editor';
+import { eventEditor } from '@/server/calendar';
 import { Card, CardContent } from '@/components/ui/card';
 import { buttonClass } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,7 +26,7 @@ const sunday = (d: string) => addDays(d, -utc(d).getUTCDay());   // the Israeli 
 const firstOfMonth = (d: string) => `${d.slice(0, 7)}-01`;
 const shiftMonth = (d: string, n: number) => { const x = utc(firstOfMonth(d)); x.setUTCMonth(x.getUTCMonth() + n); return x.toISOString().slice(0, 10); };
 
-// Google Calendar, read-only in stage 1: day, week and month views
+// Google Calendar: day, week and month views; "+ אירוע" and clicking an event write back to Google (stage 2.2)
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const today = todayIL();
@@ -33,7 +35,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   const start = view === 'day' ? date : view === 'week' ? sunday(date) : sunday(firstOfMonth(date));
   const days = view === 'day' ? 1 : view === 'week' ? 7 : 42;
-  const a = await agenda(start, days);
+  const [a, editor] = await Promise.all([agenda(start, days), eventEditor()]);
   const prev = view === 'day' ? addDays(date, -1) : view === 'week' ? addDays(date, -7) : shiftMonth(date, -1);
   const next = view === 'day' ? addDays(date, 1) : view === 'week' ? addDays(date, 7) : shiftMonth(date, 1);
   const href = (v: View, d: string) => `/calendar?view=${v}${d === today ? '' : `&d=${d}`}`;
@@ -41,6 +43,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     ? `${dmFmt.format(utc(start))} – ${dmFmt.format(utc(addDays(start, 6)))}` : monthFmt.format(utc(date));
 
   return (
+    <EventEditorProvider editor={editor}>
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
@@ -56,6 +59,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           <Link href={href(view, prev)} className={buttonClass('ghost', 'icon')} aria-label="הקודם"><ChevronRight className="size-4" /></Link>
           <Link href={href(view, today)} className={buttonClass('secondary', 'sm')}>היום</Link>
           <Link href={href(view, next)} className={buttonClass('ghost', 'icon')} aria-label="הבא"><ChevronLeft className="size-4" /></Link>
+          <NewEventButton date={view === 'day' ? date : undefined} />
         </div>
       </div>
       {!a.connected && <CalendarCta configured={a.configured} />}
@@ -101,8 +105,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   </Link>
                   <ul className="hidden flex-col gap-0.5 sm:flex">
                     {d.events.slice(0, 3).map(e => (
-                      <li key={e.id} className="truncate rounded px-1 text-[11px] leading-4" style={{ background: 'var(--accent-soft)' }}>
-                        <bdi>{e.all_day ? '' : `${ilTime(e.start_at)} `}{e.title || '(ללא כותרת)'}</bdi>
+                      <li key={e.id}>
+                        <EventChip event={e} className="truncate rounded px-1 text-[11px] leading-4" style={{ background: 'var(--accent-soft)' }}>
+                          <bdi>{e.all_day ? '' : `${ilTime(e.start_at)} `}{e.title || '(ללא כותרת)'}</bdi>
+                        </EventChip>
                       </li>
                     ))}
                     {d.tasks.slice(0, Math.max(0, 3 - d.events.length)).map(t => (
@@ -118,6 +124,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         </CardContent></Card>
       )}
     </div>
+    </EventEditorProvider>
   );
 }
 
@@ -126,9 +133,11 @@ function DayList({ day }: { day: Awaited<ReturnType<typeof agenda>>['days'][numb
   return (
     <ul className="flex flex-col gap-1 text-xs">
       {day.events.map(e => (
-        <li key={e.id} className="rounded-md px-1.5 py-1" style={{ background: 'var(--accent-soft)' }}>
-          <span className="block text-muted tabular">{e.all_day ? 'כל היום' : ilTime(e.start_at)}</span>
-          <bdi className="line-clamp-2 text-ink">{e.title || '(ללא כותרת)'}</bdi>
+        <li key={e.id}>
+          <EventChip event={e} className="rounded-md px-1.5 py-1" style={{ background: 'var(--accent-soft)' }}>
+            <span className="block text-muted tabular">{e.all_day ? 'כל היום' : ilTime(e.start_at)}</span>
+            <bdi className="line-clamp-2 text-ink">{e.title || '(ללא כותרת)'}</bdi>
+          </EventChip>
         </li>
       ))}
       {day.tasks.map(t => (

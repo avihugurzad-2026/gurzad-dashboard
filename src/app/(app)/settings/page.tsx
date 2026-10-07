@@ -1,5 +1,9 @@
 import Link from 'next/link';
-import { CalendarDays, CircleCheck, TriangleAlert, User } from 'lucide-react';
+import { requireUser } from '@/server/auth';
+import { canGrant, canManageUsers, listUsers, pendingUsers, ROLE_HINT, ROLE_LABEL } from '@/server/users';
+import { placeOptions } from '@/lib/places';
+import { UsersSection } from '@/components/settings/users-section';
+import { CalendarDays, CircleCheck, TriangleAlert, User, Users } from 'lucide-react';
 import { calendarStatus } from '@/server/calendar';
 import { profile } from '@/server/entries';
 import { stamp } from '@/lib/format';
@@ -20,9 +24,18 @@ const RESULT: Record<string, { tone: 'good' | 'critical'; text: string }> = {
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const [cal, users] = await Promise.all([calendarStatus(), profile()]);
+  const u = await requireUser();
+  const manage = canManageUsers(u);
+  const [cal, users, team, pending] = await Promise.all([
+    calendarStatus(), profile(), manage ? listUsers(u).catch(() => null) : null, u.isAdmin ? pendingUsers().catch(() => []) : Promise.resolve([]),
+  ]);
   const result = sp.calendar ? RESULT[sp.calendar] : null;
-  const me = users.find(u => u.id === 'avihu');
+  const me = users.find(x => x.id === u.id);
+  // What this user may hand out, and where
+  const roles = (['admin', 'manager', 'employee', 'viewer'] as const)
+    .filter(r => placeOptions().some(o => canGrant(u, r, o.place)) || (r === 'admin' && canGrant(u, r, { domain: null, branch: null, location: null })))
+    .map(r => ({ value: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] }));
+  const places = placeOptions().filter(o => canGrant(u, 'viewer', o.place)).map(o => ({ value: o.value, label: o.label }));
 
   return (
     <div className="flex flex-col gap-5">
@@ -43,11 +56,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {!cal.configured ? (
             <div className="flex flex-col gap-2 text-ink-2">
               <p>כדי לחבר את היומן, השרת צריך שלושה משתני סביבה ב-Vercel: <bdi dir="ltr">GOOGLE_CLIENT_ID</bdi>, <bdi dir="ltr">GOOGLE_CLIENT_SECRET</bdi> ו-<bdi dir="ltr">CALENDAR_TOKEN_KEY</bdi>.</p>
-              <p className="text-muted">אחרי שיוגדרו, יופיע כאן כפתור "חבר את יומן Google". הגישה היא לקריאה בלבד.</p>
+              <p className="text-muted">אחרי שיוגדרו, יופיע כאן כפתור "חבר את יומן Google". הדשבורד יקרא את היומנים ויוכל ליצור, לערוך ולמחוק אירועים שתבקש ממנו.</p>
             </div>
           ) : !cal.connection || cal.connection.status !== 'connected' ? (
             <div className="flex flex-col items-start gap-2">
-              <p className="text-ink-2">התחבר פעם אחת עם חשבון Google. הגישה היא לקריאה בלבד: הדשבורד לא יוצר, לא משנה ולא מוחק אירועים.</p>
+              <p className="text-ink-2">{cal.connection ? 'Google ביטל את ההרשאה או שהחיבור נכשל. חבר מחדש כדי להמשיך לסנכרן.' : 'כל משתמש מחבר את חשבון Google שלו. הדשבורד קורא את היומנים, ויוצר, עורך או מוחק אירוע רק כשאתה מבקש. אירועים פרטיים כברירת מחדל.'}</p>
               <a href="/api/google/connect" className={buttonClass('primary')}>{cal.connection ? 'חבר מחדש' : 'חבר את יומן Google'}</a>
             </div>
           ) : (
@@ -56,8 +69,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <p className="text-ink-2"><bdi dir="ltr">{cal.connection.email}</bdi>{cal.connection.last_synced_at && <span className="text-muted"> · עודכן {stamp(cal.connection.last_synced_at)}</span>}</p>
                 <CalendarActions />
               </div>
+              {!cal.connection.canWrite && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                  <p className="text-ink-2">החיבור הוא לקריאה בלבד. חבר מחדש כדי לאפשר כתיבה (יצירה ועריכה של אירועים מהדשבורד).</p>
+                  <a href="/api/google/connect" className={buttonClass('primary', 'sm')}>חבר מחדש</a>
+                </div>
+              )}
               <div>
-                <p className="mb-1 text-xs text-muted">איזה יומנים להציג, ולאן כל אחד שייך (למשל יומן הספא → Head Spa · מודיעין)</p>
+                <p className="mb-1 text-xs text-muted">איזה יומנים להציג, לאן כל אחד שייך (למשל יומן הספא → Head Spa · מודיעין), ואם הוא משותף עם מי שעובד במקום הזה. יומן לא משותף נשאר פרטי שלך.</p>
                 <ul className="flex flex-col divide-y divide-[color:var(--border)]">
                   {cal.calendars.map(c => <CalendarMappingRow key={c.id} cal={c} />)}
                 </ul>
@@ -66,6 +85,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           )}
         </CardContent>
       </Card>
+
+      {team && (
+        <Card id="users">
+          <CardHeader><CardTitle className="flex items-center gap-2"><Users className="size-4" aria-hidden />משתמשים והרשאות</CardTitle></CardHeader>
+          <CardContent>
+            <UsersSection users={team.users} invites={team.invites} roles={roles} places={places} pending={pending} meId={u.id} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card id="profile">
         <CardHeader><CardTitle className="flex items-center gap-2"><User className="size-4" aria-hidden />פרופיל</CardTitle></CardHeader>
@@ -77,8 +105,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <dt className="text-muted">אזור זמן</dt><dd>ישראל (Asia/Jerusalem)</dd>
             </dl>
           )}
-          <p className="text-muted">משתמשים נוספים (עדן) יקבלו כניסה משלהם בשלב הבא. כבר עכשיו כל משימה שמורה עם "של מי" ו"משותף או אישי".</p>
-          <p className="text-muted">מע״מ, ספים ואחוזי בעלות מוגדרים בוואלט. <Link href="/health" className="text-accent hover:underline">שלמות נתונים</Link></p>
+          <p className="text-muted">רשומה "אישית" נשארת רק שלך. רשומה "משותפת" רואים כל מי שיש לו גישה למקום שלה.</p>
+          {u.isAdmin && <p className="text-muted">מע״מ, ספים ואחוזי בעלות מוגדרים בוואלט. <Link href="/health" className="text-accent hover:underline">שלמות נתונים</Link></p>}
         </CardContent>
       </Card>
     </div>

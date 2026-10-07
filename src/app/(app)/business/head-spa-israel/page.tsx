@@ -1,4 +1,5 @@
 import { ospa, parseBasis } from '@/server/revenue';
+import { requirePlace } from '@/server/auth';
 import { goalsFor, openCounts } from '@/server/entries';
 import { OspaView } from '@/components/ospa/ospa-view';
 import { BranchCards } from '@/components/ospa/branch-cards';
@@ -16,6 +17,7 @@ const TABS = ['overview', 'tasks', 'goals'] as const;
 // The company level: all branches together, then a card per branch. Tasks and goals here
 // cover the whole company; each branch page has its own.
 export default async function HeadSpaPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  await requirePlace({ domain: 'business', branch: 'head-spa-israel' });
   const sp = await searchParams;
   const tab = pickTab(sp.tab, TABS);
   const [d, counts, g] = await Promise.all([ospa(parseBasis(sp.basis)), openCounts(), goalsFor(PLACE)]);

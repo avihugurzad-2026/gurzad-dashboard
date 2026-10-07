@@ -111,7 +111,7 @@ export function placeFromPath(path: string): Place {
 const PAGE_LABEL: Record<string, string> = {
   today: 'היום', calendar: 'לוח שנה', inbox: 'Inbox', search: 'חיפוש', settings: 'הגדרות', insights: 'סקירה עסקית',
   review: 'סקירה שבועית', scorecard: 'מדדים שבועיים', health: 'שלמות נתונים', reports: 'דוחות', documents: 'מסמכים',
-  tasks: 'משימות', finance: 'כספים משותפים', goals: 'יעדים',
+  tasks: 'משימות', finance: 'כספים', goals: 'יעדים',
 };
 export const TAB_LABEL: Record<string, string> = {
   overview: 'סקירה', tasks: 'משימות', goals: 'יעדים', clients: 'לקוחות', collections: 'גבייה',
@@ -133,7 +133,7 @@ export function crumbs(path: string, tab: string | null): { label: string; href:
       const l = location(b, c);
       if (l) out.push({ label: l.label, href: `${e.href}/${l.id}` });
     } else if (b && PAGE_LABEL[b]) {
-      out.push({ label: ar.id === 'personal' && b === 'goals' ? 'יעדים פיננסיים' : PAGE_LABEL[b], href: `/${a}/${b}` });
+      out.push({ label: ar.id === 'personal' && b === 'goals' ? 'יעדים פיננסיים' : ar.id === 'personal' && b === 'finance' ? 'כספים משותפים' : PAGE_LABEL[b], href: `/${a}/${b}` });
     }
   } else if (PAGE_LABEL[a]) {
     out.push({ label: PAGE_LABEL[a], href: `/${a}` });
