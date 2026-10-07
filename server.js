@@ -1,412 +1,401 @@
-const express = require('express');
-const { Pool } = require('pg');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const path = require('path');
+'use strict';
+const express      = require('express');
+const { Pool }     = require('pg');
+const cors         = require('cors');
+const jwt          = require('jsonwebtoken');
+const bcrypt       = require('bcryptjs');
+const cookieParser = require('cookie-parser');
+const rateLimit    = require('express-rate-limit');
+const path         = require('path');
 require('dotenv').config();
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// ── Startup guards ────────────────────────────────────────────────────────────
+if (!process.env.JWT_SECRET)          throw new Error('JWT_SECRET env var is required');
+if (!process.env.OWNER_PASSWORD_HASH) throw new Error('OWNER_PASSWORD_HASH env var is required');
 
-// PostgreSQL Pool (Supabase)
+const app    = express();
+const PORT   = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
+
+// ── DB Pool ───────────────────────────────────────────────────────────────────
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Middleware
-app.use(bodyParser.json());
-app.use(cors());
+// ── Middleware ────────────────────────────────────────────────────────────────
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || false, credentials: true }));
+app.use(express.json());
+app.use(cookieParser());
+
+app.use((_req, res, next) => {
+  res.setHeader('X-Robots-Tag',         'noindex, nofollow');
+  res.setHeader('Cache-Control',        'no-store');
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('X-Frame-Options',      'DENY');
+  next();
+});
+
 app.use(express.static('public'));
 
-// VAT: 18% since 2025-01-01. TEMPORARY constant until Parameters table exists (see docs/BUILD-SPEC.md, phase 0).
-const VAT_RATE = parseFloat(process.env.VAT_RATE || '0.18');
-
-// JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// Initialize Database
-const initDatabase = async () => {
+// ── Auth middleware ───────────────────────────────────────────────────────────
+function authenticate(req, res, next) {
+  const token = req.cookies?.token;
+  if (!token) return res.status(401).json({ error: 'לא מחובר' });
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        name VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS businesses (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        name VARCHAR(255) NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        password VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS retainers (
-        id SERIAL PRIMARY KEY,
-        business_id INTEGER REFERENCES businesses(id),
-        name VARCHAR(255) NOT NULL,
-        amount INTEGER NOT NULL,
-        note TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS debts (
-        id SERIAL PRIMARY KEY,
-        business_id INTEGER REFERENCES businesses(id),
-        client TEXT NOT NULL,
-        amount INTEGER NOT NULL,
-        status VARCHAR(20) DEFAULT 'unpaid',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id SERIAL PRIMARY KEY,
-        business_id INTEGER REFERENCES businesses(id),
-        task TEXT NOT NULL,
-        priority VARCHAR(20) DEFAULT 'medium',
-        completed INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS ledger (
-        id SERIAL PRIMARY KEY,
-        business_id INTEGER REFERENCES businesses(id),
-        type VARCHAR(20) NOT NULL,
-        description TEXT,
-        amount INTEGER NOT NULL,
-        date VARCHAR(10) DEFAULT CURRENT_DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    console.log('✅ Database tables initialized');
-  } catch (err) {
-    console.error('DB initialization error:', err);
-  }
-};
-
-initDatabase();
-
-// ========== AUTHENTICATION MIDDLEWARE ==========
-
-const authenticate = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token' });
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
-  } catch (err) {
-    res.status(401).json({ error: 'Invalid token' });
+  } catch {
+    res.status(401).json({ error: 'טוקן לא תקין' });
   }
-};
+}
 
-// Ensure the business belongs to the logged-in user
-app.param('businessId', async (req, res, next, id) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token' });
-    let user;
-    try { user = jwt.verify(token, JWT_SECRET); } catch (e) { return res.status(401).json({ error: 'Invalid token' }); }
-    const r = await pool.query('SELECT 1 FROM businesses WHERE id = $1 AND user_id = $2', [id, user.userId]);
-    if (!r.rows.length) return res.status(403).json({ error: 'Forbidden' });
-    next();
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message:       { error: 'יותר מדי ניסיונות. נסה שוב בעוד 15 דקות.' },
+  standardHeaders: true,
+  legacyHeaders:   false,
 });
 
-// ========== AUTH ENDPOINTS ==========
+// ── Parameter helpers ─────────────────────────────────────────────────────────
+async function getParam(key, dateStr) {
+  const { rows } = await pool.query(
+    `SELECT value FROM parameters
+     WHERE key = $1 AND effective_from <= $2::date
+     ORDER BY effective_from DESC LIMIT 1`,
+    [key, dateStr]
+  );
+  return rows[0]?.value ?? null;
+}
 
-// Register
-app.post('/api/auth/register', async (req, res) => {
+async function getVatRate(dateStr) {
+  const v = await getParam('vat_rate', dateStr);
+  return v?.rate ?? 0.18;
+}
+
+async function getAllocationThreshold(dateStr) {
+  const v = await getParam('allocation_threshold', dateStr);
+  return v?.amount ?? 5000;
+}
+
+// ── Auth endpoints ────────────────────────────────────────────────────────────
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'סיסמה נדרשת' });
 
-    const result = await pool.query(
-      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id, email, name',
-      [email, hashedPassword, name]
-    );
+    const valid = await bcrypt.compare(password, process.env.OWNER_PASSWORD_HASH);
+    if (!valid) return res.status(401).json({ error: 'סיסמה שגויה' });
 
-    const token = jwt.sign({ userId: result.rows[0].id, email }, JWT_SECRET);
-    res.json({ token, user: result.rows[0] });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Login
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-
-    if (!result.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
-
-    const user = result.rows[0];
-    const validPassword = await bcrypt.compare(password, user.password);
-
-    if (!validPassword) return res.status(401).json({ error: 'Invalid credentials' });
-
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ========== BUSINESS ENDPOINTS ==========
-
-// Get user's businesses
-app.get('/api/businesses', authenticate, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM businesses WHERE user_id = $1 ORDER BY created_at',
-      [req.user.userId]
-    );
-    res.json({ businesses: result.rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Create business
-app.post('/api/businesses', authenticate, async (req, res) => {
-  try {
-    const { name, type, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const result = await pool.query(
-      'INSERT INTO businesses (user_id, name, type, password) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.user.userId, name, type, hashedPassword]
-    );
-
-    res.json({ business: result.rows[0] });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ========== RETAINERS ENDPOINTS ==========
-
-// Get retainers for business
-app.get('/api/businesses/:businessId/retainers', authenticate, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM retainers WHERE business_id = $1 ORDER BY name',
-      [req.params.businessId]
-    );
-
-    let total = result.rows.reduce((sum, r) => sum + r.amount, 0);
-    let totalWithVat = Math.round(total * (1 + VAT_RATE));
-
-    res.json({ retainers: result.rows, total, totalWithVat });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Add retainer
-app.post('/api/businesses/:businessId/retainers', authenticate, async (req, res) => {
-  try {
-    const { name, amount, note } = req.body;
-    const result = await pool.query(
-      'INSERT INTO retainers (business_id, name, amount, note) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.params.businessId, name, amount, note || '']
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Update retainer
-app.put('/api/businesses/:businessId/retainers/:id', authenticate, async (req, res) => {
-  try {
-    const { amount, note } = req.body;
-    await pool.query(
-      'UPDATE retainers SET amount = $1, note = $2 WHERE id = $3 AND business_id = $4',
-      [amount, note, req.params.id, req.params.businessId]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Delete retainer
-app.delete('/api/businesses/:businessId/retainers/:id', authenticate, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM retainers WHERE id = $1 AND business_id = $2', [req.params.id, req.params.businessId]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ========== DEBTS ENDPOINTS ==========
-
-// Get debts
-app.get('/api/businesses/:businessId/debts', authenticate, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM debts WHERE business_id = $1 AND status = $2 ORDER BY client',
-      [req.params.businessId, 'unpaid']
-    );
-
-    let total = result.rows.reduce((sum, d) => sum + d.amount, 0);
-    res.json({ debts: result.rows, total });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Add debt
-app.post('/api/businesses/:businessId/debts', authenticate, async (req, res) => {
-  try {
-    const { client, amount } = req.body;
-    const result = await pool.query(
-      'INSERT INTO debts (business_id, client, amount, status) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.params.businessId, client, amount, 'unpaid']
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Mark debt as paid
-app.put('/api/businesses/:businessId/debts/:id/paid', authenticate, async (req, res) => {
-  try {
-    await pool.query('UPDATE debts SET status = $1 WHERE id = $2 AND business_id = $3', ['paid', req.params.id, req.params.businessId]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ========== TASKS ENDPOINTS ==========
-
-// Get tasks
-app.get('/api/businesses/:businessId/tasks', authenticate, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM tasks WHERE business_id = $1 AND completed = 0 ORDER BY priority DESC, created_at',
-      [req.params.businessId]
-    );
-    res.json({ tasks: result.rows, count: result.rows.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Add task
-app.post('/api/businesses/:businessId/tasks', authenticate, async (req, res) => {
-  try {
-    const { task, priority } = req.body;
-    const result = await pool.query(
-      'INSERT INTO tasks (business_id, task, priority) VALUES ($1, $2, $3) RETURNING *',
-      [req.params.businessId, task, priority || 'medium']
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Complete task
-app.put('/api/businesses/:businessId/tasks/:id/complete', authenticate, async (req, res) => {
-  try {
-    await pool.query('UPDATE tasks SET completed = 1 WHERE id = $1 AND business_id = $2', [req.params.id, req.params.businessId]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Delete task
-app.delete('/api/businesses/:businessId/tasks/:id', authenticate, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM tasks WHERE id = $1 AND business_id = $2', [req.params.id, req.params.businessId]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ========== LEDGER ENDPOINTS ==========
-
-// Get ledger summary
-app.get('/api/businesses/:businessId/ledger/summary', authenticate, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT type, SUM(amount) as total FROM ledger WHERE business_id = $1 GROUP BY type',
-      [req.params.businessId]
-    );
-
-    let summary = { income: 0, expenses: 0 };
-    result.rows.forEach(row => {
-      if (row.type === 'income') summary.income = row.total;
-      else if (row.type === 'expense') summary.expenses = row.total;
+    const token = jwt.sign({ role: 'owner' }, process.env.JWT_SECRET, { expiresIn: '8h' });
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure:   isProd,       // false on localhost so Safari accepts it
+      sameSite: 'strict',
+      maxAge:   8 * 3600 * 1000
     });
-
-    res.json({ ...summary, net: summary.income - summary.expenses });
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Add ledger entry
-app.post('/api/businesses/:businessId/ledger', authenticate, async (req, res) => {
+app.post('/api/auth/logout', (_req, res) => {
+  res.clearCookie('token');
+  res.json({ ok: true });
+});
+
+// ── KPI: Home (L0) ────────────────────────────────────────────────────────────
+app.get('/api/kpi/home', authenticate, async (req, res) => {
   try {
-    const { type, description, amount, date } = req.body;
-    const result = await pool.query(
-      'INSERT INTO ledger (business_id, type, description, amount, date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.params.businessId, type, description, amount, date || new Date().toISOString().split('T')[0]]
-    );
-    res.json(result.rows[0]);
+    const today = new Date().toISOString().split('T')[0];
+    const [vatRate, threshold] = await Promise.all([
+      getVatRate(today),
+      getAllocationThreshold(today)
+    ]);
+
+    // Last sync timestamp per domain
+    const { rows: syncRows } = await pool.query(`
+      SELECT domain, MAX(synced_at) AS last_sync
+      FROM entities WHERE deleted_at IS NULL
+      GROUP BY domain
+    `);
+    const lastSync = Object.fromEntries(syncRows.map(r => [r.domain, r.last_sync]));
+
+    // MRR: Σ amount_net for active retainers (ex-VAT; vault field is amount_net)
+    const { rows: [mrrRow] } = await pool.query(`
+      SELECT COALESCE(SUM((data->>'amount_net')::numeric), 0) AS mrr
+      FROM entities
+      WHERE type = 'retainer' AND status = 'active' AND deleted_at IS NULL
+    `);
+    const mrr = parseFloat(mrrRow.mrr);
+
+    // Open debts (incl VAT; vault field is amount_gross)
+    const { rows: [debtRow] } = await pool.query(`
+      SELECT COALESCE(SUM((data->>'amount_gross')::numeric), 0) AS total
+      FROM entities
+      WHERE type = 'debt'
+        AND (status IS NULL OR status NOT IN ('paid','void','archived'))
+        AND deleted_at IS NULL
+    `);
+    const openDebts = parseFloat(debtRow.total);
+
+    // Overdue tasks
+    const { rows: [taskRow] } = await pool.query(`
+      SELECT COUNT(*) AS cnt FROM tasks
+      WHERE NOT done AND due IS NOT NULL AND due < $1 AND deleted_at IS NULL
+    `, [today]);
+    const overdueTasks = parseInt(taskRow.cnt);
+
+    // Attention items
+    const attentionItems = await buildAttentionItems(today, threshold);
+
+    // Domain cards
+    const { rows: branchRows } = await pool.query(`
+      SELECT b.domain, b.branch, b.name_he, b.sort,
+             COUNT(e.id)     FILTER (WHERE e.deleted_at IS NULL) AS entity_count,
+             MAX(e.synced_at) FILTER (WHERE e.deleted_at IS NULL) AS last_synced
+      FROM branches b
+      LEFT JOIN entities e ON e.branch = b.branch
+      GROUP BY b.domain, b.branch, b.name_he, b.sort
+      ORDER BY b.domain, b.sort
+    `);
+
+    // 30-day horizon
+    const d30 = new Date(today); d30.setDate(d30.getDate() + 30);
+    const { rows: horizonRows } = await pool.query(`
+      SELECT 'task' AS item_type, text AS title, branch, due, priority
+      FROM tasks
+      WHERE NOT done AND due BETWEEN $1 AND $2 AND deleted_at IS NULL
+      ORDER BY due ASC LIMIT 20
+    `, [today, d30.toISOString().split('T')[0]]);
+
+    res.json({
+      today, vat_rate: vatRate,
+      last_sync: lastSync,
+      hero: {
+        mrr:           { value: mrr },
+        open_debts:    { value: openDebts },
+        overdue_tasks: { value: overdueTasks }
+      },
+      attention_items: attentionItems,
+      domain_cards:    branchRows,
+      horizon_30:      horizonRows
+    });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ========== HEALTH CHECK ==========
+async function buildAttentionItems(today, threshold) {
+  const items = [];
 
-app.get('/api/health', (req, res) => {
+  // RED: allocation required but missing
+  const { rows: allocRows } = await pool.query(`
+    SELECT id, branch,
+           data->>'client'     AS client,
+           (data->>'amount_net')::numeric AS amount_net
+    FROM entities
+    WHERE (data->>'allocation_required')::boolean = true
+      AND (data->>'allocation_number' IS NULL OR data->>'allocation_number' = '')
+      AND deleted_at IS NULL
+    LIMIT 7
+  `);
+  for (const r of allocRows) {
+    items.push({
+      severity: 'red',
+      type: 'allocation_missing',
+      entity_id: r.id,
+      branch: r.branch,
+      text: `חשבונית ₪${r.amount_net} ל${r.client || '?'} — חסר מספר הקצאה`,
+      action: 'השלם מספר הקצאה'
+    });
+  }
+
+  // RED/ORANGE: overdue tasks
+  const { rows: overdueRows } = await pool.query(`
+    SELECT id, branch, text, due,
+           (CURRENT_DATE - due) AS days_past
+    FROM tasks
+    WHERE NOT done AND due < $1 AND deleted_at IS NULL
+    ORDER BY due ASC LIMIT 7
+  `, [today]);
+  for (const r of overdueRows) {
+    items.push({
+      severity:  r.days_past > 30 ? 'red' : 'orange',
+      type:      'task_overdue',
+      entity_id: r.id,
+      branch:    r.branch,
+      text:      r.text,
+      days_past: r.days_past,
+      action:    'טפל במשימה'
+    });
+  }
+
+  items.sort((a, b) => {
+    const s = { red: 0, orange: 1 };
+    const d = (s[a.severity] ?? 2) - (s[b.severity] ?? 2);
+    return d !== 0 ? d : (b.days_past ?? 0) - (a.days_past ?? 0);
+  });
+  return items.slice(0, 7);
+}
+
+// ── KPI: adigital (L2) ────────────────────────────────────────────────────────
+app.get('/api/kpi/adigital', authenticate, async (req, res) => {
+  try {
+    const today   = new Date().toISOString().split('T')[0];
+    const vatRate = await getVatRate(today);
+
+    // Active retainers
+    const { rows: retainers } = await pool.query(`
+      SELECT id,
+             data->>'client'             AS client,
+             (data->>'amount_net')::numeric AS fee_net,
+             data->>'contract_start'     AS contract_start,
+             data->>'contract_end'       AS contract_end,
+             data->>'notice_deadline'    AS notice_deadline,
+             data->>'auto_renew'         AS auto_renew,
+             data->>'notice_period_days' AS notice_period_days,
+             data->>'note'               AS note
+      FROM entities
+      WHERE type = 'retainer' AND status = 'active'
+        AND branch = 'adigital' AND deleted_at IS NULL
+      ORDER BY (data->>'amount_net')::numeric DESC
+    `);
+
+    const mrr = retainers.reduce((s, r) => s + parseFloat(r.fee_net || 0), 0);
+
+    // Concentration (top 3 by monthly fee)
+    const top3 = retainers.slice(0, 3).map(r => ({
+      name:    r.client,
+      fee_net: parseFloat(r.fee_net || 0),
+      pct:     mrr > 0 ? Math.round(parseFloat(r.fee_net || 0) / mrr * 100) : 0
+    }));
+
+    // Open debts
+    const { rows: debts } = await pool.query(`
+      SELECT id,
+             data->>'client'                AS client,
+             (data->>'amount_gross')::numeric AS amount_gross
+      FROM entities
+      WHERE type = 'debt' AND branch = 'adigital'
+        AND (status IS NULL OR status NOT IN ('paid','void','archived'))
+        AND deleted_at IS NULL
+      ORDER BY (data->>'amount_gross')::numeric DESC
+    `);
+    const totalDebts = debts.reduce((s, r) => s + parseFloat(r.amount_gross || 0), 0);
+
+    // Tasks
+    const { rows: tasks } = await pool.query(`
+      SELECT id, text, priority, due, done,
+             CASE WHEN due < $1 AND NOT done
+               THEN CURRENT_DATE - due ELSE NULL END AS days_past
+      FROM tasks
+      WHERE branch = 'adigital' AND NOT done AND deleted_at IS NULL
+      ORDER BY due ASC NULLS LAST, priority DESC
+    `, [today]);
+
+    // Last sync
+    const { rows: [syncRow] } = await pool.query(`
+      SELECT MAX(synced_at) AS last_sync
+      FROM entities WHERE branch = 'adigital' AND deleted_at IS NULL
+    `);
+
+    res.json({
+      branch: 'adigital', name_he: 'אדיג׳יטל',
+      today, vat_rate: vatRate,
+      last_sync:   syncRow?.last_sync ?? null,
+      mrr,
+      mrr_gross:   Math.round(mrr * (1 + vatRate)),
+      retainers,
+      concentration: {
+        top_3:         top3,
+        max_pct:       top3[0]?.pct ?? 0,
+        total_clients: retainers.length
+      },
+      aging:       null, // ממתין לייבוא Paperless עם due_date
+      open_debts:  { total: totalDebts, items: debts },
+      tasks
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+app.get('/api/tasks', authenticate, async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const conds  = ['deleted_at IS NULL'];
+    const params = [today];
+
+    if (req.query.branch) {
+      params.push(req.query.branch);
+      conds.push(`branch = $${params.length}`);
+    }
+    if (req.query.done !== undefined) {
+      params.push(req.query.done === 'true');
+      conds.push(`done = $${params.length}`);
+    } else {
+      conds.push('NOT done');
+    }
+
+    const { rows } = await pool.query(`
+      SELECT id, domain, branch, text, priority, due, done,
+             CASE WHEN due < $1 AND NOT done
+               THEN CURRENT_DATE - due ELSE NULL END AS days_past
+      FROM tasks
+      WHERE ${conds.join(' AND ')}
+      ORDER BY due ASC NULLS LAST, priority DESC
+    `, params);
+
+    res.json({ tasks: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Entities ──────────────────────────────────────────────────────────────────
+app.get('/api/entities', authenticate, async (req, res) => {
+  try {
+    const conds  = ['deleted_at IS NULL'];
+    const params = [];
+
+    for (const [col, val] of [
+      ['type', req.query.type],
+      ['branch', req.query.branch],
+      ['domain', req.query.domain]
+    ]) {
+      if (val) { params.push(val); conds.push(`${col} = $${params.length}`); }
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, type, domain, branch, status, data, source_path, updated_at, synced_at
+       FROM entities WHERE ${conds.join(' AND ')}
+       ORDER BY synced_at DESC LIMIT 200`,
+      params
+    );
+    res.json({ entities: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Health (no auth) ──────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ========== SERVE HTML ==========
-
-app.get('/', (req, res) => {
+// ── Serve root ────────────────────────────────────────────────────────────────
+app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public/login.html'));
 });
 
-// ========== START SERVER ==========
-
+// ── Start ─────────────────────────────────────────────────────────────────────
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`🚀 Dashboard running on http://localhost:${PORT}`);
-  });
+  app.listen(PORT, () => console.log(`Dashboard: http://localhost:${PORT}`));
 }
 
 module.exports = app;

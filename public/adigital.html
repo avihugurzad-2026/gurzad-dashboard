@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>אדיג׳יטל — דשבורד בעלים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="g-nav">
+  <nav class="g-nav__breadcrumb" aria-label="ניווט">
+    <a href="/index.html">בית</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span>עסקים</span>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="current">אדיג׳יטל</span>
+  </nav>
+  <div class="g-nav__spacer"></div>
+  <div class="g-nav__actions">
+    <button class="btn-ghost" id="toggleAmounts" onclick="toggleAmounts()">הסתר סכומים</button>
+    <button class="btn-ghost" onclick="logout()">יציאה</button>
+  </div>
+</nav>
+
+<main class="page-wrap" id="main" style="display:none">
+
+  <!-- KPI bar -->
+  <section class="section">
+    <h1 class="section-title">אדיג׳יטל</h1>
+    <div class="kpi-row" id="kpiRow">
+      <div class="skeleton skeleton-kpi"></div>
+      <div class="skeleton skeleton-kpi"></div>
+      <div class="skeleton skeleton-kpi"></div>
+      <div class="skeleton skeleton-kpi"></div>
+    </div>
+  </section>
+
+  <!-- Retainers -->
+  <section class="section">
+    <h2 class="section-title">לקוחות פעילים</h2>
+    <div class="retainer-grid" id="retainerGrid">
+      <div class="skeleton skeleton-kpi"></div>
+    </div>
+  </section>
+
+  <!-- Aging placeholder -->
+  <section class="section">
+    <h2 class="section-title">עמידת חובות</h2>
+    <div class="info-placeholder">
+      אין נתונים — ממתין לייבוא Paperless עם <code>due_date</code>
+    </div>
+  </section>
+
+  <!-- Concentration -->
+  <section class="section">
+    <h2 class="section-title">ריכוז לקוחות</h2>
+    <ul class="concentration-list" id="concentrationList">
+      <li class="skeleton skeleton-text" style="height:40px;border-radius:8px"></li>
+    </ul>
+  </section>
+
+  <!-- Tasks -->
+  <section class="section">
+    <h2 class="section-title">משימות</h2>
+    <ul class="horizon-list" id="taskList">
+      <li class="skeleton skeleton-text" style="height:44px;border-radius:11px"></li>
+    </ul>
+  </section>
+
+</main>
+
+<script>
+const ILS = n => new Intl.NumberFormat('he-IL', {
+  style: 'currency', currency: 'ILS', maximumFractionDigits: 0
+}).format(n);
+
+let amountsHidden = false;
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/login.html';
+}
+
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  document.getElementById('toggleAmounts').textContent =
+    amountsHidden ? 'הצג סכומים' : 'הסתר סכומים';
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderKPI(d) {
+  const el = document.getElementById('kpiRow');
+  const conMax = d.concentration?.max_pct ?? 0;
+  const concClass = conMax >= 60 ? 'kpi-card--danger' : conMax >= 40 ? 'kpi-card--warning' : '';
+  const debtClass = d.open_debts?.total > 0 ? 'kpi-card--warning' : '';
+
+  el.innerHTML = `
+    <div class="kpi-card">
+      <span class="kpi-card__label">MRR (ללא מע"מ)</span>
+      <span class="kpi-card__value"><bdi class="amount">${ILS(d.mrr)}</bdi></span>
+      <span class="kpi-card__sub amount">${ILS(d.mrr_gross)} כולל מע"מ</span>
+    </div>
+    <div class="kpi-card ${debtClass}">
+      <span class="kpi-card__label">חובות פתוחים</span>
+      <span class="kpi-card__value"><bdi class="amount">${ILS(d.open_debts?.total ?? 0)}</bdi></span>
+      <span class="kpi-card__sub">${(d.open_debts?.items ?? []).length} חשבוניות</span>
+    </div>
+    <div class="kpi-card ${concClass}">
+      <span class="kpi-card__label">ריכוז מקסימלי</span>
+      <span class="kpi-card__value">${conMax}%</span>
+      <span class="kpi-card__sub">${d.concentration?.total_clients ?? 0} לקוחות</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-card__label">סנכרון אחרון</span>
+      <span class="kpi-card__value kpi-value--normal">${formatSyncAge(d.last_sync)}</span>
+    </div>`;
+}
+
+function formatSyncAge(ts) {
+  if (!ts) return 'לא סונכרן';
+  const age = (Date.now() - new Date(ts)) / 60000;
+  if (age < 2)    return 'עכשיו';
+  if (age < 60)   return `לפני ${Math.round(age)} דק׳`;
+  if (age < 1440) return `לפני ${Math.round(age/60)} שע׳`;
+  return `לפני ${Math.round(age/1440)} ימים`;
+}
+
+function renderRetainers(retainers) {
+  const el = document.getElementById('retainerGrid');
+  if (!retainers || retainers.length === 0) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-state__icon">👥</span>אין נתונים עדיין</div>`;
+    return;
+  }
+  el.innerHTML = retainers.map(r => {
+    const end = r.contract_end
+      ? new Date(r.contract_end).toLocaleDateString('he-IL', {month:'short', year:'numeric'})
+      : null;
+    const notice = r.notice_deadline
+      ? new Date(r.notice_deadline).toLocaleDateString('he-IL', {day:'numeric', month:'short'})
+      : null;
+    const isNearNotice = r.notice_deadline &&
+      (new Date(r.notice_deadline) - new Date()) < 30 * 86400000;
+
+    return `<div class="retainer-card ${isNearNotice ? 'retainer-card--notice' : ''}">
+      <div class="retainer-card__name">${escHtml(r.client)}</div>
+      <div class="retainer-card__fee amount">${ILS(parseFloat(r.fee_net || 0))}</div>
+      <div class="retainer-card__meta">
+        ${end   ? `<span>חוזה עד ${escHtml(end)}</span>` : ''}
+        ${notice ? `<span class="${isNearNotice ? 'text-warning-strong' : ''}">הודעה עד ${escHtml(notice)}</span>` : ''}
+        ${r.note ? `<span>${escHtml(r.note)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderConcentration(conc, mrr) {
+  const el = document.getElementById('concentrationList');
+  if (!conc || !conc.top_3 || conc.top_3.length === 0) {
+    el.innerHTML = `<li class="empty-state">אין נתונים עדיין</li>`;
+    return;
+  }
+  const items = [...conc.top_3];
+  const top3Total = items.reduce((s, r) => s + r.pct, 0);
+  if (top3Total < 100) {
+    items.push({ name: 'שאר', pct: 100 - top3Total, fee_net: mrr - items.reduce((s,r) => s + r.fee_net, 0) });
+  }
+  el.innerHTML = items.map(r => `
+    <li class="concentration-row">
+      <div class="concentration-row__header">
+        <span>${escHtml(r.name)}</span>
+        <span class="concentration-row__pct">${r.pct}%</span>
+      </div>
+      <div class="concentration-bar">
+        <div class="concentration-bar__fill" style="width:${r.pct}%"></div>
+      </div>
+    </li>`).join('');
+}
+
+function renderTasks(tasks) {
+  const el = document.getElementById('taskList');
+  const open = (tasks || []).filter(t => !t.done);
+  if (open.length === 0) {
+    el.innerHTML = `<li class="empty-state">אין משימות פתוחות</li>`;
+    return;
+  }
+
+  const priorityIcon = { high: '🔴', medium: '🟡', low: '⚪' };
+  const priorityLabel = { high: 'דחוף', medium: 'בינוני', low: 'נמוך' };
+
+  el.innerHTML = open.map(t => {
+    const overdue = t.days_past && parseInt(t.days_past) > 0;
+    const due = t.due
+      ? new Date(t.due).toLocaleDateString('he-IL', {day:'numeric',month:'short'})
+      : '';
+    const overdueText = overdue ? ` (${t.days_past} ימים)` : '';
+    return `<li class="task-row ${overdue ? 'task-row--overdue' : ''}">
+      <span class="task-row__icon"
+        aria-label="${escHtml(priorityLabel[t.priority] || '')}"
+        title="${escHtml(priorityLabel[t.priority] || '')}"
+      >${priorityIcon[t.priority] || '⚪'}</span>
+      <span class="task-row__text">${escHtml(t.text)}</span>
+      <span class="task-row__due">${escHtml(due)}${overdueText}</span>
+    </li>`;
+  }).join('');
+}
+
+async function init() {
+  const res = await fetch('/api/kpi/adigital', { credentials: 'include' });
+  if (res.status === 401) { location.href = '/login.html'; return; }
+  if (!res.ok) { document.body.innerHTML = '<p class="error-page-msg">שגיאה בטעינת הנתונים</p>'; return; }
+
+  const d = await res.json();
+  renderKPI(d);
+  renderRetainers(d.retainers);
+  renderConcentration(d.concentration, d.mrr);
+  renderTasks(d.tasks);
+
+  document.getElementById('main').style.display = '';
+}
+
+init();
+</script>
+</body>
+</html>

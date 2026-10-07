@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>משימות — דשבורד בעלים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="g-nav">
+  <nav class="g-nav__breadcrumb" aria-label="ניווט">
+    <a href="/index.html">בית</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="current">משימות</span>
+  </nav>
+  <div class="g-nav__spacer"></div>
+  <div class="g-nav__actions">
+    <button class="btn-ghost" onclick="logout()">יציאה</button>
+  </div>
+</nav>
+
+<main class="page-wrap" id="main" style="display:none">
+
+  <section class="section">
+    <h1 class="section-title">משימות</h1>
+
+    <!-- Filters -->
+    <div class="filter-bar" id="filterBar">
+      <button class="chip chip--active" data-branch="" onclick="filterBranch(this, '')">הכול</button>
+      <button class="chip" data-branch="adigital" onclick="filterBranch(this, 'adigital')">אדיג׳יטל</button>
+      <button class="chip" data-branch="head-spa-israel" onclick="filterBranch(this, 'head-spa-israel')">OSPA</button>
+      <button class="chip" data-branch="home" onclick="filterBranch(this, 'home')">בית</button>
+      <button class="chip" data-branch="general-tasks" onclick="filterBranch(this, 'general-tasks')">כללי</button>
+      <button class="chip" data-branch="real-estate" onclick="filterBranch(this, 'real-estate')">נדל״ן</button>
+    </div>
+
+    <!-- Task groups -->
+    <div id="tasksContainer">
+      <div class="skeleton skeleton-text" style="height:44px;border-radius:11px;margin-bottom:8px"></div>
+      <div class="skeleton skeleton-text" style="height:44px;border-radius:11px;margin-bottom:8px"></div>
+      <div class="skeleton skeleton-text" style="height:44px;border-radius:11px"></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const BRANCH_LABELS = {
+  adigital:        'אדיג׳יטל',
+  'head-spa-israel': 'OSPA',
+  home:            'בית',
+  'general-tasks': 'משימות כלליות',
+  'real-estate':   'נדל״ן',
+  'legal-and-tasks': 'משפטי',
+  investments:     'השקעות',
+  finance:         'פיננסים',
+};
+
+const PRIORITY_ICON  = { high: '🔴', medium: '🟡', low: '⚪' };
+const PRIORITY_LABEL = { high: 'דחוף', medium: 'בינוני', low: 'נמוך' };
+
+let currentBranch = '';
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/login.html';
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function filterBranch(btn, branch) {
+  currentBranch = branch;
+  document.querySelectorAll('.filter-bar .chip').forEach(c =>
+    c.classList.toggle('chip--active', c === btn)
+  );
+  loadTasks(branch);
+}
+
+async function loadTasks(branch) {
+  const url = '/api/tasks' + (branch ? `?branch=${encodeURIComponent(branch)}` : '');
+  const res = await fetch(url, { credentials: 'include' });
+  if (res.status === 401) { location.href = '/login.html'; return; }
+  if (!res.ok) return;
+
+  const { tasks } = await res.json();
+  renderTasks(tasks || [], !!branch);
+}
+
+function renderTasks(tasks, singleBranch) {
+  const el = document.getElementById('tasksContainer');
+
+  if (tasks.length === 0) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-state__icon">✅</span>אין משימות פתוחות</div>`;
+    return;
+  }
+
+  if (singleBranch) {
+    el.innerHTML = `<ul class="horizon-list">${tasks.map(taskHtml).join('')}</ul>`;
+    return;
+  }
+
+  const byBranch = {};
+  for (const t of tasks) {
+    const k = t.branch || '—';
+    if (!byBranch[k]) byBranch[k] = [];
+    byBranch[k].push(t);
+  }
+
+  let html = '';
+  for (const [branch, items] of Object.entries(byBranch)) {
+    const label = BRANCH_LABELS[branch] || branch;
+    html += `<div class="section section--sm">
+      <h3 class="branch-label">${escHtml(label)}</h3>
+      <ul class="horizon-list">${items.map(taskHtml).join('')}</ul>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function taskHtml(t) {
+  const overdue = t.days_past && parseInt(t.days_past) > 0;
+  const due = t.due
+    ? new Date(t.due).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })
+    : '';
+  const overdueText = overdue ? ` (${t.days_past} ימים)` : '';
+  const icon  = PRIORITY_ICON[t.priority]  || '⚪';
+  const label = PRIORITY_LABEL[t.priority] || '';
+  return `<li class="task-row ${overdue ? 'task-row--overdue' : ''}">
+    <span class="task-row__icon" aria-label="${escHtml(label)}" title="${escHtml(label)}">${icon}</span>
+    <span class="task-row__text">${escHtml(t.text)}</span>
+    <span class="task-row__due">${escHtml(due)}${overdueText}</span>
+  </li>`;
+}
+
+async function init() {
+  const res = await fetch('/api/tasks', { credentials: 'include' });
+  if (res.status === 401) { location.href = '/login.html'; return; }
+  if (!res.ok) return;
+
+  const { tasks } = await res.json();
+  renderTasks(tasks || [], false);
+  document.getElementById('main').style.display = '';
+}
+
+init();
+</script>
+</body>
+</html>

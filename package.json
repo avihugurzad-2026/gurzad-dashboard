@@ -1,20 +1,27 @@
 {
-  "name": "gurzad-all-in-one",
-  "version": "1.0.0",
-  "description": "All in One financial & business management dashboard",
+  "name": "gurzad-dashboard",
+  "version": "2.0.0",
+  "description": "דשבורד בעלים — אביהו גורזד",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "sync:dry": "node scripts/sync-from-obsidian.js --dry",
+    "sync:apply": "node scripts/sync-from-obsidian.js --apply",
+    "backup": "supabase db dump -f backup-$(date +%Y%m%d-%H%M).sql",
+    "hash-password": "node -e \"const b=require('bcryptjs');b.hash(process.argv[1],10).then(h=>{console.log(h);process.exit(0)})\" "
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "pg": "^8.10.0",
-    "body-parser": "^1.20.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "glob": "^10.3.10",
+    "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3"
+    "pg": "^8.10.0"
   },
   "engines": {
     "node": ">=18"

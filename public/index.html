@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>דשבורד בעלים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="g-nav" id="nav">
+  <span class="g-nav__title">דשבורד בעלים</span>
+  <div class="g-nav__spacer"></div>
+  <div class="g-nav__actions">
+    <span class="sync-stamp" id="syncStamp">
+      <span class="sync-stamp__dot" id="syncDot"></span>
+      <span id="syncLabel">טוען...</span>
+    </span>
+    <button class="btn-ghost" id="toggleAmounts" onclick="toggleAmounts()">הסתר סכומים</button>
+    <button class="btn-ghost" onclick="logout()">יציאה</button>
+  </div>
+</nav>
+
+<main class="page-wrap" id="main" style="display:none">
+
+  <!-- Attention panel -->
+  <section class="section">
+    <div class="attention-panel" id="attentionPanel">
+      <p class="attention-panel__title">דורש תשומת לב היום</p>
+      <div id="attentionContent">
+        <div class="skeleton skeleton-text" style="width:60%;height:16px"></div>
+        <div class="skeleton skeleton-text" style="width:40%;height:16px;margin-top:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hero KPI row -->
+  <section class="section">
+    <h2 class="section-title">סיכום</h2>
+    <div class="kpi-row" id="kpiRow">
+      <div class="skeleton skeleton-kpi"></div>
+      <div class="skeleton skeleton-kpi"></div>
+      <div class="skeleton skeleton-kpi"></div>
+    </div>
+  </section>
+
+  <!-- Domain cards -->
+  <section class="section" id="domainsSection">
+    <h2 class="section-title">דומיינים</h2>
+    <div id="domainsContent">
+      <div class="skeleton skeleton-kpi" style="height:60px;margin-bottom:8px"></div>
+    </div>
+  </section>
+
+  <!-- 30-day horizon -->
+  <section class="section" id="horizonSection">
+    <h2 class="section-title">30 יום קרובים</h2>
+    <ul class="horizon-list" id="horizonList">
+      <li class="skeleton skeleton-text" style="height:44px;border-radius:11px"></li>
+    </ul>
+  </section>
+
+</main>
+
+<script>
+const ILS = n => new Intl.NumberFormat('he-IL', {
+  style: 'currency', currency: 'ILS', maximumFractionDigits: 0
+}).format(n);
+
+const DOMAIN_LABELS = {
+  business: 'עסקים', personal: 'אישי', ventures: 'השקעות'
+};
+
+const BRANCH_LINKS = {
+  adigital: '/adigital.html'
+};
+
+let amountsHidden = false;
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/login.html';
+}
+
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  document.getElementById('toggleAmounts').textContent =
+    amountsHidden ? 'הצג סכומים' : 'הסתר סכומים';
+}
+
+function syncDotClass(ts) {
+  if (!ts) return 'sync-stamp__dot';
+  const age = (Date.now() - new Date(ts)) / 3600000;
+  if (age < 24)  return 'sync-stamp__dot sync-stamp__dot--ok';
+  if (age < 72)  return 'sync-stamp__dot sync-stamp__dot--stale';
+  return 'sync-stamp__dot sync-stamp__dot--old';
+}
+
+function formatSyncAge(ts) {
+  if (!ts) return 'לא סונכרן';
+  const age = (Date.now() - new Date(ts)) / 60000;
+  if (age < 2)    return 'עכשיו';
+  if (age < 60)   return `לפני ${Math.round(age)} דק׳`;
+  if (age < 1440) return `לפני ${Math.round(age/60)} שע׳`;
+  return `לפני ${Math.round(age/1440)} ימים`;
+}
+
+function renderAttention(items) {
+  const el = document.getElementById('attentionContent');
+  if (!items || items.length === 0) {
+    el.innerHTML = `<p class="attention-panel__empty">✓ הכול תקין</p>`;
+    return;
+  }
+  const icons = { allocation_missing: '📋', task_overdue: '⏰' };
+  el.innerHTML = `<ul class="attention-list">${items.map(it => `
+    <li class="attention-item attention-item--${it.severity}">
+      <span class="attention-item__icon" aria-hidden="true">${icons[it.type] || '⚠'}</span>
+      <div class="attention-item__body">
+        <div class="attention-item__text">${escHtml(it.text)}</div>
+        <div class="attention-item__action">${escHtml(it.action || '')}</div>
+      </div>
+    </li>`).join('')}</ul>`;
+}
+
+function renderKPI(hero, vatRate) {
+  const el = document.getElementById('kpiRow');
+  const mrrGross = Math.round(hero.mrr.value * (1 + vatRate));
+  const overdueClass = hero.overdue_tasks.value > 0 ? 'kpi-card--danger' : '';
+  const debtClass    = hero.open_debts.value  > 0 ? 'kpi-card--warning' : '';
+  el.innerHTML = `
+    <div class="kpi-card">
+      <span class="kpi-card__label">הכנסה חודשית (ללא מע"מ)</span>
+      <span class="kpi-card__value"><bdi class="amount">${ILS(hero.mrr.value)}</bdi></span>
+      <span class="kpi-card__sub amount">${ILS(mrrGross)} כולל מע"מ</span>
+    </div>
+    <div class="kpi-card ${debtClass}">
+      <span class="kpi-card__label">חובות פתוחים (כולל מע"מ)</span>
+      <span class="kpi-card__value"><bdi class="amount">${ILS(hero.open_debts.value)}</bdi></span>
+    </div>
+    <div class="kpi-card ${overdueClass}">
+      <span class="kpi-card__label">משימות באיחור</span>
+      <span class="kpi-card__value">${hero.overdue_tasks.value}</span>
+    </div>`;
+}
+
+function renderDomains(branchRows) {
+  if (!branchRows || branchRows.length === 0) {
+    document.getElementById('domainsContent').innerHTML = `<div class="empty-state"><span class="empty-state__icon">🗂</span>אין נתונים עדיין</div>`;
+    return;
+  }
+
+  const byDomain = {};
+  for (const r of branchRows) {
+    if (!byDomain[r.domain]) byDomain[r.domain] = [];
+    byDomain[r.domain].push(r);
+  }
+
+  let html = '';
+  for (const [domain, branches] of Object.entries(byDomain)) {
+    html += `<div class="domain-group">
+      <p class="domain-group__header">${escHtml(DOMAIN_LABELS[domain] || domain)}</p>
+      <div class="domain-cards">`;
+    for (const b of branches) {
+      const href = BRANCH_LINKS[b.branch] || '#';
+      const count = parseInt(b.entity_count) || 0;
+      const syncAge = formatSyncAge(b.last_synced);
+      html += `<a class="domain-card" href="${href}">
+        <div class="domain-card__name">${escHtml(b.name_he || b.branch)}</div>
+        <div class="domain-card__meta">
+          ${count > 0
+            ? `<span>${count} רשומות</span><span>${escHtml(syncAge)}</span>`
+            : `<span class="domain-card__empty">אין נתונים עדיין</span>`}
+        </div>
+      </a>`;
+    }
+    html += `</div></div>`;
+  }
+  document.getElementById('domainsContent').innerHTML = html;
+}
+
+function renderHorizon(items) {
+  const el = document.getElementById('horizonList');
+  if (!items || items.length === 0) {
+    el.innerHTML = `<li class="empty-state">אין משימות ב-30 הימים הקרובים</li>`;
+    return;
+  }
+  el.innerHTML = items.map(t => {
+    const due = t.due ? new Date(t.due).toLocaleDateString('he-IL', {day:'numeric',month:'short'}) : '';
+    return `<li class="task-row">
+      <span class="task-row__icon" aria-label="משימה">📌</span>
+      <span class="task-row__text">${escHtml(t.title)}</span>
+      <span class="task-row__due">${escHtml(due)}</span>
+    </li>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function init() {
+  const res = await fetch('/api/kpi/home', { credentials: 'include' });
+  if (res.status === 401) { location.href = '/login.html'; return; }
+  if (!res.ok) { document.body.innerHTML = '<p class="error-page-msg">שגיאה בטעינת הנתונים</p>'; return; }
+
+  const d = await res.json();
+
+  // Sync stamp: pick newest
+  const syncs = Object.values(d.last_sync || {}).filter(Boolean);
+  const latest = syncs.length ? syncs.reduce((a,b) => a > b ? a : b) : null;
+  document.getElementById('syncDot').className = syncDotClass(latest);
+  document.getElementById('syncLabel').textContent = formatSyncAge(latest);
+
+  renderAttention(d.attention_items);
+  renderKPI(d.hero, d.vat_rate);
+  renderDomains(d.domain_cards);
+  renderHorizon(d.horizon_30);
+
+  document.getElementById('main').style.display = '';
+}
+
+init();
+</script>
+</body>
+</html>

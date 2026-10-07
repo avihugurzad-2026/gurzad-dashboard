@@ -4,6 +4,7 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
     { "src": "/", "dest": "/public/login.html" },
-    { "src": "/(.*\\.html)", "dest": "/public/$1" }
+    { "src": "/(.*\\.html)", "dest": "/public/$1" },
+    { "src": "/(.*)", "dest": "/server.js" }
   ]
 }
