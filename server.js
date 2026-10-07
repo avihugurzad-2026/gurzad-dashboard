@@ -21,6 +21,9 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use(express.static('public'));
 
+// VAT: 18% since 2025-01-01. TEMPORARY constant until Parameters table exists (see docs/BUILD-SPEC.md, phase 0).
+const VAT_RATE = parseFloat(process.env.VAT_RATE || '0.18');
+
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -214,7 +217,7 @@ app.get('/api/businesses/:businessId/retainers', authenticate, async (req, res) 
     );
 
     let total = result.rows.reduce((sum, r) => sum + r.amount, 0);
-    let totalWithVat = Math.round(total * 1.17);
+    let totalWithVat = Math.round(total * (1 + VAT_RATE));
 
     res.json({ retainers: result.rows, total, totalWithVat });
   } catch (err) {
