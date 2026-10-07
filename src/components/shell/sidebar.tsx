@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, CalendarDays, ChartColumn, ClipboardCheck, FileText, LayoutDashboard, ListChecks, Settings, Target, Wallet } from 'lucide-react';
+import { Activity, CalendarDays, ChartColumn, ClipboardCheck, FileText, LayoutDashboard, ListChecks, Settings, Sparkles, Target, Wallet } from 'lucide-react';
 import { NAV } from './nav';
 import { cn } from '@/lib/utils';
 
 const ICONS = {
   dashboard: LayoutDashboard, tasks: ListChecks, calendar: CalendarDays, finance: Wallet, documents: FileText,
-  reports: ChartColumn, review: ClipboardCheck, goals: Target, health: Activity, settings: Settings,
+  reports: ChartColumn, spa: Sparkles, review: ClipboardCheck, goals: Target, health: Activity, settings: Settings,
 } as const;
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {

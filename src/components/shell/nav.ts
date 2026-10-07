@@ -9,6 +9,7 @@ export const NAV: { group: string; items: NavItem[] }[] = [
   ] },
   { group: 'כספים', items: [
     { href: '/finance', label: 'הכנסות וגבייה', icon: 'finance' },
+    { href: '/ospa', label: 'הד ספא', icon: 'spa' },
     { href: '/documents', label: 'מסמכים', icon: 'documents', soon: true },
     { href: '/reports', label: 'דוחות', icon: 'reports', soon: true },
   ] },

@@ -13,7 +13,7 @@ const SERIES = [
 function Readout({ active, payload, label }: { active?: boolean; payload?: { dataKey?: string | number; value?: number | null }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-line bg-surface px-3 py-2 text-sm shadow-card">
+    <div dir="rtl" className="rounded-lg border border-line bg-surface px-3 py-2 text-sm shadow-card">
       <p className="mb-1 text-xs text-muted">{weekLabel(String(label))}</p>
       {SERIES.map(s => {
         const p = payload.find(x => x.dataKey === s.key);
@@ -43,7 +43,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
           </span>
         ))}
       </figcaption>
-      <div className="h-56 w-full" role="img" aria-labelledby={titleId}>
+      <div className="h-56 w-full" dir="ltr" role="img" aria-labelledby={titleId}>
         <span id={titleId} className="sr-only">מגמה שבועית של ההכנסה הקבועה ושל היתרות לגבייה, 13 שבועות</span>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>

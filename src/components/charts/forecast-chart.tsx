@@ -9,7 +9,7 @@ function Readout({ active, payload, label }: { active?: boolean; payload?: { pay
   const w = payload?.[0]?.payload;
   if (!active || !w) return null;
   return (
-    <div className="rounded-lg border border-line bg-surface px-3 py-2 text-sm shadow-card">
+    <div dir="rtl" className="rounded-lg border border-line bg-surface px-3 py-2 text-sm shadow-card">
       <p className="mb-1 text-xs text-muted">שבוע של {shortDate(String(label))}</p>
       <p className="font-semibold tabular amount"><bdi>{ils(w.closing)}</bdi> <span className="font-normal text-muted">יתרת סגירה</span></p>
       <p className="text-ink-2 tabular">נכנס <bdi className="amount">{ils(w.in)}</bdi> · יוצא <bdi className="amount">{ils(w.out)}</bdi></p>
@@ -21,7 +21,7 @@ function Readout({ active, payload, label }: { active?: boolean; payload?: { pay
 export function ForecastChart({ weeks, floor }: { weeks: ForecastWeek[]; floor: number | null }) {
   const titleId = useId();
   return (
-    <figure className="m-0 h-60 w-full" role="img" aria-labelledby={titleId}>
+    <figure className="m-0 h-60 w-full" dir="ltr" role="img" aria-labelledby={titleId}>
       <span id={titleId} className="sr-only">תחזית מזומן תפעולי ל-13 שבועות</span>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={weeks} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
