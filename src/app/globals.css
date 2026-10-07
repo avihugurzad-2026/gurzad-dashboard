@@ -105,12 +105,29 @@
   --color-critical: var(--critical);
   --color-critical-ink: var(--critical-ink);
   --color-critical-soft: var(--critical-soft);
-  --font-sans: var(--font-heebo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Latin and digits in Inter; Hebrew falls through to Heebo (Roboto's Hebrew companion).
+     Swap to Google Sans once its license files are in the repo. */
+  --font-sans: var(--font-inter), var(--font-heebo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Type scale (stage 3.8). Secondary text is 13-14px, body 15px. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.45;
+  --text-page: clamp(1.75rem, 1.45rem + 0.9vw, 2rem);
+  --text-page--line-height: 1.2;
+  --text-section: clamp(1.25rem, 1.15rem + 0.3vw, 1.375rem);
+  --text-section--line-height: 1.3;
+  --text-card: 1rem;
+  --text-card--line-height: 1.4;
+  --text-kpi: clamp(1.75rem, 1.5rem + 0.75vw, 2.125rem);
+  --text-kpi--line-height: 1.15;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.6;
+  --text-nav: 0.9375rem;
+  --text-nav--line-height: 1.4;
   --shadow-card: var(--shadow);
 }
 
 html, body { background: var(--page); color: var(--ink); }
-body { font-feature-settings: "kern"; -webkit-font-smoothing: antialiased; }
+body { font-size: var(--text-body); line-height: 1.6; font-feature-settings: "kern"; -webkit-font-smoothing: antialiased; }
 
 .tabular { font-variant-numeric: tabular-nums; }
 

@@ -17,7 +17,7 @@ export function KpiCard({ label, value, hint, reason, href, icon, amount = true,
       {value === null ? (
         <p className="mt-2 text-sm text-muted">{NO_DATA}</p>
       ) : (
-        <p className={cn('mt-2 text-[26px] font-semibold leading-tight text-ink tabular', amount && 'amount')}>
+        <p className={cn('mt-2 text-kpi font-semibold text-ink tabular', amount && 'amount')}>
           <bdi>{value}</bdi>
         </p>
       )}

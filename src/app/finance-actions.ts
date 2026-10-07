@@ -184,13 +184,15 @@ export async function removeTransaction(id: string, path: string): Promise<Finan
   try {
     await inTx(async c => {
       const { rows } = await c.query(
-        `SELECT t.domain, t.branch, t.location, t.owner_user_id, t.scope,
+        `SELECT t.domain, t.branch, t.location, t.owner_user_id, t.scope, to_jsonb(t) ->> 'subject_type' AS subject_type,
                 EXISTS (SELECT 1 FROM receivables r WHERE r.id = t.receivable_id AND r.deleted_at IS NULL) AS from_open_receivable
          FROM transactions t WHERE t.id = $1 AND t.deleted_at IS NULL FOR UPDATE OF t`, [id]);
       const row = rows[0];
       if (!row || !canDeleteRow(u, 'money', row)) throw new Refuse('לא נמצא או שאין הרשאה למחוק');
       // A collection's income row stays while its receivable exists (the payment would point at nothing)
       if (row.from_open_receivable) throw new Refuse('התנועה נרשמה מתשלום של חוב בגבייה ולכן לא נמחקת מכאן');
+      // A loan repayment is undone from the loan, so the balance is restored with it
+      if (row.subject_type === 'liability') throw new Refuse('זה החזר הלוואה. מבטלים אותו מדף הנכס, כדי שגם יתרת ההלוואה תתעדכן');
       await c.query(`UPDATE transactions SET deleted_at = now(), updated_at = now() WHERE id = $1`, [id]);
       await log(c, u, 'transaction', id, 'delete');
     });

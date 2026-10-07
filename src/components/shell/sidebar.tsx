@@ -4,16 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Activity, Bell, Briefcase, Building2, CalendarDays, CalendarClock, ChartColumn, ChevronDown, ClipboardCheck, Gauge, House, Inbox,
-  MapPin, Rocket, Search, Settings, Sparkles, Target, User, UserRound, Wallet,
-} from 'lucide-react';
-import { NAV_AREAS, NAV_BOTTOM, NAV_TOOLS, NAV_TOP, type NavItem } from './nav';
+  MapPin, Rocket, Search, Settings, Sparkles, Target, User, UserRound, Wallet, FileText, History } from 'lucide-react';
+import { NAV_BOTTOM, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from './nav';
 import { useSession } from './session-context';
 import { cn } from '@/lib/utils';
 
 const ICONS = {
   home: House, today: CalendarClock, calendar: CalendarDays, inbox: Inbox, personal: UserRound, ventures: Rocket, business: Building2,
   agency: Briefcase, spa: Sparkles, branch: MapPin, chart: ChartColumn, review: ClipboardCheck, scorecard: Gauge, health: Activity,
-  search: Search, bell: Bell, settings: Settings, profile: User, money: Wallet, goal: Target,
+  search: Search, bell: Bell, settings: Settings, profile: User, money: Wallet, goal: Target, document: FileText, history: History,
 } as const;
 
 export type Counts = { inbox: number; alerts: number };
@@ -34,7 +33,7 @@ function NavLink({ item, path, depth, collapsed, counts, onNavigate }: {
   const n = item.count ? counts[item.count] : 0;
   return (
     <Link href={item.href} onClick={onNavigate} aria-current={active ? 'page' : undefined} title={collapsed ? item.label : undefined}
-      className={cn('flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+      className={cn('flex items-center gap-2.5 rounded-lg px-3 py-2 text-nav font-medium transition-colors',
         !collapsed && depth === 1 && 'ps-8 py-1.5', !collapsed && depth === 2 && 'ps-12 py-1.5', collapsed && 'justify-center px-0',
         active ? 'bg-accent-soft font-medium text-accent-ink' : 'text-ink-2 hover:bg-surface-2 hover:text-ink')}>
       <span className="relative">
@@ -71,7 +70,7 @@ export function SidebarNav({ collapsed = false, counts, onNavigate }: { collapse
   const path = usePathname();
   const session = useSession();
   const hrefs = session ? new Set(session.hrefs) : null;
-  const areas = allowedOnly(NAV_AREAS, hrefs), tools = allowedOnly(NAV_TOOLS, hrefs);
+  const areas = allowedOnly(navAreas(), hrefs), tools = allowedOnly(NAV_TOOLS, hrefs);
   const [showTools, setTools] = useState(NAV_TOOLS.some(t => path.startsWith(t.href)));
   const props = { path, collapsed, counts, onNavigate };
   return (

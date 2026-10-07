@@ -1,8 +1,10 @@
 import { authed, json } from '@/server/http';
-import { ingestOspa } from '@/server/ingest';
+import { currentUser } from '@/server/auth';
+import { syncIntegrations } from '@/server/integrations';
 
-// "רענן עכשיו" on the Head Spa page. Writes to Supabase only.
+// "רענן מ-Buyz" on the Head Spa pages (admins). Same sync as the daily cron; writes to Supabase only.
 export const POST = authed(async () => {
-  const r = await ingestOspa();
-  return r.ok ? json(r) : json({ error: r.error }, 502);
+  const u = await currentUser();
+  const r = await syncIntegrations(u?.id ?? null);
+  return r.ok ? json(r) : json({ error: r.error ?? 'הסנכרון נכשל' }, 502);
 });

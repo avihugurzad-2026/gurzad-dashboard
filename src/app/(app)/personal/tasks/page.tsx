@@ -18,7 +18,7 @@ export default async function PersonalTasksPage({ searchParams }: { searchParams
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">משימות</h1>
+        <h1 className="text-page font-bold">משימות</h1>
         <p className="text-sm text-muted">אישי · בית, אישי ולימודים</p>
       </div>
       <Tabs base={BASE} active={tab} tabs={[

@@ -44,7 +44,7 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">כספים משותפים</h1>
+          <h1 className="text-page font-bold">כספים משותפים</h1>
           <p className="text-sm text-muted">אישי · הכנסות והוצאות של הבית, כפי ששולמו</p>
         </div>
         <nav aria-label="בחירת חודש" className="flex items-center gap-1 text-sm">

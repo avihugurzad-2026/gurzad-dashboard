@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { requirePlace } from '@/server/auth';
+import { CasesSection, InvestmentsSection, PropertiesSection } from '@/components/ventures/lists';
 import { FolderOpen } from 'lucide-react';
 import { branchName, vaultRecords } from '@/server/entries';
 import { stamp } from '@/lib/format';
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ branch: s
 }
 
 export default async function VenturePage({ params }: { params: Promise<{ branch: string }> }) {
-  await requirePlace({ domain: 'ventures', branch: (await params).branch });
+  const u = await requirePlace({ domain: 'ventures', branch: (await params).branch });
   const { branch } = await params;
   if (!/^[a-z0-9-]{1,40}$/.test(branch)) notFound();
   const name = await branchName('ventures', branch);
@@ -35,15 +36,18 @@ export default async function VenturePage({ params }: { params: Promise<{ branch
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-page font-bold">{title}</h1>
         <p className="text-sm text-muted">יזמות</p>
       </div>
+      {branch === 'real-estate' && <PropertiesSection u={u} path={path} />}
+      {branch === 'investments' && <InvestmentsSection u={u} path={path} />}
+      {branch === 'legal-and-tasks' && <CasesSection u={u} path={path} />}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
         <TaskBoard place={place} path={path} title={`משימות ${title}`} />
         <GoalsPanel place={place} path={path} title={`יעדי ${title}`} />
       </div>
       <Card>
-        <CardHeader><CardTitle>רשומות מהוואלט</CardTitle><span className="text-sm text-muted">קריאה בלבד</span></CardHeader>
+        <CardHeader><CardTitle className="text-sm">רשומות מהוואלט</CardTitle><span className="text-sm text-muted">קריאה בלבד</span></CardHeader>
         <CardContent>
           {records.length === 0 ? (
             <Empty icon={<FolderOpen className="size-6" />} title="אין נתונים עדיין">

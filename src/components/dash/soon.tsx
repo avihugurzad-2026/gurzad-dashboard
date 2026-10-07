@@ -6,7 +6,7 @@ export function Soon({ title, lead, items, note }: { title: string; lead: string
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-page font-bold">{title}</h1>
         <p className="text-sm text-muted">{lead}</p>
       </div>
       <Card>

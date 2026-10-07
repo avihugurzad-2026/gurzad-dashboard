@@ -24,7 +24,7 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">יעדים</h1>
+        <h1 className="text-page font-bold">יעדים</h1>
         <p className="text-sm text-muted">כל היעדים במקום אחד: אישי, עסקי, סניף, פיננסי, לימודים ויזמות</p>
       </div>
       <nav aria-label="סוג יעד" className="flex flex-wrap gap-1.5">

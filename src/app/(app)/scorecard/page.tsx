@@ -13,7 +13,7 @@ export default async function ScorecardPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">יעדים שבועיים</h1>
+        <h1 className="text-page font-bold">יעדים שבועיים</h1>
         <p className="text-sm text-muted">{longDate(d.today)}. יעד שנקבע ננעל ל-13 שבועות; שינוי לפני כן רק בתכנון רבעוני.</p>
       </div>
       <Card>

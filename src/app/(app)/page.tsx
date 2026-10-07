@@ -5,7 +5,13 @@ import { taskGroups, type WorkItem } from '@/server/entries';
 import { ils, num } from '@/lib/format';
 import { requireUser } from '@/server/auth';
 import { monthRevenue, openReceivablesTotal } from '@/server/finance';
-import { todayIL } from '@/lib/period';
+import { parseRange, rangeLabel, todayIL } from '@/lib/period';
+import { canSeePlace } from '@/server/auth';
+import { businessSnapshot, personalSnapshot } from '@/server/snapshot';
+import { headSpaSnapshot } from '@/server/headspa';
+import { venturesSummary } from '@/server/ventures';
+import { HomeFilters, type HomeArea } from '@/components/home/home-filters';
+import { BusinessSnapshot, PersonalSnapshot, VenturesSnapshot } from '@/components/home/snapshots';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { GreetingClock } from '@/components/day/clock';
 import { Timeline } from '@/components/day/timeline';
@@ -27,19 +33,43 @@ const GROUPS = [
   { key: 'waiting', title: 'ממתין למישהו', empty: 'אין משימות שממתינות לאחרים' },
 ] as const;
 
-export default async function HomePage() {
+// Head Spa sales come from Buyz (this month and today only); other periods fall back to dashboard rows.
+async function headSpaRevenue(u: Awaited<ReturnType<typeof requireUser>>, range: string): Promise<Record<string, { net: number | null; count: number; today: number | null }>> {
+  if (range !== 'month' && range !== 'today') return {};
+  const h = await headSpaSnapshot(u).catch(() => null);
+  if (!h || !h.branches.some(b => b.connected && b.can_see_money)) return {};
+  const net = range === 'month' ? h.total.month_ex : h.total.today_ex;
+  return { 'head-spa-israel': { net, count: 0, today: h.total.today_ex } };
+}
+
+export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
   const u = await requireUser();
   const money = u.isOwner || u.memberships.some(m => ['admin', 'manager', 'viewer'].includes(m.role));
-  const [week, t, rev, owed] = await Promise.all([
+  // Global filters: which part of life (only the ones this user may see) and which period
+  const areas: HomeArea[] = ['all', ...(['business', 'personal', 'ventures'] as const).filter(d => canSeePlace(u, { domain: d }, 'task'))];
+  const area: HomeArea = areas.includes(sp.area as HomeArea) ? sp.area as HomeArea : 'all';
+  const range = parseRange(sp.range ?? 'month');
+  const periodLabel = rangeLabel(range);
+  const showBiz = area === 'all' || area === 'business';
+  const showMe = area === 'all' || area === 'personal';
+  const showVen = (area === 'all' || area === 'ventures') && canSeePlace(u, { domain: 'ventures' }, 'money');
+  const [week, t, rev, owed, biz, me, ven] = await Promise.all([
     agenda(todayIL(), 7), taskGroups(),
     money ? monthRevenue(u) : null, money ? openReceivablesTotal(u) : null,
+    showBiz ? headSpaRevenue(u, range).then(ext => businessSnapshot(u, range, ext)) : [], showMe ? personalSnapshot(u, range) : null,
+    showVen ? venturesSummary(u).catch(() => null) : null,
   ]);
+  const inArea = (i: WorkItem) => area === 'all' || i.domain === area;
   const today = week.days[0];
   const eventsToday = today.events.length;
 
   return (
     <div className="flex flex-col gap-5">
-      <GreetingClock name={u.name} initial={new Date().toISOString()} />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <GreetingClock name={u.name} initial={new Date().toISOString()} />
+        <HomeFilters area={area} range={range} areas={areas} />
+      </div>
 
       <Card>
         <CardContent className="pt-4">
@@ -68,6 +98,11 @@ export default async function HomePage() {
         )}
       </div>
 
+      {biz.length > 0 && <BusinessSnapshot cards={biz} periodLabel={periodLabel} />}
+      {me && <PersonalSnapshot card={me} periodLabel={periodLabel}
+        events={week.connected ? week.days.reduce((a, d) => a + d.events.length, 0) : null} />}
+      {ven?.ready && <VenturesSnapshot s={ven} />}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">
         <Card>
           <CardHeader><CardTitle>היום שלי</CardTitle><Link href="/today" className="text-sm text-accent hover:underline">לוח היום</Link></CardHeader>
@@ -88,7 +123,7 @@ export default async function HomePage() {
 
       <section id="tasks" aria-label="משימות" className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         {GROUPS.map(g => {
-          const items: WorkItem[] = t.groups[g.key];
+          const items: WorkItem[] = t.groups[g.key].filter(inArea);
           return (
             <Card key={g.key}>
               <CardHeader>

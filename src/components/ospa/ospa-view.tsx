@@ -51,7 +51,7 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="text-page font-bold">{title}</h1>
           <p className="text-sm text-muted">{subtitle ?? 'עסקים'} · הכנסה לפני מע״מ{vatPct ? ` (${vatPct})` : ''}, מתוך Buyz</p>
           {d.locations.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="סניפים">

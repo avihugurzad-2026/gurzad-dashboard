@@ -15,7 +15,7 @@ export default async function BusinessOverview() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">עסקים</h1>
+        <h1 className="text-page font-bold">עסקים</h1>
         <p className="text-sm text-muted">a-digital ו-Head Spa Israel</p>
       </div>
       <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">

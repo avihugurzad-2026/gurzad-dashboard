@@ -14,7 +14,7 @@ export default async function InboxPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold"><bdi>Inbox</bdi></h1>
+        <h1 className="text-page font-bold"><bdi>Inbox</bdi></h1>
         <p className="text-sm text-muted">כל מה שעוד לא שויך: משימה מהירה, רעיון, הערה או קובץ</p>
       </div>
       <Card><CardContent className="pt-4"><InboxCapture /></CardContent></Card>

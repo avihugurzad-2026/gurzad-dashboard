@@ -36,7 +36,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{isToday ? 'היום' : long.format(new Date(`${date}T00:00:00Z`))}</h1>
+          <h1 className="text-page font-bold">{isToday ? 'היום' : long.format(new Date(`${date}T00:00:00Z`))}</h1>
           {isToday && <p className="text-sm text-muted">{long.format(new Date(`${date}T00:00:00Z`))}</p>}
         </div>
         <nav aria-label="מעבר בין ימים" className="flex items-center gap-1">

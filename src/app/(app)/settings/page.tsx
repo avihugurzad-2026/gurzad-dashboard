@@ -3,6 +3,8 @@ import { requireUser } from '@/server/auth';
 import { canGrant, canManageUsers, listUsers, pendingUsers, ROLE_HINT, ROLE_LABEL } from '@/server/users';
 import { placeOptions } from '@/lib/places';
 import { UsersSection } from '@/components/settings/users-section';
+import { IntegrationsList } from '@/components/settings/integrations-list';
+import { integrationsStatus } from '@/server/integrations';
 import { CalendarDays, CircleCheck, TriangleAlert, User, Users } from 'lucide-react';
 import { calendarStatus } from '@/server/calendar';
 import { profile } from '@/server/entries';
@@ -26,8 +28,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const u = await requireUser();
   const manage = canManageUsers(u);
-  const [cal, users, team, pending] = await Promise.all([
+  const [cal, users, team, pending, integrations] = await Promise.all([
     calendarStatus(), profile(), manage ? listUsers(u).catch(() => null) : null, u.isAdmin ? pendingUsers().catch(() => []) : Promise.resolve([]),
+    integrationsStatus(u).catch(() => null),
   ]);
   const result = sp.calendar ? RESULT[sp.calendar] : null;
   const me = users.find(x => x.id === u.id);
@@ -39,7 +42,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-semibold">הגדרות</h1>
+      <h1 className="text-page font-bold">הגדרות</h1>
 
       <Card id="calendar">
         <CardHeader>
@@ -85,6 +88,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           )}
         </CardContent>
       </Card>
+
+      <IntegrationsList items={integrations} />
 
       {team && (
         <Card id="users">

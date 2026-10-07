@@ -4,9 +4,10 @@ import { db } from '@/server/db';
 import { todayIL } from '@/lib/period';
 import { encodePlace, placeOptions } from '@/lib/places';
 import { AppShell } from '@/components/shell/app-shell';
-import { NAV_AREAS, NAV_BOTTOM, NAV_TOOLS, NAV_TOP, type NavItem } from '@/components/shell/nav';
+import { NAV_BOTTOM, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from '@/components/shell/nav';
 import type { ClientSession } from '@/components/shell/session-context';
 import { inboxCount } from '@/server/entries';
+import { loadLocations } from '@/server/locations';
 
 // Which nav links a user may open. Pages check again (requirePlace / requireAdmin).
 function navHrefs(u: SessionUser): string[] {
@@ -23,14 +24,15 @@ function navHrefs(u: SessionUser): string[] {
     }
   };
   walk(NAV_TOP, i => i.href !== '/finance' || u.isOwner || u.memberships.some(m => ['admin', 'manager', 'viewer'].includes(m.role)));
-  walk(NAV_AREAS, i => canSeePlace(u, placeOf(i.href)));
+  walk(navAreas(), i => canSeePlace(u, placeOf(i.href)));
   walk(NAV_TOOLS, () => u.isAdmin);
   walk(NAV_BOTTOM, i => !i.href.startsWith('/health') || u.isAdmin);
   return out;
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const u = await requireUser();
+  // Branch registry first: nav, place menus and breadcrumbs are built from it
+  const [u, locations] = await Promise.all([requireUser(), loadLocations()]);
   const today = todayIL();
   const [open, inbox, people] = await Promise.all([
     u.isAdmin ? openAlerts() : Promise.resolve([]),
@@ -43,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     places: placeOptions().filter(o => canCreateIn(u, o.place, 'task')).map(o => encodePlace(o.place)),
     people,
     hrefs: navHrefs(u),
+    locations,
   };
   return <AppShell counts={{ inbox, alerts: active.length }} session={session}>{children}</AppShell>;
 }

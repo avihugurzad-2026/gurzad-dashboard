@@ -23,10 +23,42 @@ export const ENTITIES: { domain: Domain; id: string; label: string; short: strin
   { domain: 'ventures', id: 'finance', label: 'פיננסים', short: 'פיננסים', href: '/ventures/finance' },
 ];
 
-export const LOCATIONS: { entity: string; id: string; label: string; status: 'active' | 'setup' }[] = [
-  { entity: 'head-spa-israel', id: 'modiin', label: 'מודיעין', status: 'active' },
-  { entity: 'head-spa-israel', id: 'jerusalem', label: 'ירושלים', status: 'setup' },
+// Branches (locations) are configuration: rows of the DB `locations` table. This module keeps a
+// registry seeded with today's rows so it works before the DB is read; the server loads the table
+// (src/server/locations.ts, cached ~60s) and calls setLocations, and the client gets the same rows
+// through the session context. A new branch = one `locations` row, no code change.
+export type LocationRow = {
+  domain: string; branch: string; location: string; name_he: string;
+  active: boolean; status?: string | null; sort?: number | null;
+};
+export type LocationEntry = { entity: string; id: string; label: string; status: 'active' | 'setup'; sort: number | null };
+
+export const SEED_LOCATIONS: LocationRow[] = [
+  { domain: 'business', branch: 'head-spa-israel', location: 'modiin', name_he: 'מודיעין', active: true, status: 'active', sort: 1 },
+  { domain: 'business', branch: 'head-spa-israel', location: 'jerusalem', name_he: 'ירושלים', active: true, status: 'setup', sort: 2 },
 ];
+
+// Live list: setLocations replaces its contents in place, so every importer sees the current rows
+export const LOCATIONS: LocationEntry[] = [];
+let registryKey = '';
+
+export function setLocations(rows: LocationRow[]): void {
+  const next = rows
+    .filter(r => /^[a-z0-9-]{1,40}$/.test(r.location) && ENTITIES.some(e => e.id === r.branch && e.domain === r.domain) && r.name_he)
+    .map(r => ({
+      entity: r.branch, id: r.location, label: r.name_he, sort: r.sort ?? null,
+      // not active, or marked as being set up → "בהקמה"
+      status: (r.active && (r.status ?? 'active') === 'active' ? 'active' : 'setup') as LocationEntry['status'],
+    }))
+    .sort((a, b) => a.entity.localeCompare(b.entity) || (a.sort ?? 1e9) - (b.sort ?? 1e9) || a.id.localeCompare(b.id));
+  const key = JSON.stringify(next);
+  if (key === registryKey) return;
+  registryKey = key;
+  LOCATIONS.splice(0, LOCATIONS.length, ...next);
+}
+setLocations(SEED_LOCATIONS);
+
+export const locationsOf = (entityId: string) => LOCATIONS.filter(l => l.entity === entityId);
 
 export const CATEGORIES: { id: string; label: string; domain: Domain | null }[] = [
   { id: 'general', label: 'כללי', domain: null },
@@ -116,6 +148,7 @@ const PAGE_LABEL: Record<string, string> = {
 export const TAB_LABEL: Record<string, string> = {
   overview: 'סקירה', tasks: 'משימות', goals: 'יעדים', clients: 'לקוחות', collections: 'גבייה',
   home: 'בית', personal: 'אישי', study: 'לימודים',
+  sales: 'מכירות', bookings: 'טיפולים והזמנות', customers: 'לקוחות', staff: 'צוות',
 };
 
 // "עסקים / Head Spa Israel / מודיעין / משימות"

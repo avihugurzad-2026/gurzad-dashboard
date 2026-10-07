@@ -58,7 +58,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     <div className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">כספים</h1>
+          <h1 className="text-page font-bold">כספים</h1>
           <p className="text-sm text-muted">
             הכנסות והוצאות שהוזנו בדשבורד · <bdi>{shortDate(period.from)}</bdi>–<bdi>{shortDate(period.to)}</bdi>
           </p>

@@ -1,5 +1,6 @@
--- Migration: stage 2 (money, users, two-way calendar). Additive only: new tables and new
--- nullable/defaulted columns on stage-1 tables. Nothing is dropped, renamed or rewritten.
+-- Migration: stage 2 (money, users, two-way calendar). Additive: new tables and new
+-- nullable/defaulted columns on stage-1 tables. No data is dropped, renamed or rewritten. One index
+-- is replaced: events' Google uniqueness moves from per-calendar to per-mapping (section 2.2).
 --
 -- Naming follows stage 1: domain = area, branch = entity, location = branch (see 20261007210000).
 

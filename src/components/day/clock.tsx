@@ -19,7 +19,7 @@ export function GreetingClock({ name, initial }: { name: string; initial: string
   }, []);
   return (
     <div>
-      <h1 className="text-xl font-semibold">{greeting(now)}, {name}</h1>
+      <h1 className="text-page font-bold">{greeting(now)}, {name}</h1>
       <p className="text-sm text-muted">{date.format(now)} · <time className="tabular" dateTime={now.toISOString()}>{time.format(now)}</time></p>
     </div>
   );

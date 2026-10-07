@@ -47,7 +47,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="text-page font-bold">{title}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="תצוגה" className="inline-flex rounded-lg border border-line-strong p-0.5 text-sm">

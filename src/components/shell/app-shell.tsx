@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { ThemeToggle, PrivacyToggle, LogoutButton } from './toggles';
 import { buttonClass } from '@/components/ui/button';
 import { SessionProvider, type ClientSession } from './session-context';
+import { CommandPalette, openCommandPalette } from '@/components/search/command-palette';
+import { Search } from 'lucide-react';
 
 function Brand({ compact }: { compact?: boolean }) {
   return (
@@ -67,6 +69,11 @@ export function AppShell({ counts, session, children }: { counts: Counts; sessio
           </button>
           <div className="lg:hidden"><Brand /></div>
           <div className="flex-1" />
+          <button type="button" onClick={() => openCommandPalette()} aria-label="חיפוש (⌘K)" aria-keyshortcuts="Meta+K Control+K"
+            className="flex h-9 items-center gap-2 rounded-lg border border-line-strong bg-surface px-2.5 text-sm text-muted hover:text-ink">
+            <Search className="size-4" aria-hidden /><span className="hidden sm:inline">חיפוש</span>
+            <kbd className="hidden rounded border border-line px-1 text-xs sm:inline" dir="ltr">⌘K</kbd>
+          </button>
           <NewButton />
           <PrivacyToggle />
           <ThemeToggle />
@@ -77,6 +84,7 @@ export function AppShell({ counts, session, children }: { counts: Counts; sessio
           {children}
         </main>
       </div>
+      <CommandPalette />
     </div>
     </SessionProvider>
   );

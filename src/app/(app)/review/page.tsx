@@ -30,7 +30,7 @@ export default async function ReviewPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">סקירה שבועית</h1>
+          <h1 className="text-page font-bold">סקירה שבועית</h1>
           <p className="text-sm text-muted">
             {longDate(d.today)} · {d.period}
             {d.last_review ? <> · אחרונה: {stamp(d.last_review.reviewed_at)}</> : <> · עוד לא נעשתה סקירה</>}

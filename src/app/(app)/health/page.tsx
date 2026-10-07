@@ -22,7 +22,7 @@ export default async function HealthPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">שלמות נתונים</h1>
+        <h1 className="text-page font-bold">שלמות נתונים</h1>
         <p className="text-sm text-muted">{longDate(d.today)}. מה ידוע, מה חסר, ולמה מספר מסוים לא מוצג.</p>
       </div>
 

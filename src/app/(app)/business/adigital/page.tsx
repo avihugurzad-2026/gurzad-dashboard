@@ -36,7 +36,7 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold"><bdi>a-digital</bdi></h1>
+        <h1 className="text-page font-bold"><bdi>a-digital</bdi></h1>
         <p className="text-sm text-muted">עסקים · הכנסה ללא מע״מ, יתרות לגבייה כולל מע״מ</p>
       </div>
       <Tabs base={BASE} active={tab} tabs={[

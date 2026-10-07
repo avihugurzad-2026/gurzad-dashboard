@@ -21,7 +21,7 @@ export default async function PersonalOverview() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-xl font-semibold">אישי</h1>
+        <h1 className="text-page font-bold">אישי</h1>
         <p className="text-sm text-muted">בית, אישי, לימודים וכספים משותפים</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

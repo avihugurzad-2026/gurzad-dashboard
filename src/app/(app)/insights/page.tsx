@@ -49,7 +49,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">סקירה עסקית</h1>
+          <h1 className="text-page font-bold">סקירה עסקית</h1>
           <p className="text-sm text-muted">{longDate(d.today)}</p>
         </div>
         <Filters workspaces={ws} workspace={branch} range={range} />
