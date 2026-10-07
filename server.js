@@ -36,7 +36,8 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(express.static('public'));
+// Absolute path so it works inside the Vercel function bundle; index:false so "/" hits the login route below
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 function authenticate(req, res, next) {
