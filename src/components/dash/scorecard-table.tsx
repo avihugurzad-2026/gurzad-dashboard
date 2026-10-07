@@ -1,0 +1,128 @@
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { TriangleAlert } from 'lucide-react';
+import { ils } from '@/lib/format';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+const MONEY = new Set(['cash_operating', 'mrr', 'open_debts', 'overdue_debt_30']);
+
+export type Cell = { period: string; value: number | null; status: 'on' | 'off' | null };
+export type Measure = {
+  key: string; name_he: string; owner: string | null; weekly_goal: number | null;
+  direction: 'higher_better' | 'lower_better'; locked_until: string | null;
+  cells: Cell[]; suggest_issue: boolean;
+};
+
+function fmt(key: string, v: number | null) {
+  if (v === null) return null;
+  if (MONEY.has(key)) return ils(v);
+  if (key.endsWith('_pct')) return `${v}%`;
+  return String(v);
+}
+
+// 13 weeks per measure. A week with no snapshot shows "–", never 0.
+export function ScorecardTable({ weeks, measures, editable = false }: {
+  weeks: string[]; measures: Measure[]; editable?: boolean;
+}) {
+  if (!measures.length) return <p className="text-sm text-muted">אין מדדים מוגדרים</p>;
+  // RTL reads right to left, so the newest week sits first
+  const order = [...weeks].reverse();
+  return (
+    <div className="-mx-5 overflow-x-auto px-5">
+      {/* 13 week columns do not fit on a phone: scroll instead of squeezing the names */}
+      <table className="w-max min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-line text-xs text-muted">
+            <th scope="col" className="min-w-[220px] py-2 text-start font-medium">מדד</th>
+            <th scope="col" className="min-w-[170px] py-2 text-start font-medium">יעד שבועי</th>
+            {order.map(w => <th key={w} scope="col" className="min-w-[84px] px-2 py-2 text-center font-medium whitespace-nowrap tabular">{w.slice(5)}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {measures.map(m => (
+            <tr key={m.key} className="border-b border-line align-top last:border-0">
+              <th scope="row" className="min-w-[220px] py-3 pe-4 text-start font-medium">
+                <bdi>{m.name_he}</bdi>
+                <p className="mt-0.5 text-xs font-normal text-muted">
+                  {m.owner && <><bdi>{m.owner}</bdi> · </>}
+                  {m.direction === 'lower_better' ? 'נמוך = טוב' : 'גבוה = טוב'}
+                </p>
+                {m.suggest_issue && (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-normal text-warning-ink">
+                    <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+                    חורג שבועיים ברצף
+                  </p>
+                )}
+              </th>
+              <td className="min-w-[170px] py-3 pe-4">
+                {m.weekly_goal === null
+                  ? <span className="text-muted">טרם נקבע</span>
+                  : <bdi className={cn('font-medium tabular', MONEY.has(m.key) && 'amount')}>{fmt(m.key, m.weekly_goal)}</bdi>}
+                {m.locked_until && <p className="mt-0.5 text-xs text-muted">נעול עד {m.locked_until}</p>}
+                {editable && <GoalForm measure={m} />}
+              </td>
+              {[...m.cells].reverse().map(c => {
+                const text = fmt(m.key, c.value);
+                return (
+                  <td key={c.period} className={cn('px-1.5 py-3 text-center whitespace-nowrap tabular',
+                    c.status === 'off' && 'font-medium text-critical-ink')}>
+                    {text === null ? <span className="text-muted" title="אין נתונים">–</span> : (
+                      <span className="inline-flex items-center gap-0.5">
+                        {c.status === 'off' && <TriangleAlert className="size-3 shrink-0" aria-label="חורג מהיעד" />}
+                        <bdi className={cn(MONEY.has(m.key) && 'amount')}>{text}</bdi>
+                      </span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GoalForm({ measure }: { measure: Measure }) {
+  const router = useRouter();
+  const [goal, setGoal] = useState('');
+  const [quarterly, setQuarterly] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const locked = measure.locked_until !== null && measure.weekly_goal !== null;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setError(null);
+    const res = await fetch(`/api/v1/scorecard/${encodeURIComponent(measure.key)}/goal`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekly_goal: Number(goal), quarterly_planning: quarterly }),
+    });
+    setBusy(false);
+    if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? 'השמירה נכשלה'); return; }
+    setGoal(''); setQuarterly(false);
+    router.refresh();
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-2 flex flex-col items-start gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <label className="sr-only" htmlFor={`goal-${measure.key}`}>יעד שבועי</label>
+        <input id={`goal-${measure.key}`} type="number" step="any" required value={goal} onChange={e => setGoal(e.target.value)}
+          placeholder={measure.weekly_goal === null ? 'קבע יעד' : 'יעד חדש'}
+          className="h-8 w-24 rounded-lg border border-line-strong bg-surface px-2 text-sm" />
+        <Button size="sm" type="submit" disabled={busy || goal === ''}>שמור</Button>
+      </div>
+      {locked && (
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          <input type="checkbox" checked={quarterly} onChange={e => setQuarterly(e.target.checked)} />
+          תכנון רבעוני
+        </label>
+      )}
+      {error && <Badge tone="critical" role="alert">{error}</Badge>}
+    </form>
+  );
+}

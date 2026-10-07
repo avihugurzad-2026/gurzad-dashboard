@@ -272,6 +272,38 @@ a:hover { text-decoration: underline; }
   margin-top: 2px;
 }
 
+.attention-item__meta {
+  font-size: 12px;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.attention-panel__more {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-top: var(--sp-sm);
+}
+.snooze-form {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  margin-top: var(--sp-xs, 4px);
+  flex-wrap: wrap;
+}
+.snooze-form__label { font-size: 12px; color: var(--ink-muted); display: flex; align-items: center; gap: 6px; }
+.snooze-form__date  { min-height: 44px; padding-block: 0; width: auto; }
+
+/* ── Data integrity page ────────────────────────────────────────────── */
+.integrity-list { list-style: none; display: flex; flex-direction: column; gap: var(--sp-sm); }
+.integrity-row {
+  display: flex; justify-content: space-between; gap: var(--sp-md);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas);
+  font-size: 14px;
+}
+.integrity-row__meta { color: var(--ink-muted); font-size: 12px; white-space: nowrap; }
+.integrity-row--warn { border-inline-start: 3px solid var(--warning); }
+.integrity-row--bad  { border-inline-start: 3px solid var(--danger); }
+
 /* ── Domain cards grid ─────────────────────────────────────────────── */
 .domain-group {
   display: flex;
@@ -560,6 +592,7 @@ a:hover { text-decoration: underline; }
 .btn-secondary:active { transform: scale(.95); }
 
 .btn-ghost {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -646,6 +679,8 @@ a:hover { text-decoration: underline; }
 .w-full { width: 100%; }
 .form-input--ltr { direction: ltr; }
 .kpi-value--normal { font-size: 17px; font-weight: 400; }
+/* KPI with no data: "אין נתונים עדיין", never a 0 */
+.kpi-value--empty { font-size: 17px; font-weight: 400; color: var(--ink-muted); }
 .section--sm { gap: var(--sp-sm); }
 
 .error-page-msg {
@@ -830,3 +865,36 @@ a:hover { text-decoration: underline; }
   .kpi-row { grid-template-columns: 1fr; }
   .domain-cards { grid-template-columns: 1fr; }
 }
+
+/* ── Scorecard table ─────────────────────────────────────────────────── */
+.sc-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--hairline); border-radius: var(--r-md); }
+.sc-table { border-collapse: collapse; font-size: 13px; min-width: 100%; font-variant-numeric: tabular-nums; }
+.sc-table th, .sc-table td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); text-align: start; white-space: nowrap; vertical-align: top; }
+.sc-table thead th { font-weight: 600; color: var(--ink-muted); font-size: 12px; background: var(--canvas); position: sticky; top: 0; }
+.sc-name { position: sticky; inset-inline-start: 0; background: var(--canvas); font-weight: 600; white-space: normal; min-width: 150px; }
+.sc-meta { font-size: 11px; font-weight: 400; color: var(--ink-muted); }
+.sc-issue { font-size: 11px; color: var(--warning); font-weight: 600; margin-top: 2px; }
+.sc-cell--off { color: var(--danger); font-weight: 600; }
+.sc-nodata { color: var(--ink-muted); }
+.sc-week { font-size: 11px; }
+.sc-goal-form { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.sc-goal-input { width: 100px; min-height: 44px; }
+
+/* ── Cash forecast chart (13 weeks) ──────────────────────────────────── */
+.fc-chart { width: 100%; height: auto; display: block; }
+.fc-bar { fill: var(--primary); }
+.fc-bar--neg { fill: var(--danger); }
+.fc-floor { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 6 4; }
+.fc-axis { stroke: var(--hairline); stroke-width: 1; }
+.fc-label { fill: var(--ink-muted); font-size: 11px; font-family: var(--font); }
+.fc-hit { fill: transparent; }
+.fc-hit:hover + .fc-bar, .fc-hit:focus + .fc-bar { opacity: .75; }
+.partial-note { border-inline-start: 3px solid var(--warning); padding: var(--sp-sm) var(--sp-md); background: var(--canvas); border-radius: var(--r-md); font-size: 13px; }
+.partial-note ul { margin-block-start: 4px; padding-inline-start: 18px; color: var(--ink-muted); }
+
+/* ── Review decisions form ───────────────────────────────────────────── */
+.decision-row { display: grid; grid-template-columns: 1fr; gap: var(--sp-sm); padding: var(--sp-sm) 0; border-bottom: 1px solid var(--hairline); }
+@media (min-width: 640px) { .decision-row { grid-template-columns: 3fr 1fr 1fr; } }
+.form-errors { color: var(--danger); font-size: 13px; }
+.form-ok { color: var(--success); font-size: 14px; font-weight: 600; }
+a.chip { text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
