@@ -25,8 +25,8 @@ export default async function PersonalTasksPage({ searchParams }: { searchParams
         { key: 'all', label: 'הכל', count: counts.personal?.open },
         ...PERSONAL_LISTS.map(l => ({ key: l.key, label: l.label, count: counts[`personal:${l.key}`]?.open })),
       ]} />
-      <TaskBoard place={{ domain: 'personal', branch: null, location: null, list }} path={BASE}
-        title={label ? `משימות ${label}` : 'כל המשימות האישיות'} lists={PERSONAL_LISTS} defaultList={list} withOwner />
+      <TaskBoard place={{ domain: 'personal', branch: null, location: null }} category={list} path={BASE}
+        title={label ? `משימות ${label}` : 'כל המשימות האישיות'} withOwner showContext={!list} />
     </div>
   );
 }

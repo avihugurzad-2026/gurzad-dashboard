@@ -1,32 +1,47 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, Menu, X } from 'lucide-react';
-import { SidebarNav } from './sidebar';
+import { Menu, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
+import { SidebarNav, type Counts } from './sidebar';
+import { Breadcrumb } from './breadcrumb';
+import { NewButton } from './new-button';
+import { cn } from '@/lib/utils';
 import { ThemeToggle, PrivacyToggle, LogoutButton } from './toggles';
 import { buttonClass } from '@/components/ui/button';
 
-function Brand() {
+function Brand({ compact }: { compact?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-2 px-3">
+    <Link href="/" className={cn('flex items-center gap-2', compact ? 'justify-center' : 'px-3')}>
       <span className="grid size-7 place-items-center rounded-lg bg-accent text-sm font-bold text-white">ג</span>
-      <span className="font-semibold">גורזד</span>
+      {!compact && <span className="font-semibold">גורזד</span>}
     </Link>
   );
 }
 
-export function AppShell({ alertCount, children }: { alertCount: number; children: React.ReactNode }) {
+export function AppShell({ counts, children }: { counts: Counts; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const path = usePathname();
   useEffect(() => setOpen(false), [path]);
+  useEffect(() => { try { setCollapsed(localStorage.getItem('sidebar') === 'collapsed'); } catch { /* private mode */ } }, []);
+  const toggle = () => setCollapsed(c => {
+    try { localStorage.setItem('sidebar', c ? 'open' : 'collapsed'); } catch { /* private mode */ }
+    return !c;
+  });
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[232px_1fr]">
-      {/* Desktop sidebar (inline-start = right in RTL) */}
-      <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-e border-line bg-surface px-3 py-5 lg:flex">
-        <Brand />
-        <SidebarNav />
+    <div className={cn('min-h-dvh lg:grid', collapsed ? 'lg:grid-cols-[64px_1fr]' : 'lg:grid-cols-[240px_1fr]')}>
+      {/* Desktop sidebar (inline-start = right in RTL), collapsible to icons */}
+      <aside className={cn('sticky top-0 hidden h-dvh flex-col gap-5 overflow-y-auto border-e border-line bg-surface py-5 lg:flex', collapsed ? 'px-2' : 'px-3')}>
+        <div className={cn('flex items-center', collapsed ? 'flex-col gap-3' : 'justify-between')}>
+          <Brand compact={collapsed} />
+          <button type="button" onClick={toggle} className={buttonClass('ghost', 'icon', 'size-8')}
+            aria-label={collapsed ? 'הרחבת התפריט' : 'כיווץ התפריט'} aria-expanded={!collapsed}>
+            {collapsed ? <PanelRightOpen className="size-4" /> : <PanelRightClose className="size-4" />}
+          </button>
+        </div>
+        <SidebarNav collapsed={collapsed} counts={counts} />
       </aside>
 
       {/* Mobile drawer */}
@@ -38,7 +53,7 @@ export function AppShell({ alertCount, children }: { alertCount: number; childre
               <Brand />
               <button className={buttonClass('ghost', 'icon')} aria-label="סגירה" onClick={() => setOpen(false)}><X className="size-5" /></button>
             </div>
-            <SidebarNav onNavigate={() => setOpen(false)} />
+            <SidebarNav counts={counts} onNavigate={() => setOpen(false)} />
           </aside>
         </div>
       )}
@@ -50,17 +65,15 @@ export function AppShell({ alertCount, children }: { alertCount: number; childre
           </button>
           <div className="lg:hidden"><Brand /></div>
           <div className="flex-1" />
-          <Link href="/health#alerts" className={buttonClass('ghost', 'icon', 'relative')} aria-label={`התראות פתוחות: ${alertCount}`}>
-            <Bell className="size-[18px]" />
-            {alertCount > 0 && (
-              <span className="absolute end-1 top-1 grid min-w-4 place-items-center rounded-full bg-critical px-1 text-[10px] font-semibold leading-4 text-white">{alertCount}</span>
-            )}
-          </Link>
+          <NewButton />
           <PrivacyToggle />
           <ThemeToggle />
           <LogoutButton />
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8">
+          <Suspense fallback={null}><Breadcrumb /></Suspense>
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { Tabs, pickTab } from '@/components/shell/tabs';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
 
-export const metadata = { title: 'הד ספא ישראל — דשבורד גורזד' };
+export const metadata = { title: 'Head Spa Israel — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
 
 const BASE = '/business/head-spa-israel';
@@ -29,17 +29,17 @@ export default async function HeadSpaPage({ searchParams }: { searchParams: Prom
     return (
       <div className="flex flex-col gap-5">
         <div>
-          <h1 className="text-xl font-semibold">הד ספא ישראל</h1>
+          <h1 className="text-xl font-semibold"><bdi>Head Spa Israel</bdi></h1>
           <p className="text-sm text-muted">עסקים · כל הסניפים</p>
         </div>
         {tabs}
-        {tab === 'tasks' && <TaskBoard place={PLACE} path={BASE} title="משימות הד ספא ישראל" />}
-        {tab === 'goals' && <GoalsPanel place={PLACE} path={BASE} title="יעדי הד ספא ישראל" />}
+        {tab === 'tasks' && <TaskBoard place={PLACE} path={BASE} title="משימות Head Spa Israel" />}
+        {tab === 'goals' && <GoalsPanel place={PLACE} path={BASE} title="יעדי Head Spa Israel" />}
       </div>
     );
   }
   return (
-    <OspaView d={d} base={BASE} title="הד ספא ישראל" subtitle="עסקים · כל הסניפים" tabs={tabs}>
+    <OspaView d={d} base={BASE} title="Head Spa Israel" subtitle="עסקים · כל הסניפים" tabs={tabs}>
       <BranchCards d={d} counts={counts} />
     </OspaView>
   );

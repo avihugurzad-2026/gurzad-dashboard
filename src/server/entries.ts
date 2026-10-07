@@ -7,8 +7,8 @@ import { todayIL } from '@/lib/period';
 // and are listed next to these (source 'vault'). Missing tables (migration not applied yet)
 // read as `ready: false`, never as an error page.
 
-export type Domain = 'business' | 'personal' | 'ventures';
-export type Place = { domain: Domain; branch: string | null; location: string | null; list?: string | null };
+export type { Domain, Place, Status } from '@/lib/places';
+import { contextLabel, type Domain, type Place, type Status } from '@/lib/places';
 
 export const PEOPLE = [{ id: 'avihu', name: 'אביהו' }, { id: 'eden', name: 'עדן' }] as const;
 export const PERSONAL_LISTS = [
@@ -16,9 +16,11 @@ export const PERSONAL_LISTS = [
 ] as const;
 
 export type WorkItem = {
-  id: string; source: 'dashboard' | 'vault'; title: string; notes: string | null;
-  priority: 1 | 2 | 3; status: 'open' | 'doing' | 'done'; due: string | null; owner: string | null;
-  list: string | null; location: string | null; days_past: number | null; done_at: string | null;
+  id: string; source: 'dashboard' | 'vault'; title: string; description: string | null;
+  priority: 1 | 2 | 3 | 4; status: Status; waiting_on: string | null;
+  due_date: string | null; due_time: string | null; owner: string | null; category_id: string | null;
+  domain: string; branch: string | null; location: string | null; context: string;
+  days_past: number | null; completed_at: string | null;
 };
 export type Goal = {
   id: string; title: string; unit: 'ils' | 'count' | 'pct'; target: number | null; current: number | null;
@@ -31,61 +33,108 @@ export type MoneyEntry = {
 
 const missing = (e: any) => e?.code === '42P01';
 
-function where(p: Place, alias = '') {
-  const a = alias ? `${alias}.` : '';
-  const params: unknown[] = [p.domain];
-  const parts = [`${a}domain = $1`, `${a}deleted_at IS NULL`];
-  if (p.branch) { params.push(p.branch); parts.push(`${a}branch = $${params.length}`); }
-  if (p.location) { params.push(p.location); parts.push(`${a}location = $${params.length}`); }
-  if (p.list) { params.push(p.list); parts.push(`${a}list = $${params.length}`); }
+type Filter = Partial<Place> & { domain?: Domain; category?: string | null };
+
+function where(p: Filter, start = 1) {
+  const params: unknown[] = [];
+  const parts = ['deleted_at IS NULL'];
+  const add = (sql: string, v: unknown) => { params.push(v); parts.push(sql.replace('?', `$${start + params.length - 1}`)); };
+  if (p.domain) add('domain = ?', p.domain);
+  if (p.branch) add('branch = ?', p.branch);
+  if (p.location) add('location = ?', p.location);
+  if (p.category) add('category_id = ?', p.category);
   return { sql: parts.join(' AND '), params };
 }
 
-// Vault priority strings → 1..3
-const vaultPriority = (p: string | null): 1 | 2 | 3 => (/high|גבוה|1/i.test(p ?? '') ? 1 : /low|נמוך|3/i.test(p ?? '') ? 3 : 2);
+// Vault priority strings → P1..P4 (vault "high" is P2: urgent-but-not-on-fire by default)
+const vaultPriority = (p: string | null): 1 | 2 | 3 | 4 => (/high|גבוה|1/i.test(p ?? '') ? 2 : /low|נמוך|3/i.test(p ?? '') ? 4 : 3);
 
-export async function workItems(p: Place, { includeDone = false } = {}) {
+const OPEN = `status NOT IN ('done', 'cancelled')`;
+
+function fromRow(r: any): WorkItem {
+  return {
+    id: r.id, source: 'dashboard', title: r.title, description: r.description, priority: r.priority, status: r.status,
+    waiting_on: r.waiting_on, due_date: r.due_date, due_time: r.due_time, owner: r.owner_user_id, category_id: r.category_id,
+    domain: r.domain, branch: r.branch, location: r.location, context: contextLabel(r, r.category_id),
+    days_past: r.days_past === null ? null : Number(r.days_past),
+    completed_at: r.completed_at ? new Date(r.completed_at).toISOString() : null,
+  };
+}
+
+const COLS = `id, title, description, priority, status, waiting_on, to_char(due_date, 'YYYY-MM-DD') AS due_date,
+  to_char(due_time, 'HH24:MI') AS due_time, owner_user_id, category_id, domain, branch, location, completed_at`;
+
+// Tasks for one place (or everywhere when the filter is empty): dashboard rows plus read-only vault tasks.
+// Done/cancelled rows stay visible for 7 days so a tick can be undone.
+export async function workItems(p: Filter, { includeDone = false } = {}) {
   const today = todayIL();
   const items: WorkItem[] = [];
   let ready = true;
   try {
-    const w = where(p);
+    const w = where(p, 2);
     const { rows } = await db().query(
-      `SELECT id, title, notes, priority, status, to_char(due, 'YYYY-MM-DD') AS due, owner, list, location,
-              CASE WHEN due < $${w.params.length + 1}::date AND status <> 'done' THEN ($${w.params.length + 1}::date - due) END AS days_past,
-              done_at
-       FROM work_items WHERE ${w.sql} ${includeDone ? '' : `AND (status <> 'done' OR done_at > now() - interval '7 days')`}`,
-      [...w.params, today]);
-    for (const r of rows) items.push({ ...r, source: 'dashboard', days_past: r.days_past === null ? null : Number(r.days_past),
-      done_at: r.done_at ? new Date(r.done_at).toISOString() : null });
+      `SELECT ${COLS}, CASE WHEN due_date < $1::date AND ${OPEN} THEN ($1::date - due_date) END AS days_past
+       FROM work_items WHERE ${w.sql} ${includeDone ? '' : `AND (${OPEN} OR completed_at > now() - interval '7 days')`}`,
+      [today, ...w.params]);
+    for (const r of rows) items.push(fromRow(r));
   } catch (e) {
     if (!missing(e)) throw e;
     ready = false;
   }
-  // Vault tasks for the same place (read-only). Personal vault tasks have branches home / general-tasks.
-  if (!p.location && !p.list) {
-    const params: unknown[] = [p.domain, today];
-    let sql = `SELECT id, text AS title, priority, to_char(due, 'YYYY-MM-DD') AS due, done,
-                      CASE WHEN due < $2 AND NOT done THEN ($2::date - due) END AS days_past
-               FROM tasks WHERE deleted_at IS NULL AND NOT done AND domain = $1`;
-    if (p.branch) { params.push(p.branch); sql += ` AND branch = $3`; }
-    const { rows } = await db().query(sql, params);
-    for (const r of rows) items.push({
-      id: r.id, source: 'vault', title: r.title, notes: null, priority: vaultPriority(r.priority), status: 'open',
-      due: r.due, owner: null, list: null, location: null, days_past: r.days_past === null ? null : Number(r.days_past), done_at: null,
-    });
-  }
-  const rank = { doing: 0, open: 1, done: 2 } as const;
+  if (!p.location && !p.category) items.push(...await vaultTasks(p, today));
+  const rank: Record<Status, number> = { in_progress: 0, todo: 1, waiting: 2, done: 3, cancelled: 4 };
   items.sort((a, b) => rank[a.status] - rank[b.status] || a.priority - b.priority
-    || (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.title.localeCompare(b.title, 'he'));
+    || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title, 'he'));
   return { ready, today, items };
+}
+
+async function vaultTasks(p: Filter, today: string): Promise<WorkItem[]> {
+  const params: unknown[] = [today];
+  let sql = `SELECT id, text AS title, priority, to_char(due, 'YYYY-MM-DD') AS due, domain, branch,
+                    CASE WHEN due < $1 AND NOT done THEN ($1::date - due) END AS days_past
+             FROM tasks WHERE deleted_at IS NULL AND NOT done`;
+  if (p.domain) { params.push(p.domain); sql += ` AND domain = $${params.length}`; }
+  if (p.branch) { params.push(p.branch); sql += ` AND branch = $${params.length}`; }
+  const { rows } = await db().query(sql, params);
+  return rows.map((r: any) => {
+    const place = { domain: r.domain, branch: r.domain === 'personal' ? null : r.branch, location: null };
+    return {
+      id: r.id, source: 'vault' as const, title: r.title, description: null, priority: vaultPriority(r.priority), status: 'todo' as const,
+      waiting_on: null, due_date: r.due, due_time: null, owner: null, category_id: null, ...place,
+      context: contextLabel(place, r.domain === 'personal' && r.branch === 'home' ? 'home' : null),
+      days_past: r.days_past === null ? null : Number(r.days_past), completed_at: null,
+    };
+  });
+}
+
+// The four groups on Home. A task sits in exactly one: waiting → overdue → today → needs attention.
+export async function taskGroups() {
+  const { ready, today, items } = await workItems({});
+  const open = items.filter(i => i.status !== 'done' && i.status !== 'cancelled');
+  const waiting = open.filter(i => i.status === 'waiting');
+  const rest = open.filter(i => i.status !== 'waiting');
+  const overdue = rest.filter(i => i.days_past);
+  const dueToday = rest.filter(i => i.due_date === today);
+  const attention = rest.filter(i => !i.days_past && i.due_date !== today && (i.priority <= 2 || i.status === 'in_progress'));
+  const byTime = (a: WorkItem, b: WorkItem) => (a.due_time ?? '99').localeCompare(b.due_time ?? '99') || a.priority - b.priority;
+  return {
+    ready, today,
+    urgent: open.filter(i => i.priority <= 2).length, overdue_count: overdue.length,
+    groups: { attention, overdue, today: dueToday.sort(byTime), waiting },
+  };
+}
+
+// Tasks due on one day (and, for today, everything overdue), for the Today page and the week strip
+export async function tasksBetween(start: string, end: string) {
+  const { items } = await workItems({});
+  return items.filter(i => i.due_date && i.due_date >= start && i.due_date <= end && i.status !== 'cancelled');
 }
 
 export async function goalsFor(p: Place) {
   try {
     const w = where(p);
     const { rows } = await db().query(
-      `SELECT id, title, unit, target::float, current::float, to_char(due, 'YYYY-MM-DD') AS due, status, owner, location
+      `SELECT id, title, unit, target::float, current::float, to_char(due, 'YYYY-MM-DD') AS due, status, owner_user_id AS owner, location
        FROM goals WHERE ${w.sql} AND status <> 'dropped' ORDER BY status, due NULLS LAST, created_at`, w.params);
     return { ready: true, goals: rows as Goal[] };
   } catch (e) {
@@ -99,7 +148,7 @@ export async function householdMonth(month: string /* YYYY-MM */) {
   const start = `${month}-01`;
   try {
     const { rows } = await db().query(
-      `SELECT id, kind, amount::float, category, to_char(occurred_on, 'YYYY-MM-DD') AS occurred_on, note, owner
+      `SELECT id, kind, amount::float, category, to_char(occurred_on, 'YYYY-MM-DD') AS occurred_on, note, owner_user_id AS owner
        FROM money_entries WHERE book = 'shared' AND deleted_at IS NULL
          AND occurred_on >= $1::date AND occurred_on < ($1::date + interval '1 month')
        ORDER BY occurred_on DESC, created_at DESC`, [start]);
@@ -138,7 +187,8 @@ export async function openCounts() {
   const add = (k: string, overdue: boolean) => { out[k] ??= { open: 0, overdue: 0 }; out[k].open++; if (overdue) out[k].overdue++; };
   try {
     const { rows } = await db().query(
-      `SELECT domain, branch, location, list, (due < $1::date) AS overdue FROM work_items WHERE deleted_at IS NULL AND status <> 'done'`, [today]);
+      `SELECT domain, branch, location, category_id AS list, (due_date < $1::date) AS overdue
+       FROM work_items WHERE deleted_at IS NULL AND status NOT IN ('done', 'cancelled')`, [today]);
     for (const r of rows) {
       add(r.domain, r.overdue);
       if (r.branch) add(`${r.domain}/${r.branch}`, r.overdue);
@@ -163,4 +213,64 @@ export async function vaultRecords(domain: Domain, branch: string) {
 export async function branchName(domain: Domain, branch: string): Promise<string | null> {
   const { rows } = await db().query(`SELECT name_he FROM branches WHERE domain = $1 AND branch = $2`, [domain, branch]);
   return rows.length ? (rows[0].name_he ?? branch) : null;
+}
+
+// ── Inbox ─────────────────────────────────────────────────────────────────────
+export type InboxItem = {
+  id: string; raw_text: string | null; status: 'unclassified' | 'classified'; created_at: string;
+  file: { id: string; name: string; mime: string; size: number } | null;
+  classified: { context: string; module: string | null; at: string | null } | null;
+};
+
+export async function inbox() {
+  const { rows } = await db().query(
+    `SELECT i.id, i.raw_text, i.status, i.created_at, i.classified_domain, i.classified_branch, i.classified_location,
+            i.classified_module, i.classified_at, f.id AS file_id, f.name AS file_name, f.mime, f.size_bytes
+     FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
+     WHERE i.deleted_at IS NULL AND (i.status = 'unclassified' OR i.classified_at > now() - interval '14 days')
+     ORDER BY i.created_at DESC LIMIT 200`);
+  const items: InboxItem[] = rows.map((r: any) => ({
+    id: r.id, raw_text: r.raw_text, status: r.status, created_at: new Date(r.created_at).toISOString(),
+    file: r.file_id ? { id: r.file_id, name: r.file_name, mime: r.mime, size: r.size_bytes } : null,
+    classified: r.status === 'classified' ? {
+      context: contextLabel({ domain: r.classified_domain, branch: r.classified_branch, location: r.classified_location }),
+      module: r.classified_module, at: r.classified_at ? new Date(r.classified_at).toISOString() : null,
+    } : null,
+  }));
+  return { open: items.filter(i => i.status === 'unclassified'), recent: items.filter(i => i.status === 'classified') };
+}
+
+export async function inboxCount(): Promise<number> {
+  try {
+    const { rows } = await db().query(`SELECT count(*)::int AS n FROM inbox_items WHERE status = 'unclassified' AND deleted_at IS NULL`);
+    return rows[0].n;
+  } catch (e) {
+    if (missing(e)) return 0;
+    throw e;
+  }
+}
+
+// ── Search (titles and inbox text; plain ILIKE, enough for one person's data) ──
+export async function search(q: string) {
+  const like = `%${q.replace(/[\\%_]/g, m => `\\${m}`)}%`;
+  const [tasks, vault, inboxRows, events] = await Promise.all([
+    db().query(`SELECT ${COLS}, NULL AS days_past FROM work_items WHERE deleted_at IS NULL AND (title ILIKE $1 OR description ILIKE $1)
+                ORDER BY updated_at DESC LIMIT 30`, [like]),
+    db().query(`SELECT id, text, domain, branch FROM tasks WHERE deleted_at IS NULL AND text ILIKE $1 LIMIT 20`, [like]),
+    db().query(`SELECT i.id, coalesce(i.raw_text, f.name) AS text, i.status FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
+                WHERE i.deleted_at IS NULL AND (i.raw_text ILIKE $1 OR f.name ILIKE $1) ORDER BY i.created_at DESC LIMIT 20`, [like]),
+    db().query(`SELECT id, title, start_at FROM events WHERE deleted_at IS NULL AND status <> 'cancelled' AND title ILIKE $1
+                ORDER BY start_at DESC LIMIT 20`, [like]),
+  ]);
+  return {
+    tasks: tasks.rows.map(fromRow),
+    vault: vault.rows.map((r: any) => ({ id: r.id, text: r.text, context: contextLabel({ domain: r.domain, branch: r.domain === 'personal' ? null : r.branch, location: null }) })),
+    inbox: inboxRows.rows.map((r: any) => ({ id: r.id, text: r.text as string, status: r.status as string })),
+    events: events.rows.map((r: any) => ({ id: r.id, title: r.title as string, start_at: new Date(r.start_at).toISOString() })),
+  };
+}
+
+export async function profile() {
+  const { rows } = await db().query(`SELECT id, name, email, active FROM users ORDER BY active DESC, id`);
+  return rows as { id: string; name: string; email: string | null; active: boolean }[];
 }

@@ -15,7 +15,7 @@ const TABS = ['overview', 'tasks', 'goals'] as const;
 
 export async function generateMetadata({ params }: { params: Promise<{ location: string }> }) {
   const { location } = await params;
-  return { title: `סניף ${location === 'modiin' ? 'מודיעין' : location === 'jerusalem' ? 'ירושלים' : ''} — הד ספא ישראל` };
+  return { title: `סניף ${location === 'modiin' ? 'מודיעין' : location === 'jerusalem' ? 'ירושלים' : ''} — Head Spa Israel` };
 }
 
 // One branch: the same screen as every other branch, with only this branch's numbers
@@ -33,7 +33,7 @@ export default async function BranchPage({ params, searchParams }: {
   const place = { domain: 'business', branch: 'head-spa-israel', location } as const;
   const [counts, g] = await Promise.all([openCounts(), goalsFor(place)]);
   const title = `סניף ${loc.name_he}`;
-  const subtitle = 'עסקים · הד ספא ישראל';
+  const subtitle = 'עסקים · Head Spa Israel';
   const tabs = <Tabs base={base} active={tab} tabs={[
     { key: 'overview', label: 'סקירה' },
     { key: 'tasks', label: 'משימות', count: counts[`business/head-spa-israel/${location}`]?.open },
@@ -51,7 +51,7 @@ export default async function BranchPage({ params, searchParams }: {
       {tabs}
       {tab === 'overview' && (
         <Card><CardContent className="pt-5">
-          <Empty icon={<PlugZap className="size-6" />} title="הסניף עוד לא פעיל">
+          <Empty icon={<PlugZap className="size-6" />} title="הסניף בהקמה">
             כשהסניף ייפתח ויקבל חשבון Buyz משלו, יופיעו כאן אותם נתונים כמו בסניף מודיעין: הכנסה חודשית, עסקאות, אמצעי תשלום ומכירות.
             בינתיים אפשר לנהל כאן משימות ויעדים להקמת הסניף.
           </Empty>

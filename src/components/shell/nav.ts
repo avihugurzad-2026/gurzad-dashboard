@@ -1,34 +1,36 @@
-export type NavItem = { href: string; label: string; icon: string; soon?: boolean; children?: NavItem[] };
+export type NavItem = { href: string; label: string; icon: string; tag?: string; count?: 'inbox' | 'alerts'; children?: NavItem[] };
 
-// Three areas (business / personal / ventures), each with its own pages, then the system screens.
-export const NAV: { group: string; items: NavItem[] }[] = [
-  { group: 'ראשי', items: [
-    { href: '/', label: 'סקירה כללית', icon: 'dashboard' },
-  ] },
-  { group: 'עסקים', items: [
+// Sidebar (stage 1 spec): the day screens, then the three areas, then the bottom row.
+export const NAV_TOP: NavItem[] = [
+  { href: '/', label: 'בית', icon: 'home' },
+  { href: '/today', label: 'היום', icon: 'today' },
+  { href: '/calendar', label: 'לוח שנה', icon: 'calendar' },
+  { href: '/inbox', label: 'Inbox', icon: 'inbox', count: 'inbox' },
+];
+
+export const NAV_AREAS: NavItem[] = [
+  { href: '/personal', label: 'אישי', icon: 'personal' },
+  { href: '/ventures', label: 'יזמות', icon: 'ventures' },
+  { href: '/business', label: 'עסקים', icon: 'business', children: [
     { href: '/business/adigital', label: 'a-digital', icon: 'agency' },
-    { href: '/business/head-spa-israel', label: 'הד ספא ישראל', icon: 'spa', children: [
-      { href: '/business/head-spa-israel/modiin', label: 'סניף מודיעין', icon: 'branch' },
-      { href: '/business/head-spa-israel/jerusalem', label: 'סניף ירושלים', icon: 'branch' },
+    { href: '/business/head-spa-israel', label: 'Head Spa Israel', icon: 'spa', children: [
+      { href: '/business/head-spa-israel/modiin', label: 'מודיעין', icon: 'branch' },
+      { href: '/business/head-spa-israel/jerusalem', label: 'ירושלים', icon: 'branch', tag: 'בהקמה' },
     ] },
   ] },
-  { group: 'אישי', items: [
-    { href: '/personal/tasks', label: 'משימות', icon: 'tasks' },
-    { href: '/personal/finance', label: 'כספים משותפים', icon: 'finance' },
-    { href: '/personal/goals', label: 'יעדים פיננסיים', icon: 'goals' },
-  ] },
-  { group: 'יזמות', items: [
-    { href: '/ventures/real-estate', label: 'נכסים', icon: 'property' },
-    { href: '/ventures/investments', label: 'השקעות', icon: 'invest' },
-    { href: '/ventures/legal-and-tasks', label: 'משפטי', icon: 'legal' },
-    { href: '/ventures/finance', label: 'פיננסים', icon: 'bank' },
-  ] },
-  { group: 'ניהול', items: [
-    { href: '/review', label: 'סקירה שבועית', icon: 'review' },
-    { href: '/scorecard', label: 'מדדים שבועיים', icon: 'chart' },
-    { href: '/health', label: 'שלמות נתונים', icon: 'health' },
-    { href: '/calendar', label: 'יומן', icon: 'calendar', soon: true },
-    { href: '/documents', label: 'מסמכים', icon: 'documents', soon: true },
-    { href: '/settings', label: 'הגדרות', icon: 'settings', soon: true },
-  ] },
+];
+
+// Screens built before stage 1, kept reachable
+export const NAV_TOOLS: NavItem[] = [
+  { href: '/insights', label: 'סקירה עסקית', icon: 'chart' },
+  { href: '/review', label: 'סקירה שבועית', icon: 'review' },
+  { href: '/scorecard', label: 'מדדים שבועיים', icon: 'scorecard' },
+  { href: '/health', label: 'שלמות נתונים', icon: 'health' },
+];
+
+export const NAV_BOTTOM: NavItem[] = [
+  { href: '/search', label: 'חיפוש', icon: 'search' },
+  { href: '/health#alerts', label: 'התראות', icon: 'bell', count: 'alerts' },
+  { href: '/settings', label: 'הגדרות', icon: 'settings' },
+  { href: '/settings#profile', label: 'פרופיל', icon: 'profile' },
 ];

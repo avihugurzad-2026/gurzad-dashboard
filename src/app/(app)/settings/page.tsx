@@ -1,10 +1,86 @@
 import Link from 'next/link';
-import { Soon } from '@/components/dash/soon';
+import { CalendarDays, CircleCheck, TriangleAlert, User } from 'lucide-react';
+import { calendarStatus } from '@/server/calendar';
+import { profile } from '@/server/entries';
+import { stamp } from '@/lib/format';
+import { CalendarActions, CalendarMappingRow } from '@/components/settings/calendar-controls';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { buttonClass } from '@/components/ui/button';
 
 export const metadata = { title: 'הגדרות — דשבורד גורזד' };
+export const dynamic = 'force-dynamic';
 
-export default function SettingsPage() {
-  return <Soon title="הגדרות" lead="חלק מההגדרות עוד מנוהל בוואלט ובמשתני הסביבה."
-    items={['עסקים ופרויקטים', 'קטגוריות ואמצעי תשלום', 'חיבורים ל-Google', 'התראות וספים', 'ייבוא וייצוא נתונים']}
-    note="מע״מ, ספים ובעלים מוגדרים כרגע בקובץ thresholds.md בוואלט, ואפשר לראות אותם בעמוד שלמות נתונים." />;
+const RESULT: Record<string, { tone: 'good' | 'critical'; text: string }> = {
+  connected: { tone: 'good', text: 'יומן Google חובר. האירועים יופיעו בבית, בהיום ובלוח השנה.' },
+  error: { tone: 'critical', text: 'החיבור לא הושלם. נסה שוב.' },
+  no_refresh: { tone: 'critical', text: 'Google לא החזיר הרשאה קבועה. הסר את הגישה בחשבון Google (אבטחה → אפליקציות של צד שלישי) ונסה שוב.' },
+  not_configured: { tone: 'critical', text: 'החיבור עוד לא הוגדר בשרת (חסרים פרטי Google).' },
+};
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  const [cal, users] = await Promise.all([calendarStatus(), profile()]);
+  const result = sp.calendar ? RESULT[sp.calendar] : null;
+  const me = users.find(u => u.id === 'avihu');
+
+  return (
+    <div className="flex flex-col gap-5">
+      <h1 className="text-xl font-semibold">הגדרות</h1>
+
+      <Card id="calendar">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><CalendarDays className="size-4" aria-hidden />יומן Google</CardTitle>
+          {cal.connection ? <Badge tone={cal.connection.status === 'connected' ? 'good' : 'critical'}>{cal.connection.status === 'connected' ? 'מחובר' : 'דורש חיבור מחדש'}</Badge>
+            : <Badge>לא מחובר</Badge>}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4 text-sm">
+          {result && (
+            <p role="status" className={result.tone === 'good' ? 'flex items-center gap-2 rounded-lg bg-good-soft px-3 py-2 text-good-ink' : 'flex items-center gap-2 rounded-lg bg-critical-soft px-3 py-2 text-critical-ink'}>
+              {result.tone === 'good' ? <CircleCheck className="size-4" aria-hidden /> : <TriangleAlert className="size-4" aria-hidden />}{result.text}
+            </p>
+          )}
+          {!cal.configured ? (
+            <div className="flex flex-col gap-2 text-ink-2">
+              <p>כדי לחבר את היומן, השרת צריך שלושה משתני סביבה ב-Vercel: <bdi dir="ltr">GOOGLE_CLIENT_ID</bdi>, <bdi dir="ltr">GOOGLE_CLIENT_SECRET</bdi> ו-<bdi dir="ltr">CALENDAR_TOKEN_KEY</bdi>.</p>
+              <p className="text-muted">אחרי שיוגדרו, יופיע כאן כפתור "חבר את יומן Google". הגישה היא לקריאה בלבד.</p>
+            </div>
+          ) : !cal.connection || cal.connection.status !== 'connected' ? (
+            <div className="flex flex-col items-start gap-2">
+              <p className="text-ink-2">התחבר פעם אחת עם חשבון Google. הגישה היא לקריאה בלבד: הדשבורד לא יוצר, לא משנה ולא מוחק אירועים.</p>
+              <a href="/api/google/connect" className={buttonClass('primary')}>{cal.connection ? 'חבר מחדש' : 'חבר את יומן Google'}</a>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-ink-2"><bdi dir="ltr">{cal.connection.email}</bdi>{cal.connection.last_synced_at && <span className="text-muted"> · עודכן {stamp(cal.connection.last_synced_at)}</span>}</p>
+                <CalendarActions />
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-muted">איזה יומנים להציג, ולאן כל אחד שייך (למשל יומן הספא → Head Spa · מודיעין)</p>
+                <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                  {cal.calendars.map(c => <CalendarMappingRow key={c.id} cal={c} />)}
+                </ul>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card id="profile">
+        <CardHeader><CardTitle className="flex items-center gap-2"><User className="size-4" aria-hidden />פרופיל</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          {me && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+              <dt className="text-muted">שם</dt><dd>{me.name}</dd>
+              <dt className="text-muted">אימייל</dt><dd><bdi dir="ltr">{me.email ?? '—'}</bdi></dd>
+              <dt className="text-muted">אזור זמן</dt><dd>ישראל (Asia/Jerusalem)</dd>
+            </dl>
+          )}
+          <p className="text-muted">משתמשים נוספים (עדן) יקבלו כניסה משלהם בשלב הבא. כבר עכשיו כל משימה שמורה עם "של מי" ו"משותף או אישי".</p>
+          <p className="text-muted">מע״מ, ספים ואחוזי בעלות מוגדרים בוואלט. <Link href="/health" className="text-accent hover:underline">שלמות נתונים</Link></p>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

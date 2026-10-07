@@ -21,7 +21,7 @@ export function BranchCards({ d, counts }: { d: OspaData; counts: Record<string,
                 <Link href={href} className="flex h-full flex-col gap-2 rounded-lg border border-line p-4 transition-colors hover:border-line-strong hover:bg-surface-2/50">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 font-medium"><MapPin className="size-4 text-muted" aria-hidden />סניף {l.name_he}</span>
-                    <Badge tone={l.has_data ? 'good' : undefined}>{l.has_data ? 'מחובר ל-Buyz' : l.connected ? 'אין נתונים עדיין' : 'לא פעיל עדיין'}</Badge>
+                    <Badge tone={l.has_data ? 'good' : undefined}>{l.has_data ? 'מחובר ל-Buyz' : l.connected ? 'אין נתונים עדיין' : 'בהקמה'}</Badge>
                   </div>
                   {l.has_data ? (
                     <dl className="grid grid-cols-2 gap-2 text-sm">

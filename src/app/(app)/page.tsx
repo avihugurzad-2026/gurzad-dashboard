@@ -1,185 +1,100 @@
 import Link from 'next/link';
-import { CalendarClock, HandCoins, ListChecks, TrendingUp, Wallet } from 'lucide-react';
-import { overview, resolveWorkspace, workspaces } from '@/server/data';
-import { openCounts } from '@/server/entries';
-import { parseRange, rangeLabel } from '@/lib/period';
-import { greeting, ils, longDate, num, shortDate, stamp } from '@/lib/format';
-import { Filters } from '@/components/shell/filters';
-import { Attention } from '@/components/dash/attention';
+import { AlertTriangle, CalendarDays, CircleDollarSign, HandCoins, ListChecks } from 'lucide-react';
+import { agenda } from '@/server/day';
+import { taskGroups, type WorkItem } from '@/server/entries';
+import { num } from '@/lib/format';
+import { todayIL } from '@/lib/period';
 import { KpiCard } from '@/components/dash/kpi-card';
-import { TrendChart } from '@/components/charts/trend-chart';
+import { GreetingClock } from '@/components/day/clock';
+import { Timeline } from '@/components/day/timeline';
+import { toItems } from '@/components/day/to-items';
+import { WeekStrip } from '@/components/day/week-strip';
+import { CalendarCta } from '@/components/day/calendar-cta';
+import { QuickTask } from '@/components/work/quick-task';
+import { TaskRow } from '@/components/work/task-row';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
-import { Money } from '@/components/ui/money';
 
-export const metadata = { title: 'סקירה כללית — דשבורד גורזד' };
+export const metadata = { title: 'בית — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
 
-const KIND_LABEL = { task: 'משימה', notice: 'מועד הודעה', payment: 'תשלום' } as const;
+const GROUPS = [
+  { key: 'attention', title: 'דורש טיפול', empty: 'אין משימות דחופות פתוחות' },
+  { key: 'overdue', title: 'באיחור', empty: 'שום דבר לא באיחור' },
+  { key: 'today', title: 'היום', empty: 'אין משימות עם תאריך של היום' },
+  { key: 'waiting', title: 'ממתין למישהו', empty: 'אין משימות שממתינות לאחרים' },
+] as const;
 
-// The three areas, each linking to its pages; counts come from openCounts() keys
-const AREAS = [
-  { title: 'עסקים', items: [
-    { label: 'a-digital', href: '/business/adigital', key: 'business/adigital' },
-    { label: 'הד ספא ישראל', href: '/business/head-spa-israel', key: 'business/head-spa-israel' },
-  ] },
-  { title: 'אישי', items: [
-    { label: 'משימות בית, אישי ולימודים', href: '/personal/tasks', key: 'personal' },
-  ] },
-  { title: 'יזמות', items: [
-    { label: 'נכסים', href: '/ventures/real-estate', key: 'ventures/real-estate' },
-    { label: 'השקעות', href: '/ventures/investments', key: 'ventures/investments' },
-    { label: 'משפטי', href: '/ventures/legal-and-tasks', key: 'ventures/legal-and-tasks' },
-    { label: 'פיננסים', href: '/ventures/finance', key: 'ventures/finance' },
-  ] },
-];
-
-export default async function OverviewPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const sp = await searchParams;
-  const range = parseRange(sp.range);
-  const [ws, branch, counts] = await Promise.all([workspaces(), resolveWorkspace(sp.w), openCounts()]);
-  const d = await overview(branch, range);
-  const trend = d.trend.mrr.map((p, i) => ({ period: p.period, mrr: p.value, debts: d.trend.open_debts[i].value }));
-  const hasTrend = trend.filter(p => p.mrr !== null || p.debts !== null).length >= 2;
-  const horizon = d.horizon.slice(0, 8);
+export default async function HomePage() {
+  const [week, t] = await Promise.all([agenda(todayIL(), 7), taskGroups()]);
+  const today = week.days[0];
+  const eventsToday = today.events.length;
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{greeting()}, אביהו</h1>
-          <p className="text-sm text-muted">{longDate(d.today)}</p>
-        </div>
-        <Filters workspaces={ws} workspace={branch} range={range} />
-      </div>
-
-      {d.missing_params.length > 0 && (
-        <Card className="border-warning/40 bg-warning-soft">
-          <CardContent className="pt-4 text-sm text-warning-ink">
-            חסרים פרמטרים ({d.missing_params.join(', ')}), ולכן חלק מהמספרים לא מוצגים.{' '}
-            <Link href="/health" className="font-medium underline">שלמות נתונים</Link>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="הכנסה חודשית קבועה" icon={<TrendingUp className="size-4" />}
-          value={ils(d.mrr.net)} href="/business/adigital?tab=clients"
-          hint={d.mrr.gross !== null ? `${ils(d.mrr.gross)} כולל מע״מ · ${d.mrr.clients} לקוחות` : undefined}
-          reason="אין ריטיינרים פעילים"
-          foot={d.concentration ? <>הלקוח הגדול: {d.concentration.max_pct}% מההכנסה</> : null} />
-
-        <KpiCard label="כסף שמחכה לגבייה" icon={<HandCoins className="size-4" />}
-          value={ils(d.receivables.total)} href="/business/adigital?tab=collections"
-          hint={`${d.receivables.count} יתרות · ${d.receivables.clients} לקוחות`}
-          reason="אין יתרות פתוחות"
-          foot={d.receivables.oldest_due
-            ? <>הוותיקה ביותר: {shortDate(d.receivables.oldest_due)} ({d.receivables.oldest_days} ימים)</>
-            : d.receivables.count > 0 ? <>לאף יתרה אין תאריך לתשלום</> : null} />
-
-        <KpiCard label="מזומן תפעולי" icon={<Wallet className="size-4" />}
-          value={ils(d.cash.operating)} href="/review"
-          hint={d.cash.weeks_of_spend !== null ? `מכסה ${d.cash.weeks_of_spend} שבועות הוצאה` : undefined}
-          reason="אין רשומות cash-account בוואלט"
-          foot={d.cash.trough
-            ? <>שפל צפוי: {shortDate(d.cash.trough.week)} · {ils(d.cash.trough.amount)}{d.cash.below_floor ? ' · מתחת לרצפה' : ''}</>
-            : null} />
-
-        <KpiCard label="משימות באיחור" icon={<ListChecks className="size-4" />} amount={false}
-          value={d.tasks ? num(d.tasks.overdue) : null} href="/personal/tasks"
-          hint={d.tasks ? `מתוך ${d.tasks.open} משימות פתוחות` : undefined}
-          reason="עוד לא סונכרנו משימות" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
-        <Attention items={d.attention.items} more={d.attention.more}
-          snoozed={d.attention.snoozed} evaluated={d.attention.evaluated} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>לפניך</CardTitle>
-            <span className="text-sm text-muted">{rangeLabel(range)}</span>
-          </CardHeader>
-          <CardContent>
-            {horizon.length === 0 ? (
-              <Empty icon={<CalendarClock className="size-6" />} title="אין מועדים בטווח הזה">
-                משימות עם תאריך, מועדי הודעה על חידוש ותשלומים קבועים יופיעו כאן.
-              </Empty>
-            ) : (
-              <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-                {horizon.map((item, i) => (
-                  <li key={`${item.kind}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink"><bdi>{item.title}</bdi></p>
-                      <p className="text-xs text-muted">{KIND_LABEL[item.kind]} · {shortDate(item.date)}</p>
-                    </div>
-                    {item.amount != null && <Money value={item.amount} className="shrink-0 text-sm text-ink-2" />}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <GreetingClock name="אביהו" initial={new Date().toISOString()} />
 
       <Card>
-        <CardHeader>
-          <CardTitle>מגמה שבועית</CardTitle>
-          <span className="text-sm text-muted">13 שבועות</span>
-        </CardHeader>
-        <CardContent>
-          {hasTrend ? <TrendChart data={trend} /> : (
-            <Empty title="צריך עוד שבוע אחד" action={{ href: '/health', label: 'מצב הסנכרון' }}>
-              כל סנכרון שומר תמונת מצב שבועית. יש כרגע שבוע אחד, והגרף יופיע כשיהיו שניים.
-            </Empty>
-          )}
+        <CardContent className="pt-4">
+          <QuickTask path="/" />
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <KpiCard label="משימות דחופות" icon={<ListChecks className="size-4" />} amount={false} href="#tasks"
+          value={t.ready ? num(t.urgent) : null} reason="טבלת המשימות עוד לא זמינה"
+          hint={t.overdue_count ? `${t.overdue_count} באיחור` : 'שום דבר לא באיחור'} />
+        <KpiCard label="פגישות ואירועים היום" icon={<CalendarDays className="size-4" />} amount={false} href="/today"
+          value={week.connected ? num(eventsToday) : null}
+          reason={week.configured ? 'יומן Google עוד לא חובר' : 'חיבור ליומן Google עוד לא הוגדר'}
+          hint={week.connected ? (eventsToday ? undefined : 'יום פנוי ביומן') : undefined} />
+        <KpiCard label="הכנסות החודש עד היום" icon={<CircleDollarSign className="size-4" />} value={null} reason="יגיע בשלב 2"
+          foot={<Link href="/business/head-spa-israel" className="hover:underline">בינתיים: הכנסות Head Spa מ-Buyz</Link>} />
+        <KpiCard label="גבייה פתוחה" icon={<HandCoins className="size-4" />} value={null} reason="יגיע בשלב 2"
+          foot={<Link href="/business/adigital?tab=collections" className="hover:underline">בינתיים: גבייה ב-a-digital</Link>} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">
         <Card>
-          <CardHeader><CardTitle>האזורים</CardTitle><span className="text-sm text-muted">משימות פתוחות</span></CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {AREAS.map(a => (
-              <section key={a.title} aria-label={a.title}>
-                <h3 className="mb-1 text-xs font-medium text-muted">{a.title}</h3>
-                <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-                  {a.items.map(it => {
-                    const c = counts[it.key];
-                    return (
-                      <li key={it.href} className="flex items-center justify-between gap-3 py-2">
-                        <Link href={it.href} className="text-sm font-medium text-ink hover:text-accent"><bdi>{it.label}</bdi></Link>
-                        {c?.open
-                          ? <span className="text-xs text-muted">{c.open} פתוחות{c.overdue ? <span className="text-critical-ink"> · {c.overdue} באיחור</span> : null}</span>
-                          : <span className="text-xs text-muted">אין משימות פתוחות</span>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
+          <CardHeader><CardTitle>היום שלי</CardTitle><Link href="/today" className="text-sm text-accent hover:underline">לוח היום</Link></CardHeader>
+          <CardContent>
+            {!week.connected && <CalendarCta configured={week.configured} className="mb-3" />}
+            {toItems(today).length === 0 ? (
+              <Empty icon={<CalendarDays className="size-6" />} title="אין אירועים ומשימות עם שעה להיום">
+                משימה עם תאריך של היום, או פגישה ביומן, תופיע כאן לפי השעה.
+              </Empty>
+            ) : <Timeline items={toItems(today)} isToday />}
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader><CardTitle>מצב המערכת</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-2 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-ink-2">סנכרון אחרון</span>
-              <span className="text-muted">{d.attention.last_sync ? stamp(d.attention.last_sync) : 'עוד לא רץ'}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-ink-2">סקירה שבועית אחרונה</span>
-              <span className="text-muted">{d.attention.last_review ? stamp(d.attention.last_review) : 'עוד לא נעשתה'}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-ink-2">מע״מ</span>
-              <span className="text-muted">{d.vat_rate !== null ? `${Math.round(d.vat_rate * 100)}%` : 'חסר פרמטר'}</span>
-            </div>
-            <Link href="/health" className="mt-1 text-sm font-medium text-accent hover:underline">שלמות נתונים</Link>
-          </CardContent>
+          <CardHeader><CardTitle>השבוע הקרוב</CardTitle><Link href="/calendar?view=week" className="text-sm text-accent hover:underline">לוח שנה</Link></CardHeader>
+          <CardContent><WeekStrip days={week.days} today={week.today} connected={week.connected} /></CardContent>
         </Card>
       </div>
+
+      <section id="tasks" aria-label="משימות" className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+        {GROUPS.map(g => {
+          const items: WorkItem[] = t.groups[g.key];
+          return (
+            <Card key={g.key}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {g.key === 'overdue' && items.length > 0 && <AlertTriangle className="size-4 text-critical" aria-hidden />}{g.title}
+                </CardTitle>
+                <span className="text-sm text-muted">{items.length}</span>
+              </CardHeader>
+              <CardContent>
+                {items.length === 0 ? <p className="text-sm text-muted">{g.empty}</p> : (
+                  <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                    {items.slice(0, 8).map(i => <TaskRow key={`${i.source}-${i.id}`} item={i} path="/" />)}
+                  </ul>
+                )}
+                {items.length > 8 && <p className="pt-2 text-xs text-muted">ועוד {items.length - 8}</p>}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </section>
     </div>
   );
 }

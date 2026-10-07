@@ -58,7 +58,7 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
               {d.locations.map(l => (
                 <li key={l.location}>
                   <Badge tone={l.has_data ? 'good' : undefined}>
-                    סניף {l.name_he}{l.has_data ? '' : l.connected ? ' · אין נתונים עדיין' : ' · לא פעיל עדיין'}
+                    סניף {l.name_he}{l.has_data ? '' : l.connected ? ' · אין נתונים עדיין' : ' · בהקמה'}
                   </Badge>
                 </li>
               ))}
