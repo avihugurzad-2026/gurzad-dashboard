@@ -42,8 +42,10 @@ function n(v: unknown): number | null {
 const s = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
 const arr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
 
+// summary.by_source items are {total, count}; monthly rows carry plain numbers
+const amount = (v: any) => n(v && typeof v === 'object' ? v.total : v);
 function source(o: any): BuyzSource {
-  return { bookings: n(o?.bookings), vouchers: n(o?.vouchers), sales: n(o?.sales) };
+  return { bookings: amount(o?.bookings), vouchers: amount(o?.vouchers), sales: amount(o?.sales) };
 }
 
 // Field names follow the documented response; anything missing stays null, never 0
@@ -82,20 +84,15 @@ export async function buyzReport(query: BuyzQuery): Promise<BuyzResult> {
   url.searchParams.set('include', PARTS);
 
   try {
-    // The docs do not say how the key is sent: try headers first, then the query string
-    let res = await get(url, { 'X-API-Key': key, Authorization: `Bearer ${key}` });
-    if (res.status === 401 || res.status === 403) {
-      const withKey = new URL(url);
-      withKey.searchParams.set('api_key', key);
-      res = await get(withKey, {});
-    }
+    // Verified against the live API (2026-10-07): the key goes in X-API-Key, never in the URL
+    const res = await get(url, { 'X-API-Key': key });
     if (res.status === 401 || res.status === 403) return { ok: false, reason: 'unauthorized' };
-    if (!res.ok) return { ok: false, reason: 'unreachable' };
-    const report = parseReport(await res.json().catch(() => null));
-    if (!report) return { ok: false, reason: 'bad_response' };
+    if (!res.ok && res.status !== 400) return { ok: false, reason: 'unreachable' };
+    const raw = await res.json().catch(() => null);
+    const report = raw?.success === false ? null : parseReport(raw);
+    if (!report) return { ok: false, reason: raw?.error === 'missing_api_key' || raw?.error === 'invalid_api_key' ? 'unauthorized' : 'bad_response' };
     return { ok: true, report, fetched_at: new Date().toISOString() };
   } catch {
-    // Never log the URL: it may carry the key
     return { ok: false, reason: 'unreachable' };
   }
 }
