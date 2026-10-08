@@ -1,0 +1,7 @@
+import { requirePlace } from '@/server/auth';
+
+// The area menu lives in each page's header (see ./area-nav.tsx)
+export default async function VenturesLayout({ children }: { children: React.ReactNode }) {
+  await requirePlace({ domain: 'ventures' });
+  return <>{children}</>;
+}

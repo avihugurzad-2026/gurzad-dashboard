@@ -1,29 +1,50 @@
 {
   "name": "gurzad-dashboard",
-  "version": "2.0.0",
+  "version": "3.0.0",
+  "private": true,
   "description": "דשבורד בעלים — אביהו גורזד",
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
     "sync:dry": "node scripts/sync-from-obsidian.js --dry",
     "sync:apply": "node scripts/sync-from-obsidian.js --apply",
+    "buyz:dry": "node scripts/buyz-pull.js",
+    "buyz:apply": "node scripts/buyz-pull.js --apply",
     "backup": "supabase db dump -f backup-$(date +%Y%m%d-%H%M).sql",
-    "hash-password": "node -e \"const b=require('bcryptjs');b.hash(process.argv[1],10).then(h=>{console.log(h);process.exit(0)})\" "
+    "hash-password": "node -e \"const b=require('bcryptjs');b.hash(process.argv[1],10).then(h=>{console.log(h);process.exit(0)})\" ",
+    "test": "node --test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.6",
-    "cors": "^2.8.5",
+    "clsx": "^2.1.1",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
     "glob": "^10.3.10",
     "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.10.0"
+    "lucide-react": "^1.52.0",
+    "next": "^16.4.0",
+    "pg": "^8.10.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^3.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "playwright-core": "^1.63.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.6.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.9"
   }
 }

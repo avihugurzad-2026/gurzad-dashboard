@@ -1,13 +1,7 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node",
-      "config": { "includeFiles": ["public/**"] }
-    }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "/server.js" }
+  "framework": "nextjs",
+  "crons": [
+    { "path": "/api/cron/buyz", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/calendar", "schedule": "0 4 * * *" }
   ]
 }

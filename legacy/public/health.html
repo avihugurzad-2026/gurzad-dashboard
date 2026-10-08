@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>שלמות נתונים — דשבורד בעלים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="g-nav">
+  <nav class="g-nav__breadcrumb" aria-label="ניווט">
+    <a href="/index.html">בית</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="current">שלמות נתונים</span>
+  </nav>
+  <div class="g-nav__spacer"></div>
+  <div class="g-nav__actions">
+    <button class="btn-ghost" id="toggleAmounts" onclick="toggleAmounts()">הסתר סכומים</button>
+    <button class="btn-ghost" onclick="logout()">יציאה</button>
+  </div>
+</nav>
+
+<main class="page-wrap" id="main" style="display:none">
+
+  <section class="section">
+    <h2 class="section-title">התראות פתוחות</h2>
+    <div class="kpi-row" id="alertCounts"></div>
+    <ul class="integrity-list" id="alertList"></ul>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">למה מופיע "אין נתונים עדיין"</h2>
+    <ul class="integrity-list" id="gapList"></ul>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">גיל סנכרון לפי ענף</h2>
+    <ul class="integrity-list" id="branchList"></ul>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">ריצות סנכרון אחרונות</h2>
+    <ul class="integrity-list" id="runList"></ul>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">פרמטרים</h2>
+    <ul class="integrity-list" id="paramList"></ul>
+  </section>
+
+</main>
+
+<script>
+const ILS = n => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
+const NO_DATA = 'אין נתונים עדיין';
+const DOMAIN_LABELS = { business: 'עסקים', personal: 'אישי', ventures: 'השקעות' };
+let amountsHidden = false;
+
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  document.getElementById('toggleAmounts').textContent = amountsHidden ? 'הצג סכומים' : 'הסתר סכומים';
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/login.html';
+}
+
+function escHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function ageText(ts) {
+  if (!ts) return 'לא סונכרן';
+  const days = Math.floor((Date.now() - new Date(ts)) / 86400000);
+  return days < 1 ? 'היום' : `לפני ${days} ימים`;
+}
+
+function fmtDateTime(ts) {
+  return ts ? new Date(ts).toLocaleString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+}
+
+const row = (text, meta, cls = '') =>
+  `<li class="integrity-row ${cls}"><span>${text}</span><span class="integrity-row__meta">${meta}</span></li>`;
+const empty = text => `<li class="empty-state">${escHtml(text)}</li>`;
+
+async function init() {
+  const [iRes, aRes] = await Promise.all([
+    fetch('/api/integrity', { credentials: 'include' }),
+    fetch('/api/alerts', { credentials: 'include' }),
+  ]);
+  if (iRes.status === 401 || aRes.status === 401) { location.href = '/login.html'; return; }
+  if (!iRes.ok || !aRes.ok) { document.body.innerHTML = '<p class="error-page-msg">שגיאה בטעינת הנתונים</p>'; return; }
+  const d = await iRes.json();
+  const al = await aRes.json();
+
+  // Alerts
+  document.getElementById('alertCounts').innerHTML = `
+    <div class="kpi-card ${d.alerts.red ? 'kpi-card--danger' : ''}"><span class="kpi-card__label">דחופות</span><span class="kpi-card__value">${d.alerts.red}</span></div>
+    <div class="kpi-card ${d.alerts.orange ? 'kpi-card--warning' : ''}"><span class="kpi-card__label">לטיפול</span><span class="kpi-card__value">${d.alerts.orange}</span></div>
+    <div class="kpi-card"><span class="kpi-card__label">נדחו</span><span class="kpi-card__value">${d.alerts.snoozed}</span></div>`;
+  const allAlerts = [...al.open, ...al.snoozed];
+  document.getElementById('alertList').innerHTML = allAlerts.length
+    ? allAlerts.map(a => row(
+        `${a.severity === 'red' ? '🔴' : '🟠'} ${escHtml(a.title)}${a.counterparty ? ` · ${escHtml(a.counterparty)}` : ''}${a.amount != null ? ` · <bdi class="amount">${ILS(a.amount)}</bdi>` : ''}`,
+        a.snoozed_until && a.snoozed_until > al.today ? `נדחה עד ${escHtml(a.snoozed_until)}` : `פתוח ${a.open_days ?? 0} ימים`,
+        a.severity === 'red' ? 'integrity-row--bad' : 'integrity-row--warn')).join('')
+    : empty('אין התראות פתוחות');
+
+  // Gaps
+  document.getElementById('gapList').innerHTML = d.gaps.length
+    ? d.gaps.map(g => row(escHtml(g.text), '', 'integrity-row--warn')).join('')
+    : empty('לכל המדדים יש נתונים');
+
+  // Branches
+  document.getElementById('branchList').innerHTML = d.branches.map(b => {
+    const count = Number(b.entity_count);
+    return row(
+      `${escHtml(DOMAIN_LABELS[b.domain] || b.domain)} › ${escHtml(b.name_he || b.branch)}`,
+      count ? `${count} רשומות · ${ageText(b.last_synced)}` : NO_DATA,
+      count ? '' : 'integrity-row--warn');
+  }).join('');
+
+  // Sync runs
+  document.getElementById('runList').innerHTML = d.runs.length
+    ? d.runs.map(r => row(
+        `${r.dry_run ? 'בדיקה (dry)' : 'סנכרון'} · ${fmtDateTime(r.finished_at || r.started_at)}`,
+        Number(r.error_count) ? `${r.error_count} שגיאות` : r.dry_run ? 'ללא שגיאות' : `+${r.added} / ~${r.changed} / −${r.soft_deleted}`,
+        Number(r.error_count) ? 'integrity-row--bad' : '')).join('')
+    : empty('עוד לא היו ריצות סנכרון');
+
+  // Parameters
+  const params = [];
+  for (const k of d.missing_params) params.push(row(`חסר פרמטר: ${escHtml(k)}`, 'חישובים שתלויים בו מוצגים כ"אין נתונים"', 'integrity-row--bad'));
+  if (d.params_today.vat_rate !== null) params.push(row('מע"מ היום', `${Math.round(d.params_today.vat_rate * 100)}%`));
+  if (d.params_today.allocation_threshold !== null) params.push(row('סף מספר הקצאה היום', `<bdi>${ILS(d.params_today.allocation_threshold)}</bdi>`));
+  for (const e of d.estimates) params.push(row(`${escHtml(e.key)} <span class="badge badge--medium">הערכה</span>`, escHtml(e.value)));
+  document.getElementById('paramList').innerHTML = params.join('') || empty(NO_DATA);
+
+  document.getElementById('main').style.display = '';
+}
+
+init();
+</script>
+</body>
+</html>
