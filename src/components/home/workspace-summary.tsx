@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { Briefcase, ChevronLeft, LayoutGrid, Sofa, UserRound } from 'lucide-react';
+import { Briefcase, ChevronLeft, LayoutGrid, Plus, Sofa, UserRound } from 'lucide-react';
 import { ils, num, NO_DATA } from '@/lib/format';
-import { HOUSEHOLD, PERSONAL, type Workspace } from '@/lib/workspaces';
+import type { Workspace } from '@/lib/workspaces';
 import type { BusinessCard, PersonalCard } from '@/server/snapshot';
+import { switchHousehold } from '@/app/workspace-actions';
 import { WorkspaceBadge } from '@/components/workspace/workspace-ui';
+import { buttonClass } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, Section } from '@/components/ui/card';
 import { TaskLine } from './snapshots';
 
@@ -19,22 +21,43 @@ function Metric({ label, value, sub }: { label: string; value: string | null; su
   );
 }
 
-// Global Home: one summary card per workspace. Summaries only: every card reads its own
-// workspace's numbers and nothing is added across workspaces (no mixed ledgers).
+// Global Home: one summary card per workspace the user belongs to (from the DB). Summaries only:
+// every card reads its own workspace's numbers and nothing is added across workspaces.
 
-export type HouseholdSummary = { expense: number | null; homeOpen: number; homeOverdue: number };
+export type PersonalSummary = PersonalCard & { ws: Workspace | null; income: number | null; expense: number | null; net: number | null };
+export type HouseholdSummary = {
+  ws: Workspace; current: boolean;
+  received: number | null; expected: number | null; expense: number | null; net: number | null;
+  open: number; overdue: number;
+};
 export type BusinessSummary = BusinessCard & { expenses: number | null };
 
-function WsCard({ ws, title, icon, children, foot }: { ws: Workspace; title?: string; icon: React.ReactNode; children: React.ReactNode; foot?: React.ReactNode }) {
+const openLink = (href: string) => (
+  <Link href={href} className="flex shrink-0 items-center gap-0.5 text-sm font-medium text-accent-ink hover:underline">
+    פתח<ChevronLeft className="size-4" aria-hidden />
+  </Link>
+);
+
+// A household that is not the one /household shows right now: opening it switches first
+const switchTo = (id: string) => (
+  <form action={switchHousehold}>
+    <input type="hidden" name="ws" value={id} />
+    <button type="submit" className="flex shrink-0 items-center gap-0.5 text-sm font-medium text-accent-ink hover:underline">
+      פתח<ChevronLeft className="size-4" aria-hidden />
+    </button>
+  </form>
+);
+
+function WsCard({ ws, title, icon, children, foot, open }: {
+  ws: Workspace; title?: string; icon: React.ReactNode; children: React.ReactNode; foot?: React.ReactNode; open?: React.ReactNode;
+}) {
   return (
     <Card className="flex flex-col">
       <CardHeader>
         <CardTitle className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-muted [&_svg]:size-[18px]" aria-hidden>{icon}</span><bdi>{title ?? ws.name}</bdi><WorkspaceBadge ws={ws} />
         </CardTitle>
-        <Link href={ws.href} className="flex shrink-0 items-center gap-0.5 text-sm font-medium text-accent-ink hover:underline">
-          פתח<ChevronLeft className="size-4" aria-hidden />
-        </Link>
+        {open ?? openLink(ws.href)}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-3">{children}</div>
@@ -46,39 +69,49 @@ function WsCard({ ws, title, icon, children, foot }: { ws: Workspace; title?: st
 
 const profit = (rev: number | null | undefined, exp: number | null) => (rev != null && exp != null ? rev - exp : null);
 
-export function WorkspaceSummaries({ personal, household, businesses, businessWs, periodLabel }: {
-  personal: PersonalCard | null; household: HouseholdSummary | null;
-  businesses: BusinessSummary[]; businessWs: Workspace[]; periodLabel: string;
+export function WorkspaceSummaries({ personal, households, businesses, businessWs, periodLabel, showHouseholds }: {
+  personal: PersonalSummary | null; households: HouseholdSummary[];
+  businesses: BusinessSummary[]; businessWs: Workspace[]; periodLabel: string; showHouseholds: boolean;
 }) {
-  if (!personal && !household && businesses.length === 0) return null;
+  const noHousehold = showHouseholds && households.length === 0;
+  if (!personal && households.length === 0 && businesses.length === 0 && !noHousehold) return null;
   return (
     <Section title={<><LayoutGrid className="size-[18px] text-muted" aria-hidden />האזורים שלי</>}
       action={<span className="text-sm text-muted">סיכום לכל אזור בנפרד, בלי לערבב ביניהם</span>}>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
-        {personal && (
-          <WsCard ws={PERSONAL} title="אישי" icon={<UserRound />}
+        {personal?.ws && (
+          <WsCard ws={personal.ws} icon={<UserRound />}
             foot={<TaskLine open={personal.weekTasks} urgent={0} overdue={personal.weekOverdue} />}>
-            <Metric label="הכנסה אישית" value={null} />
-            <Metric label="הוצאות אישיות" value={null} />
-            <Metric label="נטו" value={null} />
+            <Metric label="הכנסות החודש" value={ils(personal.income)} />
+            <Metric label="הוצאות החודש" value={ils(personal.expense)} />
+            <Metric label="נטו" value={ils(personal.net)} />
           </WsCard>
         )}
-        {household && (
-          <WsCard ws={HOUSEHOLD} icon={<Sofa />}
-            foot={<TaskLine open={household.homeOpen} urgent={0} overdue={household.homeOverdue} />}>
-            <Metric label="תקציב משותף" value={null} />
-            <Metric label="הוצאות משותפות החודש" value={ils(household.expense)} />
-            <Metric label="יתרה" value={null} />
+        {households.map(h => (
+          <WsCard key={h.ws.id} ws={h.ws} icon={<Sofa />} open={h.current ? undefined : switchTo(h.ws.id)}
+            foot={<TaskLine open={h.open} urgent={0} overdue={h.overdue} />}>
+            <Metric label="העברות לבית החודש" value={ils(h.received)} sub={h.expected !== null ? `מתוך ${ils(h.expected)}` : undefined} />
+            <Metric label="הוצאות משותפות החודש" value={ils(h.expense)} />
+            <Metric label="יתרה" value={ils(h.net)} />
           </WsCard>
+        ))}
+        {noHousehold && (
+          <Card className="flex flex-col justify-center">
+            <CardContent className="flex flex-col items-start gap-3 pt-5 sm:pt-6">
+              <p className="flex items-center gap-2 text-card font-semibold text-ink"><Sofa className="size-[18px] text-muted" aria-hidden />משק בית</p>
+              <p className="text-sm text-muted">עוד אין לך משק בית. משק בית משותף למשפחה: משימות, הוצאות ותקציב. האזור האישי נשאר פרטי.</p>
+              <Link href="/household" className={buttonClass('secondary', 'sm')}><Plus aria-hidden />צור משק בית</Link>
+            </CardContent>
+          </Card>
         )}
         {businesses.map(b => {
-          const ws = businessWs.find(w => w.id === b.branch);
+          const ws = businessWs.find(w => w.branch === b.branch);
           if (!ws) return null;
           const rev = b.revenue?.net ?? null;
           return (
             <WsCard key={b.branch} ws={ws} icon={<Briefcase />}
               foot={<>
-                {b.revenueSource === 'buyz' && <p className="text-xs text-muted">הכנסות מ-Buyz, הוצאות מהדשבורד</p>}
+                {b.revenueSource === 'buyz' && <p className="text-xs text-muted">הכנסות ממערכת הקופה, הוצאות מהדשבורד</p>}
                 <TaskLine open={b.open} urgent={b.urgent} overdue={b.overdue} />
               </>}>
               {b.revenue ? (
@@ -92,7 +125,6 @@ export function WorkspaceSummaries({ personal, household, businesses, businessWs
           );
         })}
       </div>
-      {personal && <p className="text-xs text-muted">הפיננסים האישיים והתקציב המשותף יתחברו בשלב בניית מסד הנתונים של האזורים.</p>}
     </Section>
   );
 }

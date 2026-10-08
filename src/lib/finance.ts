@@ -83,9 +83,6 @@ export const DIRECTIONS = [
 export const labelOf = (list: readonly { id: string; label: string }[], id: string | null | undefined) =>
   list.find(x => x.id === id)?.label ?? (id ?? '');
 
-// Who a household expense can be split with
-export const SPLIT_PEOPLE = [{ id: 'avihu', name: 'אביהו' }, { id: 'eden', name: 'עדן' }] as const;
-
 // ── Period presets (Israel time; week = Sunday–Saturday) ──────────────────────
 export const PERIODS = [
   { key: 'today', label: 'היום' },

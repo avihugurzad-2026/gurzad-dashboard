@@ -8,7 +8,7 @@ import { Field, inputClass, selectClass } from '@/components/work/fields';
 import { FormDialog } from './dialog';
 import { encodePlace, placeOptions, type Place } from '@/lib/places';
 import {
-  CLASSIFICATIONS, DOCUMENT_TYPES, PAYMENT_METHODS, SPLIT_PEOPLE, categoriesOf, vatRateOn,
+  CLASSIFICATIONS, DOCUMENT_TYPES, PAYMENT_METHODS, categoriesOf, vatRateOn,
   type Classification, type Direction, type VatRateRow,
 } from '@/lib/finance';
 import { ils } from '@/lib/format';
@@ -35,11 +35,10 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
   const options = useMemo(placeOptions, []);
   const [direction, setDirection] = useState<Direction>('expense');
   const [classification, setClassification] = useState<Classification>(place?.domain === 'personal' ? 'personal' : 'business');
-  const [where, setWhere] = useState(encodePlace(place ?? { domain: 'business', branch: 'adigital', location: null }));
+  const [where, setWhere] = useState(place ? encodePlace(place) : options.find(o => o.place.domain === 'business')?.value ?? options[0]?.value ?? '');
   const [date, setDate] = useState(today);
   const [amount, setAmount] = useState('');
   const [vatIncluded, setVatIncluded] = useState(classification !== 'personal');
-  const [split, setSplit] = useState(false);
   const [scope, setScope] = useState<'user' | 'shared'>('user');
 
   useEffect(() => { if (state?.ok) onSaved?.(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,12 +99,11 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
         </select>
       </Field>
       <Field label="מי רואה" htmlFor={f('scope')} className="col-span-2">
-        <select id={f('scope')} name="scope" value={split ? 'shared' : scope} disabled={split}
+        <select id={f('scope')} name="scope" value={scope}
           onChange={e => setScope(e.target.value as 'user' | 'shared')} className={selectClass}>
           <option value="user">רק אני</option>
           <option value="shared">משותף (מי שיש לו הרשאה למקום)</option>
         </select>
-        {split && <input type="hidden" name="scope" value="shared" />}
       </Field>
 
       <Field label="תיאור" htmlFor={f('desc')} className="col-span-2 sm:col-span-4">
@@ -142,22 +140,6 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
           <input id={f('file')} name="file" type="file" accept="image/*,application/pdf" className={'min-w-0 text-sm text-ink-2 file:me-3 file:h-9 file:cursor-pointer file:rounded-lg file:border file:border-solid file:border-line-strong file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-surface-2'} />
         </span>
       </Field>
-
-      <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
-        <label className="inline-flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" name="split" checked={split} onChange={e => setSplit(e.target.checked)} className="size-4" />
-          חלוקה בין אנשים
-        </label>
-        {split && (
-          <div className="flex flex-wrap gap-3">
-            {SPLIT_PEOPLE.map(p => (
-              <Field key={p.id} label={`${p.name} (%)`} htmlFor={f(`share-${p.id}`)} className="w-28">
-                <input id={f(`share-${p.id}`)} name={`share_${p.id}`} inputMode="decimal" defaultValue="50" className={inputClass} />
-              </Field>
-            ))}
-          </div>
-        )}
-      </div>
 
       <div className="col-span-2 flex items-center justify-between gap-3 border-t border-line pt-4 sm:col-span-4">
         {state && !state.ok ? <p role="alert" className="text-sm text-critical-ink">{state.error}</p> : <span />}

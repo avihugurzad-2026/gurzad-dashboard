@@ -4,7 +4,9 @@ import { agenda } from '@/server/day';
 import { openCounts, taskGroups, type WorkItem } from '@/server/entries';
 import { ils, num } from '@/lib/format';
 import { requireUser } from '@/server/auth';
-import { financeSummary, householdTransactions, monthRevenue, openReceivablesTotal } from '@/server/finance';
+import { financeSummary, monthRevenue, openReceivablesTotal } from '@/server/finance';
+import { householdContributions, ledgerAccess, monthSummary } from '@/server/ledger';
+import { currentHousehold, myWorkspaces, workspaceMembers, type WorkspaceRow } from '@/server/workspaces';
 import { parseRange, periodBounds, rangeLabel, todayIL } from '@/lib/period';
 import { canSeePlace } from '@/server/auth';
 import { businessSnapshot, personalSnapshot } from '@/server/snapshot';
@@ -12,8 +14,8 @@ import { headSpaSnapshot } from '@/server/headspa';
 import { venturesSummary } from '@/server/ventures';
 import { HomeFilters, type HomeArea } from '@/components/home/home-filters';
 import { VenturesSnapshot } from '@/components/home/snapshots';
-import { WorkspaceSummaries, type BusinessSummary, type HouseholdSummary } from '@/components/home/workspace-summary';
-import { BUSINESSES } from '@/lib/workspaces';
+import { WorkspaceSummaries, type BusinessSummary, type HouseholdSummary, type PersonalSummary } from '@/components/home/workspace-summary';
+import { toWorkspace } from '@/lib/workspaces';
 import type { BusinessCard } from '@/server/snapshot';
 import type { SessionUser } from '@/server/auth';
 import { KpiCard } from '@/components/dash/kpi-card';
@@ -58,9 +60,34 @@ async function withExpenses(u: SessionUser, cards: BusinessCard[], range: Parame
   }));
 }
 
-async function householdSummary(u: SessionUser, counts: { open: number; overdue: number } | undefined): Promise<HouseholdSummary> {
-  const h = await householdTransactions(u, todayIL().slice(0, 7));
-  return { expense: h.expense, homeOpen: counts?.open ?? 0, homeOverdue: counts?.overdue ?? 0 };
+// One card per household the user belongs to: this month's contributions, shared spending and balance,
+// read from that household's own book only (members see contributions, never anyone's income).
+async function householdSummaries(u: SessionUser, mine: WorkspaceRow[], currentId: string | null,
+  counts: Record<string, { open: number; overdue: number }>): Promise<HouseholdSummary[]> {
+  const today = todayIL();
+  const month = today.slice(0, 7);
+  return Promise.all(mine.filter(w => w.kind === 'household').map(async w => {
+    const access = await ledgerAccess(u, w.id);
+    const [members, sum, c] = await Promise.all([
+      workspaceMembers(w, u),
+      access ? monthSummary(w.id, month).catch(() => null) : null,
+      access ? householdContributions(w.id, `${month}-01`, today).catch(() => null) : null,
+    ]);
+    const t = counts[`household/${w.branch}`];
+    return {
+      ws: toWorkspace(w, members.length), current: w.id === currentId,
+      received: c?.month?.received ?? null, expected: c?.month?.expected ?? null,
+      expense: sum?.expense ?? null, net: sum?.net ?? null, open: t?.open ?? 0, overdue: t?.overdue ?? 0,
+    };
+  }));
+}
+
+// The personal card: this month's own book (the personal workspace is its owner's only)
+async function personalSummary(u: SessionUser, mine: WorkspaceRow[], card: Awaited<ReturnType<typeof personalSnapshot>>): Promise<PersonalSummary | null> {
+  if (!card) return null;
+  const w = mine.find(x => x.kind === 'personal' && x.owner_user_id === u.id) ?? null;
+  const sum = w && (await ledgerAccess(u, w.id)) ? await monthSummary(w.id, todayIL().slice(0, 7)).catch(() => null) : null;
+  return { ...card, ws: w ? toWorkspace(w) : null, income: sum?.income ?? null, expense: sum?.expense ?? null, net: sum?.net ?? null };
 }
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -75,15 +102,18 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const showBiz = area === 'all' || area === 'business';
   const showMe = area === 'all' || area === 'personal';
   const showVen = (area === 'all' || area === 'ventures') && canSeePlace(u, { domain: 'ventures' }, 'money');
-  const [week, t, rev, owed, biz, me, ven, counts] = await Promise.all([
+  const [week, t, rev, owed, biz, me, ven, counts, mine, hh] = await Promise.all([
     agenda(todayIL(), 7), taskGroups(),
     money ? monthRevenue(u) : null, money ? openReceivablesTotal(u) : null,
     showBiz ? headSpaRevenue(u, range).then(ext => businessSnapshot(u, range, ext)).then(c => withExpenses(u, c, range)) : [],
     showMe ? personalSnapshot(u, range) : null,
     showVen ? venturesSummary(u).catch(() => null) : null,
-    showMe && canSeePlace(u, { domain: 'personal' }, 'task') ? openCounts() : null,
+    openCounts(), myWorkspaces(u), currentHousehold(u),
   ]);
-  const household = counts ? await householdSummary(u, counts['personal:home']) : null;
+  const [personal, households] = await Promise.all([
+    personalSummary(u, mine, me), showMe ? householdSummaries(u, mine, hh?.id ?? null, counts) : [],
+  ]);
+  const businessWs = mine.filter(w => w.kind === 'business').map(w => toWorkspace(w));
   const inArea = (i: WorkItem) => area === 'all' || i.domain === area;
   const today = week.days[0];
   const eventsToday = today.events.length;
@@ -113,16 +143,16 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <KpiCard label="הכנסות החודש עד היום" icon={<CircleDollarSign className="size-4" />} href="/finance"
             value={ils(rev.net)} reason="אין הכנסות עסקיות רשומות החודש"
             hint={rev.gross !== null ? `${ils(rev.gross)} כולל מע״מ · ${rev.count} תנועות` : undefined}
-            foot="בלי הכנסות Head Spa מ-Buyz" />
+            foot="בלי הכנסות ממערכת קופה מחוברת" />
         )}
         {owed && (
-          <KpiCard label="גבייה פתוחה" icon={<HandCoins className="size-4" />} href="/business/adigital?tab=collections"
+          <KpiCard label="גבייה פתוחה" icon={<HandCoins className="size-4" />} href="/finance"
             value={ils(owed.total)} reason="אין חובות פתוחים"
             hint={owed.overdue_count ? `${owed.overdue_count} באיחור` : `${owed.dashboard_count + owed.vault_count} פתוחים, כולל מע״מ`} />
         )}
       </div>
 
-      <WorkspaceSummaries personal={me} household={household} businesses={biz} businessWs={BUSINESSES} periodLabel={periodLabel} />
+      <WorkspaceSummaries personal={personal} households={households} businesses={biz} businessWs={businessWs} periodLabel={periodLabel} showHouseholds={showMe} />
       {ven?.ready && <VenturesSnapshot s={ven} />}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">

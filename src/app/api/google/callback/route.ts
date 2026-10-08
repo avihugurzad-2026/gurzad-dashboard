@@ -5,6 +5,7 @@ import { currentUser } from '@/server/auth';
 import { db } from '@/server/db';
 import { startWatching } from '@/server/calendar';
 import gcal from '@domain/gcal';
+import gmail from '@domain/gmail';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +17,20 @@ function sameState(a: string | null | undefined, b: string | null | undefined): 
 
 // Google OAuth callback for the signed-in user: store the refresh token (encrypted) and the
 // granted scopes, the account's calendars as mappings (with their access role), then a first
-// sync and push channels. Every outcome lands on /settings?calendar=<result>.
+// sync and push channels. Every outcome lands on /settings?calendar=<result>, or on
+// /finance-import/gmail?gmail=<result> when the flow was started with ?with=gmail (cookie).
+// A Gmail grant without calendar scopes (the user unticked them) stores the connection without
+// calendars; the account address then comes from the Gmail profile.
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  const jar = await cookies();
+  const gmailFlow = jar.get('gcal_flow')?.value === 'gmail';
   const done = (result: string) => {
-    const res = NextResponse.redirect(new URL(`/settings?calendar=${result}`, req.url));
+    const res = NextResponse.redirect(new URL(gmailFlow ? `/finance-import/gmail?gmail=${result}` : `/settings?calendar=${result}`, req.url));
     res.headers.set('Cache-Control', 'no-store');
-    res.cookies.set('gcal_state', '', { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 0, path: '/api/google' });
+    const gone = { httpOnly: true, secure: true, sameSite: 'lax' as const, maxAge: 0, path: '/api/google' };
+    res.cookies.set('gcal_state', '', gone);
+    res.cookies.set('gcal_flow', '', gone);
     return res;
   };
   const user = await currentUser();
@@ -33,7 +41,7 @@ export async function GET(req: Request) {
   const keyB64 = process.env.CALENDAR_TOKEN_KEY;
   if (!clientId || !clientSecret || !keyB64) return done('not_configured');
 
-  const cookieState = (await cookies()).get('gcal_state')?.value;
+  const cookieState = jar.get('gcal_state')?.value;
   const code = url.searchParams.get('code');
   if (url.searchParams.get('error') || !code || !sameState(url.searchParams.get('state'), cookieState)) return done('error');
 
@@ -41,8 +49,14 @@ export async function GET(req: Request) {
   try {
     const tok = await gcal.exchangeCode({ code, clientId, clientSecret, redirectUri });
     if (!tok.refresh_token) return done('no_refresh');
-    const calendars = await gcal.listCalendars(tok.access_token);
-    const email = calendars.find(c => c.primary)?.id ?? null;
+    // No scope string in the reply (older behaviour): assume the calendar grant as before
+    const granted = tok.scope ? gcal.parseScopes(tok.scope) : null;
+    const hasCalendar = granted ? granted.listCalendars : true;
+    if (gmailFlow && granted && !granted.gmail) return done('no_gmail_scope');
+    const calendars = hasCalendar ? await gcal.listCalendars(tok.access_token) : [];
+    const email = hasCalendar
+      ? calendars.find(c => c.primary)?.id ?? null
+      : granted?.gmail ? (await gmail.getProfile(tok.access_token)).email : null;
     if (!email) return done('error');
 
     const client = await db().connect();
@@ -81,12 +95,14 @@ export async function GET(req: Request) {
       client.release();
     }
 
-    try {
-      await gcal.syncConnection(db(), connection, { clientId, clientSecret, keyB64 });
-    } catch {
-      console.error('Calendar first sync failed (will retry)');
+    if (hasCalendar) {
+      try {
+        await gcal.syncConnection(db(), connection, { clientId, clientSecret, keyB64 });
+      } catch {
+        console.error('Calendar first sync failed (will retry)');
+      }
+      await startWatching(connection.id);
     }
-    await startWatching(connection.id);
     return done('connected');
   } catch (e) {
     console.error('Google callback failed:', e instanceof gcal.GoogleError ? e.code : 'error');

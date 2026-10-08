@@ -13,7 +13,7 @@ import { acceptInvitation, createInvitation, MIN_PASSWORD, revokeInvitation, rev
 export type InviteResult = { ok: true; link: string; email: string } | { ok: false; error: string } | null;
 type Result = { ok: true } | { ok: false; error: string };
 
-const ROLES = new Set<Role>(['admin', 'manager', 'employee', 'viewer']);
+const ROLES = new Set<Role>(['admin', 'manager', 'member', 'employee', 'viewer']);
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (f: FormData, k: string) => {

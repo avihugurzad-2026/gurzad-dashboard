@@ -1,8 +1,8 @@
 // Activity log (3.6): turns an activity_log row into a short Hebrew sentence — "אביהו יצר משימה",
 // "עדן סימנה תשלום", "סנכרון Buyz". Pure, so the page, the panels and tests share it.
 
-// Hebrew verbs agree with the actor. users has no gender column; these ids take the feminine form.
-const FEMININE = new Set(['eden']);
+// Hebrew verbs agree with the actor. users has no gender column yet, so no id is assumed feminine.
+const FEMININE = new Set<string>();
 
 type Meta = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type V = [string, string];       // [masculine, feminine]

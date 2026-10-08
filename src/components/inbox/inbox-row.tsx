@@ -6,7 +6,7 @@ import { Button, buttonClass } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { labelClass, selectClass } from '@/components/work/fields';
 import { stamp } from '@/lib/format';
-import { categoriesFor, decodePlace, placeOptions } from '@/lib/places';
+import { ENTITIES, categoriesFor, decodePlace, placeOptions } from '@/lib/places';
 import type { InboxItem } from '@/server/entries';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/components/shell/session-context';
@@ -15,13 +15,17 @@ const MODULES = [{ key: 'task', label: 'משימה' }, { key: 'note', label: 'ה
 const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
 
 // The four answers to "where does this belong?", then the finer place inside it
-const ROOTS = [
-  { key: 'personal', label: 'אישי', prefix: 'personal|' },
-  { key: 'adigital', label: 'a-digital', prefix: 'business|adigital|' },
-  { key: 'head-spa', label: 'Head Spa', prefix: 'business|head-spa-israel|' },
-  { key: 'ventures', label: 'יזמות', prefix: 'ventures|' },
-] as const;
-const rootOf = (place: string) => ROOTS.find(r => place.startsWith(r.prefix))?.key ?? null;
+type Root = { key: string; label: string; prefix: string };
+// From the registry (businesses and households are user data), built on each render
+function rootsNow(): Root[] {
+  return [
+    { key: 'personal', label: 'אישי', prefix: 'personal|' },
+    ...ENTITIES.filter(e => e.domain === 'household').map(e => ({ key: `household-${e.id}`, label: e.label, prefix: `household|${e.id}|` })),
+    ...ENTITIES.filter(e => e.domain === 'business').map(e => ({ key: `business-${e.id}`, label: e.short || e.label, prefix: `business|${e.id}|` })),
+    { key: 'ventures', label: 'יזמות', prefix: 'ventures|' },
+  ];
+}
+const rootOf = (roots: Root[], place: string) => roots.find(r => place.startsWith(r.prefix))?.key ?? null;
 
 // One unsorted item. A file asks right away "למה המסמך הזה שייך?"; text opens with "שייך".
 // When an earlier item looked the same (same words in the name), its answers are pre-filled.
@@ -37,7 +41,8 @@ export function InboxRow({ item }: { item: InboxItem }) {
   const sug = item.suggestion && options.some(o => o.value === item.suggestion!.place) ? item.suggestion : null;
   const [where, setWhere] = useState<string | null>(sug?.place ?? null);
   const [module, setModule] = useState<string>(sug?.module ?? (item.file ? 'document' : 'task'));
-  const root = where ? rootOf(where) : null;
+  const ROOTS = rootsNow();
+  const root = where ? rootOf(ROOTS, where) : null;
   const domain = where ? decodePlace(where)?.domain ?? 'personal' : 'personal';
   const roots = ROOTS.filter(r => options.some(o => o.value.startsWith(r.prefix)));
   const inside = root ? options.filter(o => o.value.startsWith(ROOTS.find(r => r.key === root)!.prefix)) : [];

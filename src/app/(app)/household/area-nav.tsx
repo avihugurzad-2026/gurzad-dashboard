@@ -1,11 +1,11 @@
-import { HOUSEHOLD } from '@/lib/workspaces';
+import { HOUSEHOLD_MODULES } from '@/lib/workspaces';
 import { WorkspaceBadge, WorkspaceNav } from '@/components/workspace/workspace-ui';
 
-// The "הבית שלנו" workspace menu (modules from src/lib/workspaces.ts)
+// The household workspace menu. Each page passes it to <PageHeader tabs>.
 export function HouseholdNav() {
-  return <WorkspaceNav ws={HOUSEHOLD} />;
+  return <WorkspaceNav modules={HOUSEHOLD_MODULES} label="הבית" />;
 }
 
-export function HouseholdBadge() {
-  return <WorkspaceBadge ws={HOUSEHOLD} />;
+export function HouseholdBadge({ members }: { members: number }) {
+  return <WorkspaceBadge ws={{ kind: 'household', name: '', memberCount: members }} />;
 }

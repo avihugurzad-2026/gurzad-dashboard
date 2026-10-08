@@ -16,7 +16,8 @@ export const GET = authed(async (_req: Request, ctx: { params: Promise<{ id: str
   const docs = (await db().query(`SELECT to_regclass('public.document_versions') IS NOT NULL AS ok`)).rows[0].ok as boolean;
   const { rows } = await db().query(
     `SELECT f.name, f.data FROM files f WHERE f.id = $1 AND f.deleted_at IS NULL AND (
-       f.owner_user_id = $2 ${u.isOwner ? `OR f.scope = 'shared'` : ''}
+       f.owner_user_id = $2 ${u.isOwner ? `OR (f.scope = 'shared' ${docs ? `AND NOT EXISTS (SELECT 1 FROM document_versions dv JOIN documents d ON d.id = dv.document_id
+                  WHERE dv.file_id = f.id AND d.domain IN ('household', 'personal'))` : ''})` : ''}
        OR EXISTS (SELECT 1 FROM transactions t WHERE t.file_id = f.id AND t.deleted_at IS NULL AND ${visibleSql(u, 'money', 't', q.p)})
        OR EXISTS (SELECT 1 FROM receivables r WHERE r.invoice_file_id = f.id AND r.deleted_at IS NULL AND ${visibleSql(u, 'money', 'r', q.p)})
        ${docs ? `OR EXISTS (SELECT 1 FROM document_versions dv JOIN documents d ON d.id = dv.document_id

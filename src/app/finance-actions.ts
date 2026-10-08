@@ -226,7 +226,7 @@ export async function addReceivable(_: FinanceResult | null, f: FormData): Promi
   if (note && note.length > 500) return fail('ההערה ארוכה מדי');
   try {
     await inTx(async c => {
-      const p = await readPlace(c, str(f, 'place') ?? 'business|adigital|');
+      const p = await readPlace(c, str(f, 'place'));
       if (typeof p === 'string') throw new Refuse(p);
       if (!canCreateIn(u, p, 'money')) throw new Refuse('אין לך הרשאה להוסיף חוב כאן');
       const fileId = await saveFile(c, f, u, 'shared');

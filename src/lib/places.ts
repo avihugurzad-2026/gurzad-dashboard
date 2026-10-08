@@ -5,23 +5,46 @@
 //   entity = branch column  (adigital, head-spa-israel, real-estate …)
 //   branch = location column (modiin, jerusalem)
 
-export type Domain = 'business' | 'personal' | 'ventures';
+export type Domain = 'business' | 'personal' | 'ventures' | 'household';
 export type Place = { domain: Domain; branch: string | null; location: string | null };
 
 export const AREAS: { id: Domain; label: string; href: string }[] = [
   { id: 'personal', label: 'אישי', href: '/personal' },
+  { id: 'household', label: 'הבית שלנו', href: '/household' },
   { id: 'ventures', label: 'יזמות', href: '/ventures' },
   { id: 'business', label: 'עסקים', href: '/business' },
 ];
 
-export const ENTITIES: { domain: Domain; id: string; label: string; short: string; href: string }[] = [
-  { domain: 'business', id: 'adigital', label: 'a-digital', short: 'a-digital', href: '/business/adigital' },
-  { domain: 'business', id: 'head-spa-israel', label: 'Head Spa Israel', short: 'Head Spa', href: '/business/head-spa-israel' },
+// Entities: what a place's `branch` names. Businesses and households are user data (DB `branches` +
+// `workspaces`, created from the UI) and fill this registry at runtime (setEntities); the venture
+// areas are part of the product's structure (the Ventures workspace's modules).
+export type Entity = { domain: Domain; id: string; label: string; short: string; href: string; workspace_id?: string | null };
+const VENTURE_AREAS: Entity[] = [
   { domain: 'ventures', id: 'real-estate', label: 'נכסים', short: 'נכסים', href: '/ventures/real-estate' },
   { domain: 'ventures', id: 'investments', label: 'השקעות', short: 'השקעות', href: '/ventures/investments' },
   { domain: 'ventures', id: 'legal-and-tasks', label: 'משפטי', short: 'משפטי', href: '/ventures/legal-and-tasks' },
   { domain: 'ventures', id: 'finance', label: 'מימון', short: 'מימון', href: '/ventures/finance' },
 ];
+export const ENTITIES: Entity[] = [...VENTURE_AREAS];
+
+// A registry row: one business or household, from the DB
+export type EntityRow = { domain: 'business' | 'household'; id: string; name: string; workspace_id: string | null; sort: number | null };
+let entityKey = '';
+export function setEntities(rows: EntityRow[]): void {
+  const next = rows
+    .filter(r => (r.domain === 'business' || r.domain === 'household') && /^[a-z0-9-]{1,40}$/.test(r.id) && r.name)
+    .sort((a, b) => (a.sort ?? 1e9) - (b.sort ?? 1e9) || a.name.localeCompare(b.name))
+    .map(r => ({
+      domain: r.domain, id: r.id, label: r.name, short: shortName(r.name), workspace_id: r.workspace_id,
+      href: r.domain === 'business' ? `/business/${r.id}` : '/household',
+    }) as Entity);
+  const key = JSON.stringify(next);
+  if (key === entityKey) return;
+  entityKey = key;
+  ENTITIES.splice(0, ENTITIES.length, ...next, ...VENTURE_AREAS);
+}
+// "Head Spa Israel" → "Head Spa": a short form for "Head Spa · מודיעין"
+const shortName = (n: string) => (n.split(' ').length > 2 ? n.split(' ').slice(0, 2).join(' ') : n);
 
 // Branches (locations) are configuration: rows of the DB `locations` table. This module keeps a
 // registry seeded with today's rows so it works before the DB is read; the server loads the table
@@ -33,10 +56,7 @@ export type LocationRow = {
 };
 export type LocationEntry = { entity: string; id: string; label: string; status: 'active' | 'setup'; sort: number | null };
 
-export const SEED_LOCATIONS: LocationRow[] = [
-  { domain: 'business', branch: 'head-spa-israel', location: 'modiin', name_he: 'מודיעין', active: true, status: 'active', sort: 1 },
-  { domain: 'business', branch: 'head-spa-israel', location: 'jerusalem', name_he: 'ירושלים', active: true, status: 'setup', sort: 2 },
-];
+export const SEED_LOCATIONS: LocationRow[] = [];
 
 // Live list: setLocations replaces its contents in place, so every importer sees the current rows
 export const LOCATIONS: LocationEntry[] = [];
@@ -44,11 +64,11 @@ let registryKey = '';
 
 export function setLocations(rows: LocationRow[]): void {
   const next = rows
-    .filter(r => /^[a-z0-9-]{1,40}$/.test(r.location) && ENTITIES.some(e => e.id === r.branch && e.domain === r.domain) && r.name_he)
+    .filter(r => /^[a-z0-9-]{1,40}$/.test(r.location) && r.domain === 'business' && r.active && r.name_he)
     .map(r => ({
       entity: r.branch, id: r.location, label: r.name_he, sort: r.sort ?? null,
-      // not active, or marked as being set up → "בהקמה"
-      status: (r.active && (r.status ?? 'active') === 'active' ? 'active' : 'setup') as LocationEntry['status'],
+      // marked as being set up → "בהקמה"; archived (inactive) branches leave the registry
+      status: ((r.status ?? 'active') === 'active' ? 'active' : 'setup') as LocationEntry['status'],
     }))
     .sort((a, b) => a.entity.localeCompare(b.entity) || (a.sort ?? 1e9) - (b.sort ?? 1e9) || a.id.localeCompare(b.id));
   const key = JSON.stringify(next);
@@ -94,6 +114,7 @@ export function placeOptions(): { value: string; label: string; place: Place }[]
   const out: { value: string; label: string; place: Place }[] = [];
   const push = (place: Place, label: string) => out.push({ value: encodePlace(place), label, place });
   push({ domain: 'personal', branch: null, location: null }, 'אישי');
+  for (const e of ENTITIES.filter(x => x.domain === 'household')) push({ domain: 'household', branch: e.id, location: null }, e.label);
   push({ domain: 'ventures', branch: null, location: null }, 'יזמות');
   for (const e of ENTITIES.filter(x => x.domain === 'ventures')) push({ domain: 'ventures', branch: e.id, location: null }, `יזמות · ${e.label}`);
   for (const e of ENTITIES.filter(x => x.domain === 'business')) {
@@ -126,6 +147,7 @@ export function contextLabel(p: { domain: string; branch: string | null; locatio
 
 export function hrefFor(p: Place): string {
   if (p.domain === 'personal') return '/personal';
+  if (p.domain === 'household') return '/household';
   const e = entity(p.branch);
   if (!e) return area(p.domain)?.href ?? '/';
   return p.location ? `${e.href}/${p.location}` : e.href;
@@ -138,6 +160,10 @@ export function placeFromPath(path: string): Place {
     return { domain: 'business', branch: b, location: location(b, c) ? c : null };
   }
   if (a === 'ventures' && entity(b)?.domain === 'ventures') return { domain: 'ventures', branch: b, location: null };
+  if (a === 'household') {
+    const h = ENTITIES.find(e => e.domain === 'household');
+    if (h) return { domain: 'household', branch: h.id, location: null };
+  }
   return { domain: 'personal', branch: null, location: null };
 }
 
@@ -168,7 +194,9 @@ export function crumbs(path: string, tab: string | null): { label: string; href:
   if (parts.length === 0) return [];
   const out: { label: string; href: string | null }[] = [];
   const [a, b, c] = parts;
-  const ar = a === 'household' ? { id: 'household', label: 'הבית שלנו', href: '/household' } : AREAS.find(x => x.href === `/${a}`);
+  const hh = a === 'household' ? ENTITIES.find(e => e.domain === 'household') : null;
+  const ar0 = AREAS.find(x => x.href === `/${a}`);
+  const ar = ar0 && hh ? { ...ar0, label: hh.label } : ar0;
   if (ar) {
     out.push({ label: ar.label, href: ar.href });
     const e = entity(b);

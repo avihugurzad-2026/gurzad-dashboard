@@ -14,14 +14,15 @@ import { contextLabel } from '@/lib/places';
 
 export const INVITE_DAYS = 7;
 export const MIN_PASSWORD = 10;
-const RANK: Record<Role, number> = { owner: 5, admin: 4, manager: 3, employee: 2, viewer: 1 };
+const RANK: Record<Role, number> = { owner: 5, admin: 4, manager: 3, member: 3, employee: 2, viewer: 1 };
 export const ROLE_LABEL: Record<Role, string> = {
-  owner: 'בעלים', admin: 'מנהל מערכת', manager: 'מנהל', employee: 'עובד', viewer: 'צפייה בלבד',
+  owner: 'בעלים', admin: 'מנהל מערכת', manager: 'מנהל', member: 'חבר', employee: 'עובד', viewer: 'צפייה בלבד',
 };
 export const ROLE_HINT: Record<Exclude<Role, 'owner'>, string> = {
   admin: 'מנהל ישויות ומשתמשים, בלי למחוק נתונים משותפים',
   manager: 'מנהל את מה שבתחום שלו: משימות, יומן, כספים',
   employee: 'רואה ומעדכן משימות שהוקצו לו',
+  member: 'שותף מלא בבית: רואה ומעדכן את מה שמשותף',
   viewer: 'קריאה בלבד',
 };
 
@@ -37,7 +38,11 @@ const coversPlace = (m: Membership, p: Place) =>
 
 // May `u` grant `role` on `place`?
 export function canGrant(u: SessionUser, role: Role, place: Place): boolean {
-  if (role === 'owner') return false;
+  if (role === 'owner' || place.domain === 'personal') return false;   // a personal workspace has no members
+  // A workspace's own owner/admin manages its members (households, and businesses someone created)
+  if (place.domain && u.memberships.some(m => (m.role === 'owner' || (m.role === 'admin' && role !== 'admin'))
+    && m.domain === place.domain && (m.branch === null || m.branch === place.branch))) return true;
+  if (place.domain === 'household') return false;                       // households: only their own admins
   if (u.isOwner) return true;
   if (u.isAdmin) return RANK[role] < RANK.admin;
   if (role !== 'employee' && role !== 'viewer') return false;
@@ -95,8 +100,9 @@ export async function createInvitation(u: SessionUser, input: { email: string; n
   }
   const token = randomBytes(32).toString('base64url');
   const { rows } = await db().query(
-    `INSERT INTO invitations (email, name, user_id, role, domain, branch, location, token_hash, expires_at, invited_by)
-     VALUES (lower($1), $2, $3, $4, $5, $6, $7, $8, now() + make_interval(days => $9), $10) RETURNING id`,
+    `INSERT INTO invitations (email, name, user_id, role, domain, branch, location, token_hash, expires_at, invited_by, workspace_id)
+     VALUES (lower($1), $2, $3, $4, $5, $6, $7, $8, now() + make_interval(days => $9), $10,
+       CASE WHEN $5::text IS NULL THEN NULL ELSE app_workspace_for($5, $6, NULL) END) RETURNING id`,
     [input.email, input.name, input.user_id, input.role, input.place.domain, input.place.branch, input.place.location,
       sha256(token), INVITE_DAYS, u.id]);
   return { ok: true, token, id: rows[0].id };
@@ -157,8 +163,8 @@ export async function acceptInvitation(token: string, input: { name: string; pas
         [userId, input.name, inv.email, await bcrypt.hash(input.password, 12)]);
     }
     await client.query(
-      `INSERT INTO workspace_members (user_id, role, domain, branch, location, created_by)
-       SELECT $1, i.role, i.domain, i.branch, i.location, i.invited_by FROM invitations i WHERE i.id = $2
+      `INSERT INTO workspace_members (user_id, role, domain, branch, location, created_by, workspace_id)
+       SELECT $1, i.role, i.domain, i.branch, i.location, i.invited_by, i.workspace_id FROM invitations i WHERE i.id = $2
        ON CONFLICT DO NOTHING`, [userId, inv.id]);
     await client.query(`UPDATE invitations SET accepted_at = now(), user_id = $2 WHERE id = $1`, [inv.id, userId]);
     await client.query(`INSERT INTO activity_log (user_id, object_type, object_id, action, metadata_json) VALUES ($1, 'invitation', $2, 'accept', $3)`,

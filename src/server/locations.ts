@@ -7,6 +7,7 @@ import { SEED_LOCATIONS, setLocations, type LocationRow } from '@/lib/places';
 // crumbs and placeFromPath know about a branch added in the DB without a code change.
 const TTL_MS = 60_000;
 let cached: { at: number; rows: LocationRow[] } | null = null;
+export const dropLocations = () => { cached = null; };
 
 const SQL = (withStatus: boolean) => `
   SELECT domain, branch, location, name_he, active, ${withStatus ? 'status' : 'NULL::text AS status'}, sort

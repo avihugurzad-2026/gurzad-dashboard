@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { ChevronLeft, House, ListChecks, Target, Wallet } from 'lucide-react';
 import { goalsFor, openCounts } from '@/server/entries';
 import { num } from '@/lib/format';
-import { PERSONAL } from '@/lib/workspaces';
+import { requireUser } from '@/server/auth';
+import { currentHousehold, personalWorkspace } from '@/server/workspaces';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { TaskBoard } from '@/components/work/task-board';
 import { Card, Section } from '@/components/ui/card';
@@ -17,11 +18,12 @@ const PLACE = { domain: 'personal', branch: null, location: null } as const;
 const LISTS = [{ key: 'personal', label: 'אישי' }, { key: 'study', label: 'לימודים' }] as const;
 
 export default async function PersonalOverview() {
-  const [counts, goals] = await Promise.all([openCounts(), goalsFor(PLACE)]);
+  const u = await requireUser();
+  const [counts, goals, me, hh] = await Promise.all([openCounts(), goalsFor(PLACE), personalWorkspace(u), currentHousehold(u)]);
   const active = goals.goals.filter(g => g.status === 'active');
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={PERSONAL.name} subtitle={PERSONAL.description} status={<PersonalBadge />} tabs={<PersonalNav />} />
+      <PageHeader title={me?.name ?? 'אישי'} subtitle="המשימות, הכסף והמסמכים שלך. פרטי: רק אתה רואה את האזור הזה" status={<PersonalBadge />} tabs={<PersonalNav />} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="משימות פתוחות" icon={<ListChecks className="size-4" />} amount={false} href="/personal/tasks"
           value={num(counts.personal?.open ?? 0)} hint={counts.personal?.overdue ? `${counts.personal.overdue} באיחור` : undefined} />
@@ -46,8 +48,8 @@ export default async function PersonalOverview() {
           <li>
             <Card className="h-full transition-colors hover:border-line-strong">
               <Link href="/household" className="flex h-full items-center justify-between gap-3 rounded-xl px-5 py-4">
-                <span className="flex items-center gap-2 font-medium"><House className="size-4 text-muted" aria-hidden />הבית שלנו</span>
-                <span className="flex items-center gap-1 text-sm text-muted">אזור משותף<ChevronLeft className="size-4" aria-hidden /></span>
+                <span className="flex items-center gap-2 font-medium"><House className="size-4 text-muted" aria-hidden /><bdi>{hh?.name ?? 'משק בית'}</bdi></span>
+                <span className="flex items-center gap-1 text-sm text-muted">{hh ? 'אזור משותף' : 'עוד לא נוצר'}<ChevronLeft className="size-4" aria-hidden /></span>
               </Link>
             </Card>
           </li>

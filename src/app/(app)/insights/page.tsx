@@ -14,6 +14,7 @@ import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
 import { buttonClass } from '@/components/ui/button';
 import { PageHeader } from '@/components/shell/page-header';
+import { ENTITIES } from '@/lib/places';
 
 export const metadata = { title: 'סקירה עסקית — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -22,10 +23,7 @@ const KIND_LABEL = { task: 'משימה', notice: 'מועד הודעה', payment:
 
 // The three areas, each linking to its pages; counts come from openCounts() keys
 const AREAS = [
-  { title: 'עסקים', items: [
-    { label: 'a-digital', href: '/business/adigital', key: 'business/adigital' },
-    { label: 'Head Spa Israel', href: '/business/head-spa-israel', key: 'business/head-spa-israel' },
-  ] },
+  { title: 'עסקים', items: [] as { label: string; href: string; key: string }[] },
   { title: 'אישי', items: [
     { label: 'משימות בית, אישי ולימודים', href: '/personal/tasks', key: 'personal' },
   ] },
@@ -137,7 +135,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <Card>
           <CardHeader><CardTitle>האזורים</CardTitle><span className="text-sm text-muted">משימות פתוחות</span></CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {AREAS.map(a => (
+            {AREAS.map(a => a.title === 'עסקים'
+              ? { ...a, items: ENTITIES.filter(e => e.domain === 'business').map(e => ({ label: e.label, href: e.href, key: `business/${e.id}` })) } : a).map(a => (
               <section key={a.title} aria-label={a.title}>
                 <h3 className="mb-1 text-xs font-semibold text-muted">{a.title}</h3>
                 <ul className="flex flex-col divide-y divide-[color:var(--border)]">

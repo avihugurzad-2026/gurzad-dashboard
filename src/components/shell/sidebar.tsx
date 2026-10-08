@@ -100,7 +100,7 @@ export function SidebarNav({ collapsed = false, counts, onNavigate }: { collapse
   const session = useSession();
   const tip = useTooltip();
   const hrefs = session ? new Set(session.hrefs) : null;
-  const top = allowedOnly(NAV_TOP, hrefs), areas = allowedOnly(navAreas(), hrefs);
+  const top = allowedOnly(NAV_TOP, hrefs), areas = allowedOnly(navAreas(session?.workspaces ?? []), hrefs);
   const tools = allowedOnly(NAV_TOOLS, hrefs), more = allowedOnly(NAV_MORE, hrefs);
   const [showMore, setMore] = useState(NAV_MORE.some(t => path.startsWith(t.href)));
   const props = { path, collapsed, counts, onNavigate, tip };

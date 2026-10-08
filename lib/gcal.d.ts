@@ -23,16 +23,18 @@ declare const gcal: {
   SCOPES: string[];
   SCOPE_EVENTS: string;
   SCOPE_READONLY: string;
+  /** gmail.readonly (stage 4, Gmail receipts) */
+  SCOPE_GMAIL: string;
   TZ: string;
   GoogleError: new (code: string, status?: number) => gcal.GoogleError;
   encryptToken(plain: string, keyB64: string | undefined): string;
   decryptToken(stored: string, keyB64: string | undefined): string;
-  authUrl(opts: { clientId: string; redirectUri: string; state: string }): string;
+  authUrl(opts: { clientId: string; redirectUri: string; state: string; extraScopes?: string[] }): string;
   exchangeCode(opts: { code: string; clientId: string; clientSecret: string; redirectUri: string; fetchImpl?: gcal.FetchImpl }): Promise<{ access_token: string; refresh_token: string | null; expires_in: number | null; scope: string | null }>;
   refreshAccessToken(opts: { refreshToken: string; clientId: string; clientSecret: string; fetchImpl?: gcal.FetchImpl }): Promise<{ access_token: string; expires_in: number | null }>;
   revokeToken(token: string, opts?: { fetchImpl?: gcal.FetchImpl }): Promise<boolean>;
   listCalendars(accessToken: string, opts?: { fetchImpl?: gcal.FetchImpl }): Promise<gcal.Calendar[]>;
-  parseScopes(scope: string | null | undefined): { list: string[]; read: boolean; write: boolean; listCalendars: boolean };
+  parseScopes(scope: string | null | undefined): { list: string[]; read: boolean; write: boolean; listCalendars: boolean; gmail: boolean };
   localMidnightUtc(date: string, tz?: string): string;
   localTimeUtc(date: string, hm: string, tz?: string): string;
   localDate(instant: string | Date, tz?: string): string;

@@ -1,19 +1,13 @@
-import { HOUSEHOLD } from '@/lib/workspaces';
-import { PageHeader } from '@/components/shell/page-header';
-import { ContributionPlanner } from '@/components/workspace/contribution-planner';
-import { PrivacyBoundary } from '@/components/workspace/privacy-boundary';
-import { HouseholdBadge, HouseholdNav } from '../area-nav';
+import { BudgetSection } from '@/components/ledger/ledger-view';
+import { HouseholdLedgerPage } from '../ledger-page';
 
 export const metadata = { title: 'תקציב הבית — דשבורד גורזד' };
 
-export default function HouseholdBudgetPage() {
+export default async function HouseholdBudgetPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="תקציב" subtitle="התקציב של הבית הוא סכום ההעברות שכל חבר מגדיר" status={<HouseholdBadge />} tabs={<HouseholdNav />} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr] [&>*]:min-w-0">
-        <ContributionPlanner members={HOUSEHOLD.members.map(m => ({ id: m.id, name: m.name }))} />
-        <PrivacyBoundary />
-      </div>
-    </div>
+    <HouseholdLedgerPage title="תקציב" subtitle="תקציב חודשי לפי קטגוריה: תקציב, בפועל, נשאר וחריגה" path="/household/budget" sp={sp}>
+      {c => <BudgetSection c={c} />}
+    </HouseholdLedgerPage>
   );
 }
