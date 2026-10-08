@@ -1,7 +1,7 @@
 import 'server-only';
 import { db } from './db';
 import { todayIL } from '@/lib/period';
-import { requireUser, visibleSql, params, type SessionUser } from './auth';
+import { canDeleteRow, canEditRow, requireUser, visibleSql, params, type SessionUser } from './auth';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Things typed into the dashboard: tasks, goals, household money. Vault tasks stay read-only
@@ -34,6 +34,8 @@ export type WorkItem = {
   domain: string; branch: string | null; location: string | null; context: string;
   days_past: number | null; completed_at: string | null;
   assigned_to: string | null; scope: 'user' | 'shared'; event_id: string | null;
+  can_edit: boolean; can_delete: boolean;   // for this user: which controls the row shows
+  deleted_at?: string | null;
 };
 export type Goal = {
   id: string; title: string; unit: 'ils' | 'count' | 'pct'; target: number | null; current: number | null;
@@ -68,8 +70,10 @@ const vaultPriority = (p: string | null): 1 | 2 | 3 | 4 => (/high|גבוה|1/i.t
 
 const OPEN = `status NOT IN ('done', 'cancelled')`;
 
-function fromRow(r: any): WorkItem {
+function fromRow(r: any, u: SessionUser): WorkItem {
   return {
+    can_edit: canEditRow(u, 'task', r), can_delete: canDeleteRow(u, 'task', r),
+    deleted_at: r.deleted_at ? new Date(r.deleted_at).toISOString() : null,
     id: r.id, source: 'dashboard', title: r.title, description: r.description, priority: r.priority, status: r.status,
     waiting_on: r.waiting_on, due_date: r.due_date, due_time: r.due_time, owner: r.owner_user_id, category_id: r.category_id,
     domain: r.domain, branch: r.branch, location: r.location, context: contextLabel(r, r.category_id),
@@ -84,7 +88,8 @@ const COLS = `id, title, description, priority, status, waiting_on, to_char(due_
   assigned_to, scope, event_id`;
 
 // Tasks for one place (or everywhere when the filter is empty): dashboard rows plus read-only vault tasks.
-// Done/cancelled rows stay visible for 7 days so a tick can be undone.
+// Done/cancelled rows stay in the open list for 7 days so a tick can be undone; with includeDone
+// every closed task is returned (the board's "סגורות" view), so nothing closed is ever out of reach.
 export async function workItems(p: Filter, { includeDone = false } = {}) {
   const u = await requireUser();
   const today = todayIL();
@@ -103,7 +108,7 @@ export async function workItems(p: Filter, { includeDone = false } = {}) {
     const vault = !p.location && !p.category ? vaultTasks(u, p, today) : Promise.resolve([] as WorkItem[]);
     const [dashboardResult, vaultResult] = await Promise.allSettled([dashboard, vault]);
     if (dashboardResult.status === 'fulfilled') {
-      for (const r of dashboardResult.value.rows) items.push(fromRow(r));
+      for (const r of dashboardResult.value.rows) items.push(fromRow(r, u));
     } else if (missing(dashboardResult.reason)) {
       ready = false;
     } else {
@@ -136,9 +141,29 @@ async function vaultTasks(u: SessionUser, p: Filter, today: string): Promise<Wor
       waiting_on: null, due_date: r.due, due_time: null, owner: null, category_id: null, ...place,
       context: contextLabel(place, r.domain === 'personal' && r.branch === 'home' ? 'home' : null),
       days_past: r.days_past === null ? null : Number(r.days_past), completed_at: null,
-      assigned_to: null, scope: 'shared' as const, event_id: null,
+      assigned_to: null, scope: 'shared' as const, event_id: null, can_edit: false, can_delete: false,
     };
   });
+}
+
+// Deleted tasks of one place this user may bring back (the board's "סל מחזור"), newest first
+export async function deletedWorkItems(p: Filter): Promise<WorkItem[]> {
+  const u = await requireUser();
+  try {
+    const q = params();
+    const parts = ['deleted_at IS NOT NULL', `deleted_at > now() - interval '180 days'`];
+    if (p.domain) parts.push(`domain = ${q.p(p.domain)}`);
+    if (p.branch) parts.push(`branch = ${q.p(p.branch)}`);
+    if (p.location) parts.push(`location = ${q.p(p.location)}`);
+    if (p.category) parts.push(`category_id = ${q.p(p.category)}`);
+    const { rows } = await db().query(
+      `SELECT ${COLS}, deleted_at, NULL::int AS days_past FROM work_items
+       WHERE ${parts.join(' AND ')} AND ${visibleSql(u, 'task', '', q.p)} ORDER BY deleted_at DESC LIMIT 100`, q.values);
+    return rows.map((r: any) => fromRow(r, u)).filter(i => i.can_delete);
+  } catch (e) {
+    if (!missing(e)) throw e;
+    return [];
+  }
 }
 
 // The four groups on Home. A task sits in exactly one: waiting → overdue → today → needs attention.
@@ -164,7 +189,7 @@ export async function tasksBetween(start: string, end: string) {
   return items.filter(i => i.due_date && i.due_date >= start && i.due_date <= end && i.status !== 'cancelled');
 }
 
-export async function goalsFor(p: Partial<Place>) {
+export async function goalsFor(p: Partial<Place>, { withDropped = false } = {}) {
   const u = await requireUser();
   try {
     const q = params();
@@ -172,7 +197,7 @@ export async function goalsFor(p: Partial<Place>) {
     const { rows } = await db().query(
       `SELECT id, title, unit, target::float, current::float, to_char(due, 'YYYY-MM-DD') AS due, status, owner_user_id AS owner,
               location, goal_type, notes, scope, domain, branch
-       FROM goals WHERE ${w} AND status <> 'dropped' AND ${visibleSql(u, 'goal', '', q.p)}
+       FROM goals WHERE ${w} ${withDropped ? '' : `AND status <> 'dropped'`} AND ${visibleSql(u, 'goal', '', q.p)}
        ORDER BY status, due NULLS LAST, created_at`, q.values);
     return { ready: true, goals: rows as Goal[] };
   } catch (e) {
@@ -355,7 +380,7 @@ export async function search(text: string) {
                 AND ${visibleSql(u, 'event', 'e', q4.p)} ORDER BY start_at DESC LIMIT 20`, q4.values),
   ]);
   return {
-    tasks: tasks.rows.map(fromRow),
+    tasks: tasks.rows.map((r: any) => fromRow(r, u)),
     vault: vault.rows.map((r: any) => ({ id: r.id, text: r.text, context: contextLabel({ domain: r.domain, branch: r.domain === 'personal' ? null : r.branch, location: null }) })),
     inbox: inboxRows.rows.map((r: any) => ({ id: r.id, text: r.text as string, status: r.status as string })),
     events: events.rows.map((r: any) => ({ id: r.id, title: r.title as string, start_at: new Date(r.start_at).toISOString() })),

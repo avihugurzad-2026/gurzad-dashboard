@@ -18,7 +18,9 @@ export const dynamic = 'force-dynamic';
 export default async function GoalsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const type = (await searchParams).type;
   const active = GOAL_TYPES.some(t => t.id === type) ? type! : null;
-  const { ready, goals } = await goalsFor({});
+  const { ready, goals: all } = await goalsFor({}, { withDropped: true });
+  const goals = all.filter(g => g.status !== 'dropped');
+  const dropped = (active ? all.filter(g => g.goal_type === active) : all).filter(g => g.status === 'dropped');
   const shown = active ? goals.filter(g => g.goal_type === active) : goals;
   const count = (t: string | null) => goals.filter(g => g.status === 'active' && (t === null || g.goal_type === t)).length;
 
@@ -43,6 +45,14 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
             <ul className="flex flex-col divide-y divide-[color:var(--border)]">
               {shown.map(g => <GoalRow key={g.id} goal={g} path="/goals" context={contextLabel({ domain: g.domain, branch: g.branch, location: g.location })} />)}
             </ul>
+          )}
+          {dropped.length > 0 && (
+            <details className="rounded-lg border border-line px-3 py-2">
+              <summary className="cursor-pointer text-sm text-ink-2">יעדים שהוסרו ({dropped.length})</summary>
+              <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                {dropped.map(g => <GoalRow key={g.id} goal={g} path="/goals" context={contextLabel({ domain: g.domain, branch: g.branch, location: g.location })} />)}
+              </ul>
+            </details>
           )}
         </CardContent>
       </Card>

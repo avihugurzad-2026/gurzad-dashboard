@@ -33,7 +33,7 @@ export default async function HouseholdOverview() {
   const access = await ledgerAccess(u, w.id);
   const [counts, sum, contrib] = await Promise.all([
     openCounts(),
-    access ? monthSummary(w.id, month) : null,
+    access ? monthSummary(w.id, month, u.id) : null,
     access ? householdContributions(w.id, `${month}-01`, today) : null,
   ]);
   const tasks = counts[`household/${w.branch}`];

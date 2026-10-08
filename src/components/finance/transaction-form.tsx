@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
 import { Field, inputClass, selectClass, numberInputClass } from '@/components/work/fields';
 import { FormDialog } from './dialog';
-import { encodePlace, placeOptions, type Place } from '@/lib/places';
+import { decodePlace, encodePlace, placeOptions, type Place } from '@/lib/places';
 import {
   CLASSIFICATIONS, DOCUMENT_TYPES, PAYMENT_METHODS, categoriesOf, vatRateOn,
   type Classification, type Direction, type VatRateRow,
@@ -40,7 +40,10 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
   const [date, setDate] = useState(today);
   const [amount, setAmount] = useState('');
   const [vatIncluded, setVatIncluded] = useState(classification !== 'personal');
-  const [scope, setScope] = useState<'user' | 'shared'>('user');
+  const [scopeChoice, setScope] = useState<'user' | 'shared'>('user');
+  // A household's book is the household's: every member sees it, so "only me" is not offered there
+  const household = decodePlace(where)?.domain === 'household';
+  const scope = household ? 'shared' : scopeChoice;
 
   useEffect(() => { if (state?.ok) onSaved?.(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -99,10 +102,11 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </Field>
-      <Field label="מי רואה" htmlFor={f('scope')} className="col-span-2">
-        <select id={f('scope')} name="scope" value={scope}
+      {household && <input type="hidden" name="scope" value="shared" />}
+      <Field label="מי רואה" htmlFor={f('scope')} className="col-span-2" hint={household ? 'תנועות של משק הבית גלויות לכל חברי הבית' : undefined}>
+        <select id={f('scope')} name="scope" value={scope} disabled={household}
           onChange={e => setScope(e.target.value as 'user' | 'shared')} className={selectClass}>
-          <option value="user">רק אני</option>
+          {!household && <option value="user">רק אני</option>}
           <option value="shared">משותף (מי שיש לו הרשאה למקום)</option>
         </select>
       </Field>

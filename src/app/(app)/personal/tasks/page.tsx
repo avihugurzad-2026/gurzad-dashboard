@@ -3,8 +3,6 @@ import { Tabs, pickTab } from '@/components/shell/tabs';
 import { TaskBoard } from '@/components/work/task-board';
 import { PageHeader } from '@/components/shell/page-header';
 import { PersonalBadge, PersonalNav } from '../area-nav';
-import Link from 'next/link';
-import { buttonClass } from '@/components/ui/button';
 
 export const metadata = { title: 'משימות אישיות — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -30,7 +28,6 @@ export default async function PersonalTasksPage({ searchParams }: { searchParams
         { key: 'all', label: 'הכל', count: counts.personal?.open },
         ...LISTS.map(l => ({ key: l.key, label: l.label, count: counts[`personal:${l.key}`]?.open })),
       ]} />
-      <div><Link href={history ? BASE : `${BASE}?history=1`} className={buttonClass('secondary', 'sm')}>{history ? 'משימות פתוחות' : 'היסטוריה וארכיון'}</Link></div>
       <TaskBoard place={{ domain: 'personal', branch: null, location: null }} category={list} path={BASE}
         title={history ? 'היסטוריית משימות' : label ? `משימות ${label}` : 'כל המשימות האישיות'} withOwner showContext={!list} includeDone={history} />
     </div>

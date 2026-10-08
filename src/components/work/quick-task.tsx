@@ -47,8 +47,11 @@ export function QuickTask({ place, path, defaultDate, autoFocus, onSaved, classN
   const id = useId();
   const domain = decodePlace(where)?.domain ?? 'personal';
   const cats = categoriesFor(domain);
+  // Personal tasks stay with their creator; household tasks are always the household's
+  const canHand = Boolean(session && session.people.length > 1 && domain !== 'personal');
 
   useEffect(() => { setWhere(encodePlace(context)); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!canHand) setAssignee(me ?? ''); }, [canHand]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!state?.ok) return;
     if (state.warning) alert(state.warning);
@@ -108,7 +111,7 @@ export function QuickTask({ place, path, defaultDate, autoFocus, onSaved, classN
               <input type="time" name="due_time" value={time} onChange={e => setTime(e.target.value)} className={cn(inputClass, 'tabular')} />
             </label>
           )}
-          {session && session.people.length > 1 && (
+          {canHand && session && (
             <label className={cn(labelClass, 'flex flex-col gap-1.5')}>מי עושה
               <select name="assigned_to" value={assignee} onChange={e => setAssignee(e.target.value)} className={selectClass}>
                 {session.people.map(p => <option key={p.id} value={p.id}>{p.id === me ? `אני (${p.name})` : p.name}</option>)}
@@ -116,7 +119,7 @@ export function QuickTask({ place, path, defaultDate, autoFocus, onSaved, classN
             </label>
           )}
           <div className="col-span-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-2 sm:col-span-4">
-            {session && session.people.length > 1 && (
+            {canHand && domain !== 'household' && (
               <label className="inline-flex items-center gap-2">
                 <input key={assignee === me ? 'free' : 'handed'} type="checkbox" name="scope" value="shared"
                   defaultChecked={assignee !== me} disabled={assignee !== me} className="size-4" />

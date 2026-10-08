@@ -13,6 +13,7 @@ import type { InboxItem } from '@/server/entries';
 import { cn } from '@/lib/utils';
 import { useSession } from '@/components/shell/session-context';
 
+// 'note' stays only as a label for items sorted before; new items become a task, or a document when there is a file
 const MODULES = [{ key: 'task', label: 'משימה' }, { key: 'note', label: 'הערה' }, { key: 'document', label: 'מסמך' }] as const;
 const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
 
@@ -42,7 +43,8 @@ export function InboxRow({ item }: { item: InboxItem }) {
   }, [session]);
   const sug = item.suggestion && options.some(o => o.value === item.suggestion!.place) ? item.suggestion : null;
   const [where, setWhere] = useState<string | null>(sug?.place ?? null);
-  const [module, setModule] = useState<string>(sug?.module ?? (item.file ? 'document' : 'task'));
+  const choices = MODULES.filter(m => m.key === 'task' || (m.key === 'document' && item.file));
+  const [module, setModule] = useState<string>(choices.some(m => m.key === sug?.module) ? sug!.module : (item.file ? 'document' : 'task'));
   const ROOTS = rootsNow();
   const root = where ? rootOf(ROOTS, where) : null;
   const domain = where ? decodePlace(where)?.domain ?? 'personal' : 'personal';
@@ -106,7 +108,7 @@ export function InboxRow({ item }: { item: InboxItem }) {
               </label>
               <label className={cn(labelClass, 'flex flex-col gap-1.5')}>מה זה
                 <select name="module" value={module} onChange={e => setModule(e.target.value)} className={selectClass}>
-                  {MODULES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  {choices.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
                 </select>
               </label>
               <div className="col-span-2 flex items-end sm:col-span-1">

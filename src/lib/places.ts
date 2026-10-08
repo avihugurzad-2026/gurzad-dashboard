@@ -82,7 +82,7 @@ export const locationsOf = (entityId: string) => LOCATIONS.filter(l => l.entity 
 
 export const CATEGORIES: { id: string; label: string; domain: Domain | null }[] = [
   { id: 'general', label: 'כללי', domain: null },
-  { id: 'home', label: 'בית', domain: 'personal' },
+  { id: 'home', label: 'בית', domain: 'household' },   // the household's own list (DB: categories.domain)
   { id: 'personal', label: 'אישי', domain: 'personal' },
   { id: 'study', label: 'לימודים', domain: 'personal' },
   { id: 'clients', label: 'לקוחות', domain: 'business' },

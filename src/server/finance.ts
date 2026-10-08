@@ -17,7 +17,7 @@ const r2 = money.round2;
 
 export type Split = { user_id: string; share_pct: number };
 export type Transaction = {
-  id: string; direction: Direction; occurred_on: string; amount_gross: number; vat_included: boolean;
+  id: string; direction: Direction; occurred_on: string; amount_gross: number; currency: string; vat_included: boolean;
   vat_rate: number | null; vat_amount: number; amount_net: number; category: string; category_label: string;
   description: string | null; document_type: string; document_number: string | null;
   counterparty_name: string | null; counterparty_tax_id: string | null; payment_method: string | null; payment_date: string | null;
@@ -27,7 +27,7 @@ export type Transaction = {
 };
 
 export const TX_SELECT = `
-  t.id, t.direction, to_char(t.occurred_on, 'YYYY-MM-DD') AS occurred_on, t.amount_gross::float AS amount_gross,
+  t.id, t.direction, to_char(t.occurred_on, 'YYYY-MM-DD') AS occurred_on, t.amount_gross::float AS amount_gross, coalesce(t.currency, 'ILS') AS currency,
   t.vat_included, t.vat_rate::float AS vat_rate, t.vat_amount::float AS vat_amount, t.category, t.description,
   t.document_type, t.document_number, t.counterparty_name, t.counterparty_tax_id, t.payment_method,
   to_char(t.payment_date, 'YYYY-MM-DD') AS payment_date, t.classification, t.domain, t.branch, t.location,
@@ -77,6 +77,9 @@ export async function financeSummary(u: SessionUser, f: FinanceFilter) {
   const q = params([f.from, f.to]);
   const where = [
     't.deleted_at IS NULL', 't.occurred_on BETWEEN $1::date AND $2::date',
+    // A transfer (e.g. a contribution to the household) is money moving between two of your own
+    // books: its other side is already an income row there, so it is neither income nor expense here
+    `t.direction IN ('income', 'expense')`,
     visibleSql(u, 'money', 't', q.p), placeSql(f.place, 't', q.p),
   ];
   if (f.classification) where.push(`t.classification = ${q.p(f.classification)}`);
@@ -88,7 +91,7 @@ export async function financeSummary(u: SessionUser, f: FinanceFilter) {
       db().query(
         `SELECT t.direction, t.classification, t.category, t.domain, t.branch, t.location,
                 SUM(t.amount_gross)::float AS gross, SUM(t.vat_amount)::float AS vat, COUNT(*)::int AS n
-         FROM transactions t WHERE ${base}
+         FROM transactions t WHERE ${base} AND coalesce(t.currency, 'ILS') = 'ILS'
          GROUP BY 1, 2, 3, 4, 5, 6`, q.values.slice(0, q.values.length - (f.direction ? 1 : 0))),
       db().query(
         `SELECT ${TX_SELECT} FROM transactions t LEFT JOIN files f ON f.id = t.file_id
@@ -168,7 +171,7 @@ export async function vatMonthly(u: SessionUser, months = 6, place?: Partial<Pla
               SUM(t.vat_amount) FILTER (WHERE t.classification = 'mixed' AND t.direction = 'income')::float     AS mixed_output,
               SUM(t.vat_amount) FILTER (WHERE t.classification = 'mixed' AND t.direction = 'expense')::float    AS mixed_input
        FROM transactions t
-       WHERE t.deleted_at IS NULL AND t.occurred_on >= $1::date AND t.classification <> 'personal'
+       WHERE t.deleted_at IS NULL AND t.occurred_on >= $1::date AND t.classification <> 'personal' AND coalesce(t.currency, 'ILS') = 'ILS'
          AND ${visibleSql(u, 'money', 't', q.p)} AND ${placeSql(place, 't', q.p)}
        GROUP BY 1`, q.values);
     const byMonth = new Map(rows.map(r => [r.month as string, r]));

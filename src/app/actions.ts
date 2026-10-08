@@ -1,6 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
-import { canCreateIn, canDeleteRow, canEditRow, currentUser, type Kind, type SessionUser } from '@/server/auth';
+import { canCreateIn, canDeleteRow, canEditRow, canManageIn, currentUser, userCanSee, type Kind, type SessionUser } from '@/server/auth';
 import { createHash } from 'node:crypto';
 import { db } from '@/server/db';
 import money from '@domain/money';
@@ -32,6 +32,16 @@ const isUser = (a: SessionUser | ActionResult): a is SessionUser => 'memberships
 async function activeUser(id: string): Promise<boolean> {
   const { rows } = await db().query(`SELECT 1 FROM users WHERE id = $1 AND active`, [id]);
   return rows.length > 0;
+}
+
+// Who does a task. Personal rows are private to their creator, so they can't be handed to anyone;
+// elsewhere the person must be able to see the place.
+async function checkAssignee(u: SessionUser, p: { domain: string; branch: string | null; location: string | null }, assigned: string | null): Promise<string | null> {
+  if (!assigned || assigned === u.id) return null;
+  if (p.domain === 'personal') return 'משימה אישית נשארת שלך. לשיתוף, שייך אותה למשק הבית או לעסק.';
+  if (!/^[a-z][a-z0-9-]{1,30}$/.test(assigned) || !(await activeUser(assigned))) return 'אחראי לא תקין';
+  if (!(await userCanSee(assigned, p, 'task'))) return 'לאדם הזה אין גישה למקום הזה';
+  return null;
 }
 
 type RowRef = { domain: string | null; branch: string | null; location: string | null; owner_user_id: string; scope: string; assigned_to: string | null; event_id: string | null };
@@ -120,11 +130,12 @@ export async function addTask(_: ActionResult | null, f: FormData): Promise<Acti
   if (description && description.length > 4000) return { ok: false, error: 'התיאור ארוך מדי' };
   // Who does it: yourself by default. Handing it to someone else makes it shared, so they see it.
   const assigned = str(f, 'assigned_to') ?? str(f, 'owner');
-  if (p.domain === 'personal' && ((assigned && assigned !== u.id) || str(f, 'scope') === 'shared')) return NO_ACCESS;
-  if (assigned && assigned !== u.id && !(await activeUser(assigned))) return { ok: false, error: 'אחראי לא תקין' };
+  if (p.domain === 'personal' && str(f, 'scope') === 'shared') return NO_ACCESS;
+  const bad = await checkAssignee(u, p, assigned); if (bad) return { ok: false, error: bad };
   const handedOver = Boolean(assigned && assigned !== u.id);
-  const scope = handedOver || str(f, 'scope') === 'shared' ? 'shared' : 'user';
-  if (scope === 'shared' && !u.isOwner && !canCreateIn(u, p, 'task')) return NO_ACCESS;
+  if (handedOver && !canManageIn(u, p, 'task')) return { ok: false, error: 'אין לך הרשאה להעביר משימות לאחרים כאן' };
+  // Household rows are the household's: every member sees and updates them
+  const scope = p.domain === 'household' || handedOver || str(f, 'scope') === 'shared' ? 'shared' : 'user';
   const { rows } = await db().query(
     `INSERT INTO work_items (domain, branch, location, category_id, title, description, priority, status, due_date, due_time,
                              owner_user_id, assigned_to, scope)
@@ -146,12 +157,87 @@ export async function addTask(_: ActionResult | null, f: FormData): Promise<Acti
 export async function setTaskStatus(id: string, status: string, path: string): Promise<ActionResult> {
   const u = await actor(); if (!isUser(u)) return u;
   if (!UUID.test(id) || !STATUS.has(status)) return { ok: false, error: 'בקשה לא תקינה' };
-  if (!(await mayEdit(u, 'task', 'work_items', id))) return NO_ACCESS;
+  const row = await mayEdit(u, 'task', 'work_items', id);
+  if (!row) return NO_ACCESS;
   await db().query(
     `UPDATE work_items SET status = $2, updated_at = now(),
        completed_at = CASE WHEN $2 IN ('done', 'cancelled') THEN coalesce(completed_at, now()) END
      WHERE id = $1 AND deleted_at IS NULL`, [id, status]);
   await log(u, 'task', id, 'status', { status });
+  // A closed task leaves the calendar
+  if (row.event_id && (status === 'done' || status === 'cancelled')) {
+    const r = await removeEventForTask(u, id).catch(() => ({ ok: false as const }));
+    if (!r.ok) return { ...done(path), warning: 'המשימה עודכנה, אבל האירוע שלה ביומן לא נמחק' } as ActionResult;
+  }
+  return done(path);
+}
+
+// Edit a task: text, category, priority, status, due date/time, who does it, who it waits on.
+// Its place stays as it is. A linked calendar event follows the new title and time.
+export async function updateTask(_: ActionResult | null, f: FormData): Promise<ActionResult> {
+  const u = await actor(); if (!isUser(u)) return u;
+  const id = str(f, 'id');
+  if (!id || !UUID.test(id)) return { ok: false, error: 'בקשה לא תקינה' };
+  const { rows: found } = await db().query(
+    `SELECT domain, branch, location, owner_user_id, scope, assigned_to, event_id, status, title,
+            to_char(due_date, 'YYYY-MM-DD') AS due_date, to_char(due_time, 'HH24:MI') AS due_time
+     FROM work_items WHERE id = $1 AND deleted_at IS NULL`, [id]);
+  const row = found[0];
+  if (!row || !canEditRow(u, 'task', row)) return NO_ACCESS;
+  const p = { domain: row.domain as string, branch: row.branch as string | null, location: row.location as string | null };
+  const title = str(f, 'title');
+  if (!title || title.length > 300) return { ok: false, error: 'צריך כותרת (עד 300 תווים)' };
+  const description = str(f, 'description');
+  if (description && description.length > 4000) return { ok: false, error: 'התיאור ארוך מדי' };
+  const priority = Number(str(f, 'priority') ?? 3);
+  if (![1, 2, 3, 4].includes(priority)) return { ok: false, error: 'עדיפות לא תקינה' };
+  const category = str(f, 'category') ?? 'general';
+  if (!CATEGORIES.some(c => c.id === category && (c.domain === null || c.domain === p.domain))) return { ok: false, error: 'קטגוריה לא תקינה' };
+  const status = str(f, 'status') ?? 'todo';
+  if (!STATUS.has(status)) return { ok: false, error: 'סטטוס לא תקין' };
+  const due = str(f, 'due_date');
+  if (due && !DATE.test(due)) return { ok: false, error: 'תאריך לא תקין' };
+  const time = str(f, 'due_time');
+  if (time && (!TIME.test(time) || !due)) return { ok: false, error: 'שעה צריכה תאריך' };
+  const waitingOn = status === 'waiting' ? str(f, 'waiting_on') : null;
+  if (waitingOn && waitingOn.length > 100) return { ok: false, error: '"ממתין ל" ארוך מדי' };
+  // Who does it (NULL = the task's owner). Handing it over needs the same right as when adding.
+  const assignedIn = f.has('assigned_to') ? (str(f, 'assigned_to') ?? row.owner_user_id) : (row.assigned_to ?? row.owner_user_id);
+  const assigned: string | null = assignedIn === row.owner_user_id ? null : assignedIn;
+  if (assigned !== (row.assigned_to ?? null) && assigned !== null) {
+    if (!canManageIn(u, p, 'task')) return { ok: false, error: 'אין לך הרשאה להעביר את המשימה' };
+    const bad = await checkAssignee(u, p, assigned); if (bad) return { ok: false, error: bad };
+  }
+  const scope = p.domain === 'household' || assigned ? 'shared' : row.scope;
+  await db().query(
+    `UPDATE work_items SET title = $2, description = $3, priority = $4, category_id = $5, status = $6, due_date = $7, due_time = $8,
+       waiting_on = $9, assigned_to = $10, scope = $11, updated_at = now(),
+       completed_at = CASE WHEN $6 IN ('done', 'cancelled') THEN coalesce(completed_at, now()) END
+     WHERE id = $1 AND deleted_at IS NULL`,
+    [id, title, description, priority, category, status, due, time, waitingOn, assigned, scope]);
+  await log(u, 'task', id, 'update', { status, assigned_to: assigned });
+  if (row.event_id) {
+    const closed = status === 'done' || status === 'cancelled';
+    const moved = row.title !== title || row.due_date !== due || row.due_time !== time;
+    if (closed || !due || (moved)) {
+      const r = closed || !due
+        ? await removeEventForTask(u, id).catch(() => ({ ok: false as const }))
+        : await createEventForTask(u, { id, title, due_date: due, due_time: time, ...p, scope }).catch(() => ({ ok: false as const }));
+      if (!r.ok) return { ...done(str(f, 'path')), warning: 'המשימה נשמרה, אבל האירוע שלה ביומן לא עודכן' } as ActionResult;
+    }
+  }
+  return done(str(f, 'path'));
+}
+
+// Undo a delete (from the trash list). Same rule as deleting.
+export async function restoreTask(id: string, path: string): Promise<ActionResult> {
+  const u = await actor(); if (!isUser(u)) return u;
+  if (!UUID.test(id)) return { ok: false, error: 'בקשה לא תקינה' };
+  const { rows } = await db().query(
+    `SELECT domain, branch, location, owner_user_id, scope FROM work_items WHERE id = $1 AND deleted_at IS NOT NULL`, [id]);
+  if (!rows[0] || !canDeleteRow(u, 'task', rows[0])) return NO_ACCESS;
+  await db().query(`UPDATE work_items SET deleted_at = NULL, updated_at = now() WHERE id = $1`, [id]);
+  await log(u, 'task', id, 'restore');
   return done(path);
 }
 
@@ -170,8 +256,11 @@ export async function removeTask(id: string, path: string): Promise<ActionResult
   const row = await rowOf('work_items', id);
   if (!row || !canDeleteRow(u, 'task', row)) return NO_ACCESS;
   await db().query(`UPDATE work_items SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [id]);
-  if (row.event_id) await removeEventForTask(u, id).catch(() => {});
   await log(u, 'task', id, 'delete');
+  if (row.event_id) {
+    const r = await removeEventForTask(u, id).catch(() => ({ ok: false as const }));
+    if (!r.ok) return { ...done(path), warning: 'המשימה נמחקה, אבל האירוע שלה ביומן לא נמחק' } as ActionResult;
+  }
   return done(path);
 }
 
@@ -212,21 +301,49 @@ export async function classifyInbox(_: ActionResult | null, f: FormData): Promis
   const p = await place(f); if (typeof p === 'string') return { ok: false, error: p };
   if (!canCreateIn(u, p, 'task')) return NO_ACCESS;
   const module = str(f, 'module');
-  if (!module || !['task', 'note', 'document'].includes(module)) return { ok: false, error: 'בחר מה זה' };
+  if (!module || !['task', 'document'].includes(module)) return { ok: false, error: 'בחר מה זה' };
   const category = str(f, 'category') ?? 'general';
   if (!CATEGORIES.some(c => c.id === category && (c.domain === null || c.domain === p.domain))) return { ok: false, error: 'קטגוריה לא תקינה' };
   const { rows: items } = await db().query(
-    `SELECT i.raw_text, i.created_by, i.scope, f.name AS file_name FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
+    `SELECT i.raw_text, i.created_by, i.scope, i.file_id, f.name AS file_name FROM inbox_items i LEFT JOIN files f ON f.id = i.file_id
      WHERE i.id = $1 AND i.deleted_at IS NULL AND i.status = 'unclassified'`, [id]);
   if (!items.length) return { ok: false, error: 'הפריט כבר סווג' };
   if (items[0].created_by !== u.id && !(items[0].scope === 'shared' && u.isAdmin)) return NO_ACCESS;
   let objectId: string | null = null;
+  // Household rows are shared with the household; elsewhere a filed item stays the filer's own
+  const scope = p.domain === 'household' ? 'shared' : 'user';
   if (module === 'task') {
     const title = (str(f, 'title') ?? items[0].raw_text ?? items[0].file_name ?? 'משימה מה-Inbox').slice(0, 300);
     const { rows } = await db().query(
-      `INSERT INTO work_items (domain, branch, location, category_id, title, owner_user_id, inbox_item_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, [p.domain, p.branch, p.location, category, title, u.id, id]);
+      `INSERT INTO work_items (domain, branch, location, category_id, title, owner_user_id, inbox_item_id, scope)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`, [p.domain, p.branch, p.location, category, title, u.id, id, scope]);
     objectId = rows[0].id;
+  } else {
+    // "מסמך": the attached file becomes a document of that place (first version)
+    if (!items[0].file_id) return { ok: false, error: 'למסמך צריך קובץ מצורף. בחר "משימה".' };
+    if (!canCreateIn(u, p, 'money')) return NO_ACCESS;
+    const docScope = p.domain === 'personal' ? 'user' : 'shared';
+    const title = (items[0].file_name ?? items[0].raw_text ?? 'מסמך').replace(/\.[^.]{1,8}$/, '').slice(0, 200).trim() || 'מסמך';
+    const c = await db().connect();
+    try {
+      await c.query('BEGIN');
+      const { rows } = await c.query(
+        `INSERT INTO documents (title, doc_type, domain, branch, location, notes, owner_user_id, scope, created_by)
+         VALUES ($1, 'other', $2, $3, $4, $5, $6, $7, $6) RETURNING id`,
+        [title, p.domain, p.branch, p.location, items[0].file_name && items[0].raw_text ? String(items[0].raw_text).slice(0, 1000) : null, u.id, docScope]);
+      await c.query(`INSERT INTO document_versions (document_id, version, file_id, created_by) VALUES ($1, 1, $2, $3)`, [rows[0].id, items[0].file_id, u.id]);
+      await c.query(`UPDATE files SET scope = $2 WHERE id = $1`, [items[0].file_id, docScope]);
+      await c.query(`INSERT INTO activity_log (user_id, object_type, object_id, action, metadata_json) VALUES ($1, 'document', $2, 'create', $3)`,
+        [u.id, rows[0].id, JSON.stringify({ title, place: p, from: 'inbox' })]);
+      await c.query('COMMIT');
+      objectId = rows[0].id;
+    } catch (e) {
+      await c.query('ROLLBACK').catch(() => {});
+      console.error(e);
+      return { ok: false, error: 'לא נשמר, נסה שוב' };
+    } finally {
+      c.release();
+    }
   }
   await db().query(
     `UPDATE inbox_items SET status = 'classified', classified_domain = $2, classified_branch = $3, classified_location = $4,
@@ -273,13 +390,16 @@ export async function addGoal(_: ActionResult | null, f: FormData): Promise<Acti
   const due = str(f, 'due');
   if (due && !DATE.test(due)) return { ok: false, error: 'תאריך לא תקין' };
   const owner = str(f, 'owner') ?? u.id;
-  if (p.domain === 'personal' && (owner !== u.id || str(f, 'scope') === 'shared')) return NO_ACCESS;
-  if (owner !== u.id && !(await activeUser(owner))) return { ok: false, error: 'אחראי לא תקין' };
+  if (p.domain === 'personal' && str(f, 'scope') === 'shared') return NO_ACCESS;
+  if (owner !== u.id) {
+    if (p.domain === 'personal') return { ok: false, error: 'יעד אישי נשאר שלך. לשיתוף, שייך אותו למשק הבית או לעסק.' };
+    if (!(await activeUser(owner)) || !(await userCanSee(owner, p, 'goal'))) return { ok: false, error: 'לאדם הזה אין גישה למקום הזה' };
+  }
   const goalType = str(f, 'goal_type') ?? defaultGoalType(p, unit);
   if (!GOAL_TYPES.has(goalType)) return { ok: false, error: 'סוג יעד לא תקין' };
   const notes = str(f, 'notes');
   if (notes && notes.length > 1000) return { ok: false, error: 'ההערות ארוכות מדי' };
-  const scope = owner !== u.id || str(f, 'scope') === 'shared' ? 'shared' : 'user';
+  const scope = p.domain === 'household' || owner !== u.id || str(f, 'scope') === 'shared' ? 'shared' : 'user';
   const { rows } = await db().query(
     `INSERT INTO goals (domain, branch, location, title, unit, target, current, due, owner_user_id, goal_type, notes, scope)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
@@ -295,6 +415,31 @@ export async function updateGoalCurrent(id: string, current: number | null, path
   await db().query(`UPDATE goals SET current = $2, updated_at = now() WHERE id = $1 AND deleted_at IS NULL`, [id, current]);
   await log(u, 'goal', id, 'progress', { current });
   return done(path);
+}
+
+// Edit a goal: title, target, unit, due date, type, notes. Its place and owner stay.
+export async function updateGoal(_: ActionResult | null, f: FormData): Promise<ActionResult> {
+  const u = await actor(); if (!isUser(u)) return u;
+  const id = str(f, 'id');
+  if (!id || !UUID.test(id)) return { ok: false, error: 'בקשה לא תקינה' };
+  if (!(await mayEdit(u, 'goal', 'goals', id))) return NO_ACCESS;
+  const title = str(f, 'title');
+  if (!title || title.length > 300) return { ok: false, error: 'צריך כותרת ליעד' };
+  const unit = str(f, 'unit') ?? 'ils';
+  if (!['ils', 'count', 'pct'].includes(unit)) return { ok: false, error: 'יחידה לא תקינה' };
+  const target = num(str(f, 'target'));
+  if (target !== null && !Number.isFinite(target)) return { ok: false, error: 'יעד מספרי לא תקין' };
+  const due = str(f, 'due');
+  if (due && !DATE.test(due)) return { ok: false, error: 'תאריך לא תקין' };
+  const goalType = str(f, 'goal_type');
+  if (goalType && !GOAL_TYPES.has(goalType)) return { ok: false, error: 'סוג יעד לא תקין' };
+  const notes = str(f, 'notes');
+  if (notes && notes.length > 1000) return { ok: false, error: 'ההערות ארוכות מדי' };
+  await db().query(
+    `UPDATE goals SET title = $2, unit = $3, target = $4, due = $5, goal_type = coalesce($6, goal_type), notes = $7, updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL`, [id, title, unit, target, due, goalType, notes]);
+  await log(u, 'goal', id, 'update');
+  return done(str(f, 'path'));
 }
 
 export async function setGoalStatus(id: string, status: 'active' | 'done' | 'dropped', path: string): Promise<ActionResult> {
