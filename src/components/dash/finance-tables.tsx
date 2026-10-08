@@ -20,23 +20,23 @@ export function RetainersTable({ d }: { d: Finance }) {
         {d.retainers.length === 0 ? (
           <Empty title="אין ריטיינרים פעילים">ריטיינרים מגיעים מהוואלט בסנכרון.</Empty>
         ) : (
-          <div className="-mx-5 overflow-x-auto px-5">
-            <table className="w-full min-w-md text-sm">
-              <thead className="text-start text-xs text-muted">
-                <tr className="border-b border-line">
-                  <th scope="col" className="py-2 text-start font-medium">לקוח</th>
-                  <th scope="col" className="py-2 text-start font-medium">חודשי ללא מע״מ</th>
-                  <th scope="col" className="py-2 text-start font-medium">סוף חוזה</th>
-                  <th scope="col" className="py-2 text-start font-medium">מועד הודעה</th>
+          <div className="relative overflow-x-auto">
+            <table className="data-table min-w-md">
+              <thead>
+                <tr>
+                  <th scope="col">לקוח</th>
+                  <th scope="col" className="num">חודשי ללא מע״מ</th>
+                  <th scope="col">סוף חוזה</th>
+                  <th scope="col">מועד הודעה</th>
                 </tr>
               </thead>
               <tbody>
                 {d.retainers.map(r => (
-                  <tr key={r.id} className="border-b border-line last:border-0">
-                    <td className="py-2.5"><bdi className="font-medium">{r.client ?? '—'}</bdi></td>
-                    <td className="py-2.5"><Money value={r.fee_net} /></td>
-                    <td className="py-2.5 text-muted">{r.contract_end ? shortDate(r.contract_end) : '—'}</td>
-                    <td className="py-2.5 text-muted">{r.notice_deadline ? shortDate(r.notice_deadline) : '—'}</td>
+                  <tr key={r.id}>
+                    <td><bdi className="font-medium">{r.client ?? '—'}</bdi></td>
+                    <td className="num"><Money value={r.fee_net} /></td>
+                    <td className="text-muted">{r.contract_end ? shortDate(r.contract_end) : '—'}</td>
+                    <td className="text-muted">{r.notice_deadline ? shortDate(r.notice_deadline) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -61,28 +61,28 @@ export function DebtsTable({ d }: { d: Finance }) {
         ) : (
           <>
             {!d.aging && (
-              <p className="mb-3 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-ink">
+              <p className="mb-4 rounded-lg bg-warning-soft px-3 py-2.5 text-sm text-warning-ink">
                 אין תאריך לתשלום באף יתרה, ולכן אין גיול חובות.{' '}
                 <Link href="/health" className="font-medium underline">מה חסר</Link>
               </p>
             )}
-            <div className="-mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-md text-sm">
-                <thead className="text-xs text-muted">
-                  <tr className="border-b border-line">
-                    <th scope="col" className="py-2 text-start font-medium">לקוח</th>
-                    <th scope="col" className="py-2 text-start font-medium">יתרה כולל מע״מ</th>
-                    <th scope="col" className="py-2 text-start font-medium">לתשלום עד</th>
-                    <th scope="col" className="py-2 text-start font-medium">איחור</th>
+            <div className="relative overflow-x-auto">
+              <table className="data-table min-w-md">
+                <thead>
+                  <tr>
+                    <th scope="col">לקוח</th>
+                    <th scope="col" className="num">יתרה כולל מע״מ</th>
+                    <th scope="col">לתשלום עד</th>
+                    <th scope="col">איחור</th>
                   </tr>
                 </thead>
                 <tbody>
                   {d.debts.map(x => (
-                    <tr key={x.id} className="border-b border-line last:border-0">
-                      <td className="py-2.5"><bdi className="font-medium">{x.client ?? '—'}</bdi></td>
-                      <td className="py-2.5"><Money value={x.amount} /></td>
-                      <td className="py-2.5 text-muted">{x.due_date ? shortDate(x.due_date) : 'אין תאריך'}</td>
-                      <td className="py-2.5">
+                    <tr key={x.id}>
+                      <td><bdi className="font-medium">{x.client ?? '—'}</bdi></td>
+                      <td className="num"><Money value={x.amount} /></td>
+                      <td className="text-muted">{x.due_date ? shortDate(x.due_date) : 'אין תאריך'}</td>
+                      <td>
                         {x.days_overdue === null ? <span className="text-muted">—</span>
                           : x.days_overdue > 0 ? <Badge tone="critical">{x.days_overdue} ימים</Badge>
                           : <Badge tone="good">בזמן</Badge>}

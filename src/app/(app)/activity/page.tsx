@@ -1,10 +1,14 @@
 import Link from 'next/link';
-import { Filter } from 'lucide-react';
+import { Filter, History } from 'lucide-react';
 import { requireUser } from '@/server/auth';
 import { activityFeed, activityUsers } from '@/server/activity';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { inputClass } from '@/components/work/fields';
+import { Button, buttonClass } from '@/components/ui/button';
+import { Empty } from '@/components/ui/empty';
+import { DateField } from '@/components/ui/date-field';
+import { PageHeader } from '@/components/shell/page-header';
+import { labelClass, selectClass } from '@/components/work/fields';
+import { cn } from '@/lib/utils';
 import { ActivityList } from '@/components/activity/activity-list';
 import { OBJECT_TYPES } from '@/lib/activity';
 import { contextLabel, decodePlace, encodePlace } from '@/lib/places';
@@ -33,52 +37,53 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   const nextHref = next ? `/activity?${new URLSearchParams([...keep, ['before', String(next)]])}` : null;
   const filtered = keep.length > 0;
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-page font-bold">יומן פעילות</h1>
-        <p className="text-sm text-muted">{u.isAdmin ? 'כל הפעולות במערכת: מי, מתי, על מה ומה נעשה.' : 'הפעולות שלך במערכת.'}</p>
-      </div>
-      <form action="/activity" aria-label="סינון פעילות" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div className="flex flex-col gap-6">
+      <PageHeader title="יומן פעילות" subtitle={u.isAdmin ? 'כל הפעולות במערכת: מי, מתי, על מה ומה נעשה.' : 'הפעולות שלך במערכת.'} />
+      <Card><CardContent className="pt-5 sm:pt-6">
+      <form action="/activity" aria-label="סינון פעילות" className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-5">
         {object && <input type="hidden" name="object" value={object} />}
         {place && <input type="hidden" name="place" value={encodePlace(place)} />}
         {u.isAdmin && (
-          <label className="flex flex-col gap-1 text-xs text-muted">מי
-            <select name="who" defaultValue={who ?? ''} className={inputClass}>
+          <label className={cn(labelClass, 'flex flex-col gap-1.5')}>מי
+            <select name="who" defaultValue={who ?? ''} className={selectClass}>
               <option value="">כולם</option>
               {users.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
           </label>
         )}
-        <label className="flex flex-col gap-1 text-xs text-muted">סוג
-          <select name="type" defaultValue={type ?? ''} className={inputClass}>
+        <label className={cn(labelClass, 'flex flex-col gap-1.5')}>סוג
+          <select name="type" defaultValue={type ?? ''} className={selectClass}>
             <option value="">הכול</option>
             {OBJECT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">מתאריך
-          <input type="date" name="from" defaultValue={from ?? ''} className={inputClass} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">עד תאריך
-          <input type="date" name="to" defaultValue={to ?? ''} className={inputClass} />
-        </label>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <Button type="submit" variant="primary" size="sm" className="h-9"><Filter className="size-4" aria-hidden />סנן</Button>
-          {filtered && <Link href="/activity" className="pb-2 text-sm text-muted hover:text-ink">נקה</Link>}
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="act-from" className={labelClass}>מתאריך</label>
+          <DateField id="act-from" name="from" defaultValue={from ?? ''} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="act-to" className={labelClass}>עד תאריך</label>
+          <DateField id="act-to" name="to" defaultValue={to ?? ''} />
+        </div>
+        <div className="col-span-2 flex items-end gap-2 sm:col-span-1">
+          <Button type="submit" variant="secondary" size="lg"><Filter aria-hidden />סנן</Button>
+          {filtered && <Link href="/activity" className={buttonClass('ghost', 'lg')}>נקה</Link>}
         </div>
       </form>
+      </CardContent></Card>
       {(place || object) && (
         <p className="text-sm text-ink-2">
           מסונן ל{place ? <> <bdi dir="rtl">{contextLabel(place)}</bdi></> : ' אובייקט אחד'}
         </p>
       )}
       <Card>
-        <CardContent className="pt-2">
+        <CardContent className="pt-3 sm:pt-4">
           {!ready || items.length === 0
-            ? <p className="py-6 text-center text-sm text-muted">{filtered || before ? 'אין פעילות לסינון הזה.' : 'אין נתונים עדיין'}</p>
+            ? <Empty compact icon={<History aria-hidden />} title={filtered || before ? 'אין פעילות לסינון הזה' : 'אין נתונים עדיין'} />
             : <ActivityList items={items} />}
-          <div className="flex items-center gap-4 pt-2">
-            {nextHref && <Link href={nextHref} className="text-sm font-medium text-accent hover:underline">עוד</Link>}
-            {before && <Link href={`/activity${keep.length ? `?${new URLSearchParams(keep)}` : ''}`} className="text-sm text-muted hover:text-ink">לחדשים ביותר</Link>}
+          <div className="flex items-center gap-2 pt-3 empty:hidden">
+            {nextHref && <Link href={nextHref} className={buttonClass('secondary', 'sm')}>עוד</Link>}
+            {before && <Link href={`/activity${keep.length ? `?${new URLSearchParams(keep)}` : ''}`} className={buttonClass('ghost', 'sm')}>לחדשים ביותר</Link>}
           </div>
         </CardContent>
       </Card>

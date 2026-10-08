@@ -6,6 +6,7 @@ import { CompanyOverview } from '@/components/headspa/company-overview';
 import { BasisToggle } from '@/components/ospa/ospa-view';
 import { RefreshButton } from '@/components/dash/refresh-button';
 import { Tabs, pickTab } from '@/components/shell/tabs';
+import { PageHeader } from '@/components/shell/page-header';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
 
@@ -27,24 +28,19 @@ export default async function HeadSpaPage({ searchParams }: { searchParams: Prom
   const anyConnected = d.branches.some(b => b.integration && !['disabled', 'not_connected'].includes(b.integration.status));
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-page font-bold"><bdi>Head Spa Israel</bdi></h1>
-          <p className="text-sm text-muted">עסקים · כל הסניפים ({d.branches.length})</p>
-        </div>
-        {tab === 'overview' && d.can_see_money && (
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Head Spa Israel" subtitle={`כל הסניפים (${d.branches.length}): הכנסות, טיפולים, משימות ויעדים`}
+        actions={tab === 'overview' && d.can_see_money ? (
+          <>
             <BasisToggle basis={d.basis} share={d.share} base={BASE} />
             {u.isAdmin && anyConnected && <RefreshButton />}
-          </div>
-        )}
-      </div>
-      <Tabs base={BASE} active={tab} tabs={[
-        { key: 'overview', label: 'סקירה' },
-        { key: 'tasks', label: 'משימות', count: counts['business/head-spa-israel']?.open },
-        { key: 'goals', label: 'יעדים', count: g.goals.filter(x => x.status === 'active').length },
-      ]} />
+          </>
+        ) : undefined}
+        tabs={<Tabs base={BASE} active={tab} tabs={[
+          { key: 'overview', label: 'סקירה' },
+          { key: 'tasks', label: 'משימות', count: counts['business/head-spa-israel']?.open },
+          { key: 'goals', label: 'יעדים', count: g.goals.filter(x => x.status === 'active').length },
+        ]} />} />
       {tab === 'overview' && <CompanyOverview d={d} goals={integrationsLib.goalsProgress(g.goals)} counts={counts} />}
       {tab === 'tasks' && <TaskBoard place={PLACE} path={BASE} title="משימות Head Spa Israel" />}
       {tab === 'goals' && <GoalsPanel place={PLACE} path={BASE} title="יעדי Head Spa Israel" />}

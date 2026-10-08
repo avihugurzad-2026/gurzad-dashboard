@@ -5,6 +5,7 @@ import { TriangleAlert } from 'lucide-react';
 import { ils } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { compactInputClass } from '@/components/work/fields';
 import { cn } from '@/lib/utils';
 
 const MONEY = new Set(['cash_operating', 'mrr', 'open_debts', 'overdue_debt_30']);
@@ -31,20 +32,20 @@ export function ScorecardTable({ weeks, measures, editable = false }: {
   // RTL reads right to left, so the newest week sits first
   const order = [...weeks].reverse();
   return (
-    <div className="-mx-5 overflow-x-auto px-5">
+    <div className="relative overflow-x-auto">
       {/* 13 week columns do not fit on a phone: scroll instead of squeezing the names */}
-      <table className="w-max min-w-full text-sm">
+      <table className="data-table w-max min-w-full">
         <thead>
-          <tr className="border-b border-line text-xs text-muted">
-            <th scope="col" className="min-w-[220px] py-2 text-start font-medium">מדד</th>
-            <th scope="col" className="min-w-[170px] py-2 text-start font-medium">יעד שבועי</th>
-            {order.map(w => <th key={w} scope="col" className="min-w-[84px] px-2 py-2 text-center font-medium whitespace-nowrap tabular">{w.slice(5)}</th>)}
+          <tr>
+            <th scope="col" className="min-w-[220px]">מדד</th>
+            <th scope="col" className="min-w-[170px]">יעד שבועי</th>
+            {order.map(w => <th key={w} scope="col" className="min-w-[84px] text-center tabular">{w.slice(5)}</th>)}
           </tr>
         </thead>
         <tbody>
           {measures.map(m => (
-            <tr key={m.key} className="border-b border-line align-top last:border-0">
-              <th scope="row" className="min-w-[220px] py-3 pe-4 text-start font-medium">
+            <tr key={m.key} className="align-top">
+              <th scope="row" className="min-w-[220px] whitespace-normal pe-4 font-medium text-ink">
                 <bdi>{m.name_he}</bdi>
                 <p className="mt-0.5 text-xs font-normal text-muted">
                   {m.owner && <><bdi>{m.owner}</bdi> · </>}
@@ -52,12 +53,12 @@ export function ScorecardTable({ weeks, measures, editable = false }: {
                 </p>
                 {m.suggest_issue && (
                   <p className="mt-1 flex items-center gap-1 text-xs font-normal text-warning-ink">
-                    <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+                    <TriangleAlert className="size-4 shrink-0" aria-hidden />
                     חורג שבועיים ברצף
                   </p>
                 )}
               </th>
-              <td className="min-w-[170px] py-3 pe-4">
+              <td className="min-w-[170px] pe-4">
                 {m.weekly_goal === null
                   ? <span className="text-muted">טרם נקבע</span>
                   : <bdi className={cn('font-medium tabular', MONEY.has(m.key) && 'amount')}>{fmt(m.key, m.weekly_goal)}</bdi>}
@@ -67,11 +68,11 @@ export function ScorecardTable({ weeks, measures, editable = false }: {
               {[...m.cells].reverse().map(c => {
                 const text = fmt(m.key, c.value);
                 return (
-                  <td key={c.period} className={cn('px-1.5 py-3 text-center whitespace-nowrap tabular',
+                  <td key={c.period} className={cn('text-center whitespace-nowrap tabular',
                     c.status === 'off' && 'font-medium text-critical-ink')}>
                     {text === null ? <span className="text-muted" title="אין נתונים">–</span> : (
                       <span className="inline-flex items-center gap-0.5">
-                        {c.status === 'off' && <TriangleAlert className="size-3 shrink-0" aria-label="חורג מהיעד" />}
+                        {c.status === 'off' && <TriangleAlert className="size-4 shrink-0" aria-label="חורג מהיעד" />}
                         <bdi className={cn(MONEY.has(m.key) && 'amount')}>{text}</bdi>
                       </span>
                     )}
@@ -113,7 +114,7 @@ function GoalForm({ measure }: { measure: Measure }) {
         <label className="sr-only" htmlFor={`goal-${measure.key}`}>יעד שבועי</label>
         <input id={`goal-${measure.key}`} type="number" step="any" required value={goal} onChange={e => setGoal(e.target.value)}
           placeholder={measure.weekly_goal === null ? 'קבע יעד' : 'יעד חדש'}
-          className="h-8 w-24 rounded-lg border border-line-strong bg-surface px-2 text-sm" />
+          className={cn(compactInputClass, 'w-24')} />
         <Button size="sm" type="submit" disabled={busy || goal === ''}>שמור</Button>
       </div>
       {locked && (

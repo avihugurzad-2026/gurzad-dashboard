@@ -1,11 +1,15 @@
 import Link from 'next/link';
-import { Search } from 'lucide-react';
+import { FileSearch, Search } from 'lucide-react';
 import { canSeePlace, requireUser } from '@/server/auth';
 import { documentPlaces, listDocuments } from '@/server/documents';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button, buttonClass } from '@/components/ui/button';
+import { Empty } from '@/components/ui/empty';
+import { DateField } from '@/components/ui/date-field';
+import { PageHeader } from '@/components/shell/page-header';
 import { NotReady } from '@/components/work/not-ready';
-import { inputClass } from '@/components/work/fields';
+import { inputClass, labelClass, selectClass } from '@/components/work/fields';
+import { cn } from '@/lib/utils';
 import { DocumentList, NoDocuments } from '@/components/documents/document-list';
 import { UploadDocumentDialog } from '@/components/documents/document-forms';
 import { DOC_TYPES, isDocType } from '@/lib/documents';
@@ -34,51 +38,51 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const qs = new URLSearchParams(Object.entries({ q, type, place: place ? encodePlace(place) : null, from, to }).filter(([, v]) => v) as [string, string][]);
   const moreHref = `/documents?${new URLSearchParams([...qs, ['n', String(limit + 100)]])}`;
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-page font-bold">מסמכים</h1>
-        {ready && <UploadDocumentDialog places={uploadPlaces} defaultPlace={place ? encodePlace(place) : null} path="/documents" />}
-      </div>
-      <form action="/documents" role="search" aria-label="סינון מסמכים" className="grid grid-cols-2 gap-2 sm:grid-cols-6">
-        <label className="col-span-2 flex flex-col gap-1 text-xs text-muted">חיפוש
+    <div className="flex flex-col gap-6">
+      <PageHeader title="מסמכים" subtitle="חשבוניות, קבלות, חוזים ודוחות מכל האזורים, במקום אחד"
+        actions={ready ? <UploadDocumentDialog places={uploadPlaces} defaultPlace={place ? encodePlace(place) : null} path="/documents" /> : undefined} />
+      <Card><CardContent className="pt-5 sm:pt-6">
+      <form action="/documents" role="search" aria-label="סינון מסמכים" className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-6">
+        <label className={cn(labelClass, 'col-span-2 flex flex-col gap-1.5')}>חיפוש
           <input name="q" defaultValue={q ?? ''} placeholder="שם מסמך או קובץ" className={inputClass} />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">סוג
-          <select name="type" defaultValue={type ?? ''} className={inputClass}>
+        <label className={cn(labelClass, 'flex flex-col gap-1.5')}>סוג
+          <select name="type" defaultValue={type ?? ''} className={selectClass}>
             <option value="">הכול</option>
             {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">שייך ל
-          <select name="place" defaultValue={place ? encodePlace(place) : ''} className={inputClass}>
+        <label className={cn(labelClass, 'flex flex-col gap-1.5')}>שייך ל
+          <select name="place" defaultValue={place ? encodePlace(place) : ''} className={selectClass}>
             <option value="">הכול</option>
             {seeable.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">מתאריך
-          <input type="date" name="from" defaultValue={from ?? ''} className={inputClass} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">עד תאריך
-          <input type="date" name="to" defaultValue={to ?? ''} className={inputClass} />
-        </label>
-        <div className="col-span-2 flex items-center gap-3 sm:col-span-6">
-          <Button type="submit" variant="primary" size="sm"><Search className="size-4" aria-hidden />סנן</Button>
-          {filtered && <Link href="/documents" className="text-sm text-muted hover:text-ink">נקה סינון</Link>}
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="doc-from" className={labelClass}>מתאריך</label>
+          <DateField id="doc-from" name="from" defaultValue={from ?? ''} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="doc-to" className={labelClass}>עד תאריך</label>
+          <DateField id="doc-to" name="to" defaultValue={to ?? ''} />
+        </div>
+        <div className="col-span-2 flex items-center gap-2 sm:col-span-6">
+          <Button type="submit" variant="secondary"><Search aria-hidden />סנן</Button>
+          {filtered && <Link href="/documents" className={buttonClass('ghost', 'md')}>נקה סינון</Link>}
         </div>
       </form>
+      </CardContent></Card>
       <Card>
-        <CardContent className="pt-2">
-          {!ready ? <div className="pt-3"><NotReady what="מסמכים" /></div>
+        <CardContent className="pt-5 sm:pt-6">
+          {!ready ? <NotReady what="מסמכים" />
             : items.length === 0 ? (
-              <div className="pt-3">
-                {filtered ? <p className="py-4 text-center text-sm text-muted">לא נמצאו מסמכים לסינון הזה.</p>
-                  : <NoDocuments>{uploadPlaces.length ? 'העלה חשבונית, קבלה, חוזה או דוח, ושייך אותו לאזור, לישות ולסניף.' : null}</NoDocuments>}
-              </div>
+              filtered ? <Empty compact icon={<FileSearch aria-hidden />} title="לא נמצאו מסמכים">אין מסמכים שמתאימים לסינון הזה.</Empty>
+                : <NoDocuments>{uploadPlaces.length ? 'העלה חשבונית, קבלה, חוזה או דוח, ושייך אותו לאזור, לישות ולסניף.' : null}</NoDocuments>
             ) : (
               <>
-                <p className="pt-2 text-xs text-muted">{items.length} מסמכים{more ? '+' : ''}</p>
+                <p className="text-sm text-muted tabular">{items.length} מסמכים{more ? '+' : ''}</p>
                 <DocumentList items={items} path="/documents" />
-                {more && <Link href={moreHref} className="mt-2 inline-block text-sm font-medium text-accent hover:underline">עוד</Link>}
+                {more && <Link href={moreHref} className={buttonClass('secondary', 'sm', 'mt-3')}>עוד מסמכים</Link>}
               </>
             )}
         </CardContent>

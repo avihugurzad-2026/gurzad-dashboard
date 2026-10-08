@@ -2,16 +2,19 @@ import { ENTITIES, locationsOf } from '@/lib/places';
 
 export type NavItem = { href: string; label: string; icon: string; tag?: string; count?: 'inbox' | 'alerts'; children?: NavItem[] };
 
-// Sidebar (stage 1 spec): the day screens, then the three areas, then the bottom row.
+// Sidebar: general day screens, the hubs, the areas tree, then tools and the bottom row.
 export const NAV_TOP: NavItem[] = [
   { href: '/', label: 'בית', icon: 'home' },
   { href: '/today', label: 'היום', icon: 'today' },
   { href: '/calendar', label: 'לוח שנה', icon: 'calendar' },
   { href: '/inbox', label: 'Inbox', icon: 'inbox', count: 'inbox' },
+];
+
+export const NAV_HUBS: NavItem[] = [
+  { href: '/tasks', label: 'משימות', icon: 'tasks' },
   { href: '/finance', label: 'כספים', icon: 'money' },
   { href: '/goals', label: 'יעדים', icon: 'goal' },
   { href: '/documents', label: 'מסמכים', icon: 'document' },
-  { href: '/activity', label: 'יומן פעילות', icon: 'history' },
 ];
 
 // The areas tree. Business entities get their branches from the location registry
@@ -35,12 +38,13 @@ export function navAreas(): NavItem[] {
 // Kept for older imports: the tree as built from the seed rows. Use navAreas() for the live tree.
 export const NAV_AREAS: NavItem[] = navAreas();
 
-// Screens built before stage 1, kept reachable
+// Tools (collapsible). The activity log is per user; the others are admin screens.
 export const NAV_TOOLS: NavItem[] = [
   { href: '/insights', label: 'סקירה עסקית', icon: 'chart' },
   { href: '/review', label: 'סקירה שבועית', icon: 'review' },
   { href: '/scorecard', label: 'מדדים שבועיים', icon: 'scorecard' },
-  { href: '/health', label: 'שלמות נתונים', icon: 'health' },
+  { href: '/activity', label: 'יומן פעילות', icon: 'history' },
+  { href: '/health', label: 'מצב מערכת', icon: 'health' },
 ];
 
 export const NAV_BOTTOM: NavItem[] = [

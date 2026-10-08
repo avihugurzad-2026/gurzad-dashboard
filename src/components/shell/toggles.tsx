@@ -25,7 +25,7 @@ export function ThemeToggle() {
   };
   return (
     <button className={buttonClass('ghost', 'icon')} onClick={toggle} aria-label={dark ? 'מעבר למצב בהיר' : 'מעבר למצב כהה'}>
-      {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
+      {dark ? <Sun /> : <Moon />}
     </button>
   );
 }
@@ -41,7 +41,7 @@ export function PrivacyToggle() {
   };
   return (
     <button className={buttonClass('ghost', 'icon')} onClick={toggle} aria-pressed={hidden} aria-label={hidden ? 'הצגת סכומים' : 'הסתרת סכומים'}>
-      {hidden ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+      {hidden ? <EyeOff /> : <Eye />}
     </button>
   );
 }
@@ -54,7 +54,7 @@ export function LogoutButton() {
   };
   return (
     <button className={buttonClass('ghost', 'icon')} onClick={logout} aria-label="יציאה">
-      <LogOut className="size-[18px] rtl:-scale-x-100" />
+      <LogOut className="rtl:-scale-x-100" />
     </button>
   );
 }

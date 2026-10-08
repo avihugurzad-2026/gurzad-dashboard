@@ -31,20 +31,20 @@ export function Timeline({ items, isToday }: { items: TimelineItem[]; isToday: b
   return (
     <div className="flex flex-col gap-3">
       {untimed.length > 0 && (
-        <ul className="flex flex-col gap-1.5" aria-label="כל היום">
+        <ul className="flex flex-col gap-2" aria-label="כל היום">
           {untimed.map(i => <Row key={i.key} item={i} />)}
         </ul>
       )}
       <ol className="relative flex flex-col border-s border-line ps-4" aria-label="לפי שעה">
         {timed.map((i, n) => (
-          <li key={i.key} className="relative py-1.5">
+          <li key={i.key} className="relative py-2">
             {n === marker && <NowLine time={now!} />}
-            <span className="absolute -start-[21px] top-3.5 size-2 rounded-full border-2 border-surface"
+            <span className="absolute -start-[21px] top-4 size-2 rounded-full border-2 border-surface"
               style={{ background: i.color ?? 'var(--series-1)' }} aria-hidden />
             <Row item={i} />
           </li>
         ))}
-        {marker === timed.length && now && <li className="relative py-1.5"><NowLine time={now} /></li>}
+        {marker === timed.length && now && <li className="relative py-2"><NowLine time={now} /></li>}
       </ol>
     </div>
   );
@@ -55,7 +55,7 @@ function NowLine({ time }: { time: string }) {
     <div className="relative -ms-4 mb-1 flex items-center gap-2" role="note" aria-label={`עכשיו ${time}`}>
       <span className="-ms-[5px] size-2.5 rounded-full bg-critical" aria-hidden />
       <span className="h-px flex-1 bg-critical" aria-hidden />
-      <span className="text-[11px] font-medium text-critical-ink tabular">עכשיו {time}</span>
+      <span className="text-xs font-medium text-critical-ink tabular">עכשיו {time}</span>
     </div>
   );
 }
@@ -63,17 +63,17 @@ function NowLine({ time }: { time: string }) {
 function Row({ item }: { item: TimelineItem }) {
   const Icon = item.kind === 'event' ? CalendarDays : ListChecks;
   const body = (
-    <div className="flex items-start gap-3">
-      <span className="w-20 shrink-0 pt-0.5 text-xs text-muted tabular">
+    <div className="flex items-start gap-3 px-1 py-0.5">
+      <span className="w-20 shrink-0 pt-0.5 text-sm text-muted tabular">
         {item.start ? <>{item.start}{item.end && item.end !== item.start ? `–${item.end}` : ''}</> : item.kind === 'event' ? 'כל היום' : 'היום'}
       </span>
       <div className="min-w-0 flex-1">
-        <p className={cn('flex items-center gap-1.5 text-sm text-ink', item.done && 'text-muted line-through')}>
-          <Icon className="size-3.5 shrink-0 text-muted" aria-label={item.kind === 'event' ? 'אירוע' : 'משימה'} />
+        <p className={cn('flex items-center gap-2 text-body text-ink', item.done && 'text-muted line-through')}>
+          <Icon className="size-4 shrink-0 text-muted" aria-label={item.kind === 'event' ? 'אירוע' : 'משימה'} />
           <bdi className="truncate">{item.title || '(ללא כותרת)'}</bdi>
         </p>
         {(item.context || item.place) && (
-          <p className="truncate text-xs text-muted"><bdi dir="rtl">{[item.context, item.place].filter(Boolean).join(' · ')}</bdi></p>
+          <p className="mt-0.5 truncate text-xs text-muted"><bdi dir="rtl">{[item.context, item.place].filter(Boolean).join(' · ')}</bdi></p>
         )}
       </div>
     </div>

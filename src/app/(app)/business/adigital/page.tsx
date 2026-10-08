@@ -8,6 +8,7 @@ import { ReceivablesTable } from '@/components/finance/receivables-table';
 import { parseReceivableFilter, receivables } from '@/server/finance';
 import { requirePlace } from '@/server/auth';
 import { Tabs, pickTab } from '@/components/shell/tabs';
+import { PageHeader } from '@/components/shell/page-header';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
 
@@ -34,18 +35,15 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
   const activeGoals = g.goals.filter(x => x.status === 'active').length;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-page font-bold"><bdi>a-digital</bdi></h1>
-        <p className="text-sm text-muted">עסקים · הכנסה ללא מע״מ, יתרות לגבייה כולל מע״מ</p>
-      </div>
-      <Tabs base={BASE} active={tab} tabs={[
-        { key: 'overview', label: 'סקירה' },
-        { key: 'tasks', label: 'משימות', count: open?.open },
-        { key: 'clients', label: 'לקוחות', count: d.retainers.length },
-        { key: 'collections', label: 'גבייה', count: openRec + d.debts.length },
-        { key: 'goals', label: 'יעדים', count: activeGoals },
-      ]} />
+    <div className="flex flex-col gap-6">
+      <PageHeader title="a-digital" subtitle="לקוחות, גבייה, משימות ויעדים · הכנסה ללא מע״מ, יתרות לגבייה כולל מע״מ"
+        tabs={<Tabs base={BASE} active={tab} tabs={[
+          { key: 'overview', label: 'סקירה' },
+          { key: 'tasks', label: 'משימות', count: open?.open },
+          { key: 'clients', label: 'לקוחות', count: d.retainers.length },
+          { key: 'collections', label: 'גבייה', count: openRec + d.debts.length },
+          { key: 'goals', label: 'יעדים', count: activeGoals },
+        ]} />} />
 
       {tab === 'overview' && (
         <>
@@ -60,7 +58,7 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
             <KpiCard label="משימות פתוחות" icon={<ListChecks className="size-4" />} amount={false} href={`${BASE}?tab=tasks`}
               value={num(open?.open ?? 0)} hint={open?.overdue ? `${open.overdue} באיחור` : undefined}
               reason="אין משימות פתוחות"
-              foot={<span className="inline-flex items-center gap-1"><Target className="size-3.5" aria-hidden />{activeGoals ? `${activeGoals} יעדים פעילים` : 'עוד אין יעדים'}</span>} />
+              foot={<span className="inline-flex items-center gap-1.5"><Target className="size-4" aria-hidden />{activeGoals ? `${activeGoals} יעדים פעילים` : 'עוד אין יעדים'}</span>} />
           </div>
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
             <TaskBoard place={PLACE} path={BASE} title="משימות a-digital" />

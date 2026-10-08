@@ -12,9 +12,8 @@ import { Money } from '@/components/ui/money';
 import { NotReady } from '@/components/work/not-ready';
 import { cn } from '@/lib/utils';
 import { AddCaseDialog, AddInvestmentDialog, AddPropertyDialog } from './forms';
-import { Pct, ValueNote, pctText } from './sections';
+import { Pct, ValueNote, pctText, rowTh } from './sections';
 
-const th = 'py-2 text-start font-medium whitespace-nowrap';
 const sum = (xs: (number | null)[]) => (xs.some(x => x !== null) ? xs.reduce<number>((s, x) => s + (x ?? 0), 0) : null);
 
 // ── נכסים ─────────────────────────────────────────────────────────────────────
@@ -41,36 +40,36 @@ export async function PropertiesSection({ u, path }: { u: SessionUser; path: str
         </CardHeader>
         <CardContent>
           {!d.ready ? <NotReady what="נכסים" /> : d.items.length === 0 ? (
-            <Empty icon={<Building2 className="size-6" />} title="אין נכסים עדיין">
+            <Empty icon={<Building2 />} title="אין נכסים עדיין">
               הוסף נכס עם &quot;+ נכס&quot;. לכל נכס יש דף משלו: הלוואה, החזרים, הכנסות, הוצאות ותשואה.
             </Empty>
           ) : (
-            <div className="relative -mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="text-xs text-muted">
-                  <tr className="border-b border-line">
-                    <th scope="col" className={th}>נכס</th><th scope="col" className={th}>שווי</th>
-                    <th scope="col" className={th}>יתרת הלוואה</th><th scope="col" className={th}>החזר חודשי</th>
-                    <th scope="col" className={th}>תשואה ברוטו</th><th scope="col" className={th}>תשואה נטו על ההון</th>
+            <div className="relative overflow-x-auto">
+              <table className="data-table min-w-[760px]">
+                <thead>
+                  <tr>
+                    <th scope="col">נכס</th><th scope="col" className="num">שווי</th>
+                    <th scope="col" className="num">יתרת הלוואה</th><th scope="col" className="num">החזר חודשי</th>
+                    <th scope="col" className="num">תשואה ברוטו</th><th scope="col" className="num">תשואה נטו על ההון</th>
                   </tr>
                 </thead>
                 <tbody>
                   {d.items.map(p => (
-                    <tr key={p.id} className="border-b border-line align-top last:border-0">
-                      <th scope="row" className="py-2 text-start font-normal">
+                    <tr key={p.id} className="align-top">
+                      <th scope="row" className={rowTh}>
                         <Link href={`/ventures/real-estate/${p.id}`} className="font-medium hover:underline"><bdi>{p.name}</bdi></Link>
                         <p className="text-xs text-muted">{labelIn(ASSET_KINDS, p.kind)}{p.address ? <> · <bdi>{p.address}</bdi></> : null}</p>
                       </th>
-                      <td className="py-2"><Money value={p.current_value} empty="–" /><div><ValueNote source={p.value_source} date={null} /></div></td>
-                      <td className="py-2"><Money value={p.loan_balance} empty="אין הלוואה" /></td>
-                      <td className="py-2"><Money value={p.monthly_payment} empty="–" /></td>
-                      <td className="py-2"><Pct value={p.yields.gross} empty="–" /></td>
-                      <td className="py-2"><Pct value={p.yields.net} empty="–" /></td>
+                      <td className="num"><Money value={p.current_value} empty="–" /><div className="mt-1"><ValueNote source={p.value_source} date={null} /></div></td>
+                      <td className="num"><Money value={p.loan_balance} empty="אין הלוואה" /></td>
+                      <td className="num"><Money value={p.monthly_payment} empty="–" /></td>
+                      <td className="num"><Pct value={p.yields.gross} empty="–" /></td>
+                      <td className="num"><Pct value={p.yields.net} empty="–" /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="mt-2 text-xs text-muted">תשואה מוצגת רק כשיש הכנסות רשומות לנכס. &quot;–&quot; = אין נתונים עדיין.</p>
+              <p className="mt-3 text-xs text-muted">תשואה מוצגת רק כשיש הכנסות רשומות לנכס. &quot;–&quot; = אין נתונים עדיין.</p>
             </div>
           )}
         </CardContent>
@@ -102,32 +101,32 @@ export async function InvestmentsSection({ u, path }: { u: SessionUser; path: st
         </CardHeader>
         <CardContent>
           {!d.ready ? <NotReady what="השקעות" /> : d.items.length === 0 ? (
-            <Empty icon={<LineChart className="size-6" />} title="אין השקעות עדיין">הוסף השקעה עם &quot;+ השקעה&quot;.</Empty>
+            <Empty icon={<LineChart />} title="אין השקעות עדיין">הוסף השקעה עם &quot;+ השקעה&quot;.</Empty>
           ) : (
-            <div className="relative -mx-5 overflow-x-auto px-5">
-              <table className="w-full min-w-[680px] text-sm">
-                <thead className="text-xs text-muted">
-                  <tr className="border-b border-line">
-                    <th scope="col" className={th}>השקעה</th><th scope="col" className={th}>הושקע</th>
-                    <th scope="col" className={th}>שווי</th><th scope="col" className={th}>תשואה</th><th scope="col" className={th}>שנתית</th>
+            <div className="relative overflow-x-auto">
+              <table className="data-table min-w-[680px]">
+                <thead>
+                  <tr>
+                    <th scope="col">השקעה</th><th scope="col" className="num">הושקע</th>
+                    <th scope="col" className="num">שווי</th><th scope="col" className="num">תשואה</th><th scope="col" className="num">שנתית</th>
                   </tr>
                 </thead>
                 <tbody>
                   {d.items.map(i => (
-                    <tr key={i.id} className={cn('border-b border-line align-top last:border-0', i.status === 'exited' && 'text-muted')}>
-                      <th scope="row" className="py-2 text-start font-normal">
+                    <tr key={i.id} className={cn('align-top', i.status === 'exited' && 'text-muted')}>
+                      <th scope="row" className={rowTh}>
                         <Link href={`/ventures/investments/${i.id}`} className="font-medium hover:underline"><bdi>{i.name}</bdi></Link>
                         <p className="text-xs text-muted">{i.category_label} · <bdi>{shortDate(i.invested_on)}</bdi>{i.status === 'exited' ? ' · מומשה' : ''}</p>
                       </th>
-                      <td className="py-2"><Money value={i.amount_invested} /></td>
-                      <td className="py-2"><Money value={i.current_value} empty="–" /><div><ValueNote source={i.value_source} date={null} /></div></td>
-                      <td className="py-2"><Pct value={i.pct} empty="–" /></td>
-                      <td className="py-2"><Pct value={i.annualized} empty="–" /></td>
+                      <td className="num"><Money value={i.amount_invested} /></td>
+                      <td className="num"><Money value={i.current_value} empty="–" /><div className="mt-1"><ValueNote source={i.value_source} date={null} /></div></td>
+                      <td className="num"><Pct value={i.pct} empty="–" /></td>
+                      <td className="num"><Pct value={i.annualized} empty="–" /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="mt-2 text-xs text-muted">תשואה שנתית מוצגת אחרי שנה לפחות מתאריך ההשקעה.</p>
+              <p className="mt-3 text-xs text-muted">תשואה שנתית מוצגת אחרי שנה לפחות מתאריך ההשקעה.</p>
             </div>
           )}
         </CardContent>
@@ -157,17 +156,17 @@ export async function CasesSection({ u, path }: { u: SessionUser; path: string }
       </CardHeader>
       <CardContent>
         {!d.ready ? <NotReady what="תיקים" /> : d.items.length === 0 ? (
-          <Empty icon={<Gavel className="size-6" />} title="אין תיקים עדיין">פתח תיק עם &quot;+ תיק&quot;, והוסף לו מועדים, משימות ותשלומים.</Empty>
+          <Empty icon={<Gavel />} title="אין תיקים עדיין">פתח תיק עם &quot;+ תיק&quot;, והוסף לו מועדים, משימות ותשלומים.</Empty>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {d.items.map(c => {
               const nd = c.next_deadline;
               return (
-                <li key={c.id} className={cn('flex flex-col gap-1 py-3', c.status === 'closed' && 'opacity-70')}>
+                <li key={c.id} className={cn('flex flex-col gap-1.5 py-4 first:pt-0 last:pb-0', c.status === 'closed' && 'opacity-70')}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/ventures/legal-and-tasks/${c.id}`} className="font-medium hover:underline"><bdi>{c.title}</bdi></Link>
+                    <Link href={`/ventures/legal-and-tasks/${c.id}`} className="font-semibold text-ink hover:underline"><bdi>{c.title}</bdi></Link>
                     <Badge tone={STATUS_TONE[c.status]}>{labelIn(CASE_STATUSES, c.status)}</Badge>
-                    {c.overdue_count > 0 && <Badge tone="critical"><AlertTriangle className="size-3.5" aria-hidden />{c.overdue_count} באיחור</Badge>}
+                    {c.overdue_count > 0 && <Badge tone="critical"><AlertTriangle aria-hidden />{c.overdue_count} באיחור</Badge>}
                   </div>
                   <p className="flex flex-wrap gap-x-3 text-xs text-muted">
                     {c.parties && <bdi>{c.parties}</bdi>}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { inputClass, labelClass, textareaClass } from '@/components/work/fields';
 
 type Draft = { text: string; owner: string; due_week: string };
 const blank = (): Draft => ({ text: '', owner: '', due_week: '' });
@@ -41,38 +42,39 @@ export function DecisionsForm({ period }: { period: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       {rows.map((r, i) => (
-        <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_150px_auto]">
+        <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_170px_auto]">
           <input value={r.text} onChange={e => update(i, { text: e.target.value })} placeholder="ההחלטה"
-            aria-label={`החלטה ${i + 1}`} className="h-9 rounded-lg border border-line-strong bg-surface px-3 text-sm" />
+            aria-label={`החלטה ${i + 1}`} className={inputClass} />
           <input value={r.owner} onChange={e => update(i, { owner: e.target.value })} placeholder="בעלים"
-            aria-label={`בעלים להחלטה ${i + 1}`} className="h-9 rounded-lg border border-line-strong bg-surface px-3 text-sm" />
+            aria-label={`בעלים להחלטה ${i + 1}`} className={inputClass} />
           <input type="week" value={r.due_week} onChange={e => update(i, { due_week: e.target.value })}
-            aria-label={`שבוע יעד להחלטה ${i + 1}`} className="h-9 rounded-lg border border-line-strong bg-surface px-3 text-sm" />
+            aria-label={`שבוע יעד להחלטה ${i + 1}`} className={inputClass} />
           {rows.length > 1 && (
             <Button type="button" variant="ghost" size="icon" aria-label="הסרת ההחלטה"
-              onClick={() => setRows(rows.filter((_, j) => j !== i))}><X className="size-4" /></Button>
+              onClick={() => setRows(rows.filter((_, j) => j !== i))}><X className="size-4" aria-hidden /></Button>
           )}
         </div>
       ))}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" onClick={() => setRows([...rows, blank()])}>
-          <Plus className="size-4" aria-hidden /> החלטה נוספת
-        </Button>
         <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? 'שומר…' : `שמירת הסקירה (${period})`}
+          {busy ? 'שומר…' : <>שמירת הסקירה (<bdi>{period}</bdi>)</>}
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => setRows([...rows, blank()])}>
+          <Plus className="size-4" aria-hidden /> החלטה נוספת
         </Button>
         {saved && <span className="text-sm text-good-ink">נשמר</span>}
       </div>
 
-      <label className="text-sm text-ink-2" htmlFor="notes">הערות (לא חובה)</label>
-      <textarea id="notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)}
-        className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm" />
+      <div className="flex flex-col gap-1.5">
+        <label className={labelClass} htmlFor="notes">הערות (לא חובה)</label>
+        <textarea id="notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={textareaClass} />
+      </div>
 
       {errors.length > 0 && (
-        <ul role="alert" className="rounded-lg bg-critical-soft px-3 py-2 text-sm text-critical-ink">
+        <ul role="alert" className="rounded-lg bg-critical-soft px-3 py-2.5 text-sm text-critical-ink">
           {errors.map((m, i) => <li key={i}><bdi>{m}</bdi></li>)}
         </ul>
       )}

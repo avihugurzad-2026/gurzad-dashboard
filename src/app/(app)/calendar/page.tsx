@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Square } from 'lucide-react';
 import { agenda } from '@/server/day';
 import { addDays, ilTime, todayIL } from '@/lib/period';
 import { Timeline } from '@/components/day/timeline';
@@ -10,6 +10,7 @@ import { eventEditor } from '@/server/calendar';
 import { Card, CardContent } from '@/components/ui/card';
 import { buttonClass } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shell/page-header';
 
 export const metadata = { title: 'לוח שנה — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -44,28 +45,24 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   return (
     <EventEditorProvider editor={editor}>
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-page font-bold">{title}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label="תצוגה" className="inline-flex rounded-lg border border-line-strong p-0.5 text-sm">
+    <div className="flex flex-col gap-6">
+      <PageHeader title={title} subtitle="אירועים מיומן Google ומשימות עם תאריך"
+        actions={<>
+          <div role="group" aria-label="תצוגה" className="inline-flex rounded-lg border border-line-strong bg-surface p-0.5">
             {VIEWS.map(v => (
               <Link key={v.key} href={href(v.key, date)} aria-current={v.key === view ? 'true' : undefined}
-                className={cn('rounded-md px-3 py-1', v.key === view ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2 hover:text-ink')}>{v.label}</Link>
+                className={cn('inline-flex h-8 items-center rounded-md px-3 text-sm font-medium transition-colors', v.key === view ? 'bg-accent-soft text-accent-ink' : 'text-ink-2 hover:bg-surface-2 hover:text-ink')}>{v.label}</Link>
             ))}
           </div>
-          <Link href={href(view, prev)} className={buttonClass('ghost', 'icon')} aria-label="הקודם"><ChevronRight className="size-4" /></Link>
+          <Link href={href(view, prev)} className={buttonClass('ghost', 'icon')} aria-label="הקודם"><ChevronRight aria-hidden /></Link>
           <Link href={href(view, today)} className={buttonClass('secondary', 'sm')}>היום</Link>
-          <Link href={href(view, next)} className={buttonClass('ghost', 'icon')} aria-label="הבא"><ChevronLeft className="size-4" /></Link>
+          <Link href={href(view, next)} className={buttonClass('ghost', 'icon')} aria-label="הבא"><ChevronLeft aria-hidden /></Link>
           <NewEventButton date={view === 'day' ? date : undefined} />
-        </div>
-      </div>
+        </>} />
       {!a.connected && <CalendarCta configured={a.configured} />}
 
       {view === 'day' && (
-        <Card><CardContent className="pt-5">
+        <Card><CardContent className="pt-5 sm:pt-6">
           {toItems(a.days[0]).length === 0 ? <p className="text-sm text-muted">אין אירועים ואין משימות ביום הזה.</p>
             : <Timeline items={toItems(a.days[0])} isToday={date === today} />}
         </CardContent></Card>
@@ -75,7 +72,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
           {a.days.map(d => (
             <Card key={d.date} className={cn('min-w-0', d.date === today && 'border-accent')}>
-              <CardContent className="flex flex-col gap-2 p-3">
+              <CardContent className="flex flex-col gap-2.5 p-3">
                 <Link href={href('day', d.date)} className="flex items-baseline justify-between gap-2 hover:underline">
                   <span className={cn('text-sm font-medium', d.date === today && 'text-accent-ink')}>{dowFmt.format(utc(d.date))}</span>
                   <span className="text-xs text-muted">{dmFmt.format(utc(d.date))}</span>
@@ -89,8 +86,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
       {view === 'month' && (
         <Card><CardContent className="p-2 sm:p-3">
-          <div className="grid grid-cols-7 gap-px text-center text-xs text-muted" aria-hidden>
-            {a.days.slice(0, 7).map(d => <div key={d.date} className="py-1">{dowFmt.format(utc(d.date))}</div>)}
+          <div className="grid grid-cols-7 gap-px text-center text-xs font-medium text-muted" aria-hidden>
+            {a.days.slice(0, 7).map(d => <div key={d.date} className="py-1.5">{dowFmt.format(utc(d.date))}</div>)}
           </div>
           <ol className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-line bg-[color:var(--border)]">
             {a.days.map(d => {
@@ -106,17 +103,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   <ul className="hidden flex-col gap-0.5 sm:flex">
                     {d.events.slice(0, 3).map(e => (
                       <li key={e.id}>
-                        <EventChip event={e} className="truncate rounded px-1 text-[11px] leading-4" style={{ background: 'var(--accent-soft)' }}>
+                        <EventChip event={e} className="truncate rounded px-1 text-xs leading-5" style={{ background: 'var(--accent-soft)' }}>
                           <bdi>{e.all_day ? '' : `${ilTime(e.start_at)} `}{e.title || '(ללא כותרת)'}</bdi>
                         </EventChip>
                       </li>
                     ))}
                     {d.tasks.slice(0, Math.max(0, 3 - d.events.length)).map(t => (
-                      <li key={t.id} className="truncate px-1 text-[11px] leading-4 text-ink-2"><bdi>☐ {t.title}</bdi></li>
+                      <li key={t.id} className="flex items-center gap-1 truncate px-1 text-xs leading-5 text-ink-2"><Square className="size-3 shrink-0 text-muted" aria-hidden /><bdi className="truncate">{t.title}</bdi></li>
                     ))}
-                    {n > 3 && <li className="px-1 text-[11px] text-muted">ועוד {n - 3}</li>}
+                    {n > 3 && <li className="px-1 text-xs text-muted">ועוד {n - 3}</li>}
                   </ul>
-                  {n > 0 && <span className="block text-[11px] text-muted sm:hidden tabular">{n}</span>}
+                  {n > 0 && <span className="block text-xs text-muted sm:hidden tabular">{n}</span>}
                 </li>
               );
             })}
@@ -141,7 +138,7 @@ function DayList({ day }: { day: Awaited<ReturnType<typeof agenda>>['days'][numb
         </li>
       ))}
       {day.tasks.map(t => (
-        <li key={t.id} className="px-1.5 text-ink-2"><bdi>☐ {t.due_time ? `${t.due_time} ` : ''}{t.title}</bdi></li>
+        <li key={t.id} className="flex items-center gap-1.5 px-1.5 text-ink-2"><Square className="size-3.5 shrink-0 text-muted" aria-hidden /><bdi>{t.due_time ? `${t.due_time} ` : ''}{t.title}</bdi></li>
       ))}
     </ul>
   );

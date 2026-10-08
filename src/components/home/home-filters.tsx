@@ -20,8 +20,8 @@ export function HomeFilters({ area, range, areas }: { area: HomeArea; range: Ran
     const qs = next.toString();
     router.replace(qs ? `${path}?${qs}` : path, { scroll: false });
   };
-  const seg = (on: boolean) => cn('shrink-0 rounded-md px-2.5 py-1 text-sm transition-colors',
-    on ? 'bg-accent-soft font-medium text-accent-ink' : 'text-ink-2 hover:text-ink');
+  const seg = (on: boolean) => cn('h-8 shrink-0 rounded-md px-3 text-sm font-medium transition-colors',
+    on ? 'bg-accent-soft text-accent-ink' : 'text-ink-2 hover:bg-surface-2 hover:text-ink');
 
   return (
     <div className="flex flex-wrap items-center gap-2">

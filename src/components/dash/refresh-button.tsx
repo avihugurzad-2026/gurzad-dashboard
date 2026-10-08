@@ -22,10 +22,10 @@ export function RefreshButton() {
 
   return (
     <div className="flex items-center gap-2">
-      {msg && <span role="status" className="text-xs text-muted">{msg}</span>}
-      <Button size="sm" onClick={run} disabled={busy}>
-        <RefreshCw className={busy ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden />
-        רענן מ-Buyz
+      {msg && <span role="status" className="text-sm text-muted">{msg}</span>}
+      <Button size="md" onClick={run} disabled={busy} title="משיכת הנתונים האחרונים מ-Buyz">
+        <RefreshCw className={busy ? 'size-4 animate-spin' : 'size-4'} aria-hidden />
+        סנכרן
       </Button>
     </div>
   );

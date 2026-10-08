@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { CalendarPlus, Trash2, TriangleAlert, X } from 'lucide-react';
 import { deleteEventAction, resolveConflictAction, saveEventAction, type CalendarActionResult } from '@/app/calendar-actions';
 import { Button, buttonClass } from '@/components/ui/button';
-import { inputClass } from '@/components/work/fields';
+import { DateField } from '@/components/ui/date-field';
+import { inputClass, labelClass, selectClass, textareaClass } from '@/components/work/fields';
 import { encodePlace, placeOptions, type Domain } from '@/lib/places';
 import { ilDate, ilTime, todayIL } from '@/lib/period';
 import { cn } from '@/lib/utils';
@@ -44,13 +45,13 @@ export function NewEventButton({ date, className }: { date?: string; className?:
   if (ctx.editor.mode === 'readonly') {
     return (
       <Link href="/settings#calendar" title={ctx.editor.reason ?? undefined} className={buttonClass('secondary', 'sm', className)}>
-        <CalendarPlus className="size-4" aria-hidden />חבר מחדש כדי לאפשר כתיבה
+        <CalendarPlus aria-hidden />חבר מחדש כדי לאפשר כתיבה
       </Link>
     );
   }
   return (
     <button type="button" onClick={() => ctx.openNew(date)} aria-haspopup="dialog" className={buttonClass('primary', 'sm', className)}>
-      <CalendarPlus className="size-4" aria-hidden />אירוע
+      <CalendarPlus aria-hidden />אירוע
     </button>
   );
 }
@@ -61,7 +62,7 @@ export function EventChip({ event, className, style, children }: { event: CalEve
   const ctx = useEventEditor();
   useEffect(() => { ctx?.sync(event); }, [event]); // eslint-disable-line react-hooks/exhaustive-deps
   const mark = event.conflict
-    ? <TriangleAlert className="me-1 inline size-3.5 align-[-2px] text-critical-ink" aria-label="יש התנגשות עם Google" />
+    ? <TriangleAlert className="me-1 inline size-4 align-[-3px] text-critical-ink" aria-label="יש התנגשות עם Google" />
     : null;
   if (ctx && (event.writable || event.conflict)) {
     return (
@@ -97,11 +98,11 @@ export function ConflictPanel({ event, onDone }: { event: CalEvent; onDone?: () 
     if (r.ok) onDone?.(); else setError(r.error);
   });
   const Version = ({ title, v }: { title: string; v: EventVersion | null }) => (
-    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-line p-3">
+    <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-line bg-surface p-3">
       <p className="text-xs font-medium text-muted">{title}</p>
       {v ? (
         <>
-          <p className="text-sm font-medium"><bdi>{v.title || '(ללא כותרת)'}</bdi></p>
+          <p className="text-sm font-medium text-ink"><bdi>{v.title || '(ללא כותרת)'}</bdi></p>
           <p className="text-xs text-ink-2 tabular"><bdi>{when(v)}</bdi></p>
           {v.description && <p className="line-clamp-4 whitespace-pre-line text-xs text-muted"><bdi>{v.description}</bdi></p>}
         </>
@@ -109,12 +110,12 @@ export function ConflictPanel({ event, onDone }: { event: CalEvent; onDone?: () 
     </div>
   );
   return (
-    <section aria-label="התנגשות עם Google" className="flex flex-col gap-3 rounded-lg bg-critical-soft/60 p-3">
+    <section aria-label="התנגשות עם Google" className="flex flex-col gap-3 rounded-xl bg-critical-soft/60 p-4">
       <p className="flex items-start gap-2 text-sm text-critical-ink">
         <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
         האירוע השתנה ב-Google אחרי הסנכרון האחרון, ולכן השינוי שלך לא נשמר. בחר איזו גרסה להשאיר.
       </p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Version title="השינוי שלי" v={c.mine} />
         <Version title="הגרסה ב-Google" v={c.google} />
       </div>
@@ -122,7 +123,7 @@ export function ConflictPanel({ event, onDone }: { event: CalEvent; onDone?: () 
         <Button size="sm" variant="primary" disabled={pending} onClick={() => choose('mine')}>שמור את שלי</Button>
         <Button size="sm" disabled={pending} onClick={() => choose('google')}>קבל את Google</Button>
       </div>
-      {error && <p role="alert" className="text-xs text-critical-ink">{error}</p>}
+      {error && <p role="alert" className="text-sm text-critical-ink">{error}</p>}
     </section>
   );
 }
@@ -166,85 +167,85 @@ export function EventDialog({ open, onClose, event, editor, defaultDate }: {
 
   return (
     <dialog ref={dialog} onClose={onClose} aria-label={title} dir="rtl"
-      className="m-auto w-[min(640px,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/40">
+      className="m-auto w-[min(640px,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/40">
       {open && (
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col gap-4 p-5 sm:p-6">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">{title}</h2>
-            <button type="button" onClick={onClose} className={buttonClass('ghost', 'icon')} aria-label="סגירה"><X className="size-4" /></button>
+            <h2 className="text-card font-semibold text-ink">{title}</h2>
+            <button type="button" onClick={onClose} className={buttonClass('ghost', 'icon')} aria-label="סגירה"><X aria-hidden /></button>
           </div>
 
           {event?.conflict && <ConflictPanel event={event} onDone={onClose} />}
 
           {!editing && editor.mode === 'manual' && (
-            <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
-              יומן Google לא מחובר, אז האירוע יישמר רק בדשבורד. <Link href="/settings#calendar" className="text-accent hover:underline">לחבר את היומן</Link>
+            <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-sm text-muted">
+              יומן Google לא מחובר, אז האירוע יישמר רק בדשבורד. <Link href="/settings#calendar" className="font-medium text-accent-ink hover:underline">לחבר את היומן</Link>
             </p>
           )}
           {readOnly && (
-            <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
-              אין לך הרשאת כתיבה לאירוע הזה מכאן.{event?.html_link && <> <a href={event.html_link} target="_blank" rel="noreferrer" className="text-accent hover:underline">פתח ב-Google</a></>}
+            <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-sm text-muted">
+              אין לך הרשאת כתיבה לאירוע הזה מכאן.{event?.html_link && <> <a href={event.html_link} target="_blank" rel="noreferrer" className="font-medium text-accent-ink hover:underline">פתח ב-Google</a></>}
             </p>
           )}
 
-          <form action={action} className="flex flex-col gap-3">
+          <form action={action} className="flex flex-col gap-5">
             <input type="hidden" name="path" value={path} />
             {editing && <input type="hidden" name="id" value={event.id} />}
-            <fieldset disabled={readOnly || pending} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <label className="col-span-2 flex flex-col gap-1 text-xs text-muted sm:col-span-4">כותרת
+            <fieldset disabled={readOnly || pending} className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4">
+              <label className={cn('col-span-2 flex flex-col gap-1.5', labelClass, 'sm:col-span-4')}>כותרת
                 <input name="title" required maxLength={500} defaultValue={event?.title ?? ''} autoFocus={!editing} autoComplete="off"
-                  className={cn(inputClass, 'h-10 text-base')} />
+                  className={cn(inputClass, 'text-body')} />
               </label>
-              <label className="flex flex-col gap-1 text-xs text-muted">תאריך
-                <input type="date" name="date" required defaultValue={initial.date} className={inputClass} />
+              <label className={cn('flex flex-col gap-1.5', labelClass)}>תאריך
+                <DateField name="date" required defaultValue={initial.date} />
               </label>
-              <label className="flex items-center gap-2 self-end pb-2 text-sm text-ink">
+              <label className="flex items-center gap-2 self-end pb-2.5 text-sm text-ink">
                 <input type="checkbox" name="all_day" checked={allDay} onChange={e => setAllDay(e.target.checked)} className="size-4" />כל היום
               </label>
               {allDay ? (
-                <label className="col-span-2 flex flex-col gap-1 text-xs text-muted">עד תאריך (לא חובה)
-                  <input type="date" name="end_date" defaultValue={initial.endDate} className={inputClass} />
+                <label className={cn('col-span-2 flex flex-col gap-1.5', labelClass)}>עד תאריך (לא חובה)
+                  <DateField name="end_date" defaultValue={initial.endDate} />
                 </label>
               ) : (
                 <>
-                  <label className="flex flex-col gap-1 text-xs text-muted">משעה
+                  <label className={cn('flex flex-col gap-1.5', labelClass)}>משעה
                     <input type="time" name="start_time" required defaultValue={initial.start} className={inputClass} />
                   </label>
-                  <label className="flex flex-col gap-1 text-xs text-muted">עד שעה
+                  <label className={cn('flex flex-col gap-1.5', labelClass)}>עד שעה
                     <input type="time" name="end_time" defaultValue={initial.end} className={inputClass} />
                   </label>
                 </>
               )}
-              <label className="col-span-2 flex flex-col gap-1 text-xs text-muted">שייך ל
-                <select name="place" defaultValue={initial.place} className={inputClass}>
+              <label className={cn('col-span-2 flex flex-col gap-1.5', labelClass)}>שייך ל
+                <select name="place" defaultValue={initial.place} className={selectClass}>
                   <option value="">ללא שיוך</option>
                   {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
               {!editing && editor.mode === 'google' && (
-                <label className="col-span-2 flex flex-col gap-1 text-xs text-muted">יומן
-                  <select name="mapping_id" defaultValue="" className={inputClass}>
+                <label className={cn('col-span-2 flex flex-col gap-1.5', labelClass)}>יומן
+                  <select name="mapping_id" defaultValue="" className={selectClass}>
                     <option value="">אוטומטי (לפי השיוך, אחרת ברירת המחדל)</option>
                     {calendars.map(c => <option key={c.id} value={c.id}>{c.name ?? 'יומן'}{c.is_default_write ? ' · ברירת מחדל' : ''}</option>)}
                   </select>
                 </label>
               )}
               {editing && event.calendar_name && (
-                <p className="col-span-2 self-end pb-2 text-xs text-muted">יומן: <bdi>{event.calendar_name}</bdi></p>
+                <p className="col-span-2 self-end pb-2.5 text-xs text-muted">יומן: <bdi>{event.calendar_name}</bdi></p>
               )}
-              <label htmlFor={`${id}-d`} className="col-span-2 flex flex-col gap-1 text-xs text-muted sm:col-span-4">תיאור (לא חובה)
+              <label htmlFor={`${id}-d`} className={cn('col-span-2 flex flex-col gap-1.5', labelClass, 'sm:col-span-4')}>תיאור (לא חובה)
                 <textarea id={`${id}-d`} name="description" rows={3} maxLength={4000} defaultValue={event?.description ?? ''}
-                  className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink" />
+                  className={textareaClass} />
               </label>
             </fieldset>
 
             {!readOnly && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
                 <Button type="submit" variant="primary" disabled={pending || deleting}>{pending ? 'שומר…' : 'שמור'}</Button>
                 <Button type="button" variant="ghost" onClick={onClose}>ביטול</Button>
                 <span className="flex-1" />
                 {editing && (
-                  <Button type="button" variant="ghost" disabled={pending || deleting} className="text-critical-ink"
+                  <Button type="button" variant="danger" disabled={pending || deleting}
                     onClick={() => {
                       if (!confirm(event.source === 'google' ? 'למחוק את האירוע? הוא יימחק גם מיומן Google.' : 'למחוק את האירוע?')) return;
                       startDelete(async () => {
@@ -252,14 +253,14 @@ export function EventDialog({ open, onClose, event, editor, defaultDate }: {
                         if (r.ok) onClose(); else setDeleteError(r.error);
                       });
                     }}>
-                    <Trash2 className="size-4" aria-hidden />מחק
+                    <Trash2 aria-hidden />מחק
                   </Button>
                 )}
               </div>
             )}
-            {state && !state.ok && !state.conflict && <p role="alert" className="text-xs text-critical-ink">{state.error}</p>}
-            {state && !state.ok && state.conflict && !event?.conflict && <p role="status" className="text-xs text-critical-ink">{state.error}</p>}
-            {deleteError && <p role="alert" className="text-xs text-critical-ink">{deleteError}</p>}
+            {state && !state.ok && !state.conflict && <p role="alert" className="text-sm text-critical-ink">{state.error}</p>}
+            {state && !state.ok && state.conflict && !event?.conflict && <p role="status" className="text-sm text-critical-ink">{state.error}</p>}
+            {deleteError && <p role="alert" className="text-sm text-critical-ink">{deleteError}</p>}
           </form>
         </div>
       )}

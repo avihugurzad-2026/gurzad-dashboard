@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shell/page-header';
 
 export type OspaData = Awaited<ReturnType<typeof ospa>>;
 
@@ -21,10 +22,10 @@ export function BasisToggle({ basis, share, base }: { basis: Basis; share: numbe
     { key: 'mine', label: share !== null ? `החלק שלי (${Math.round(share * 100)}%)` : 'החלק שלי' },
   ];
   return (
-    <div role="group" aria-label="בסיס חישוב" className="inline-flex rounded-lg border border-line-strong p-0.5 text-sm">
+    <div role="group" aria-label="בסיס חישוב" className="inline-flex h-9 items-center rounded-lg border border-line-strong bg-surface p-0.5 text-sm">
       {opts.map(o => (
         <Link key={o.key} href={o.key === 'all' ? base : `${base}?basis=mine`} aria-current={o.key === basis ? 'true' : undefined}
-          className={cn('rounded-md px-3 py-1.5', o.key === basis ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2 hover:text-ink')}>
+          className={cn('flex h-full items-center rounded-md px-3 transition-colors', o.key === basis ? 'bg-accent-soft font-medium text-accent-ink' : 'text-ink-2 hover:text-ink')}>
           {o.label}
         </Link>
       ))}
@@ -48,13 +49,16 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
   const srcTotal = src ? [src.bookings, src.vouchers, src.sales].reduce<number>((a, b) => a + (b ?? 0), 0) : null;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-page font-bold">{title}</h1>
-          <p className="text-sm text-muted">{subtitle ?? 'עסקים'} · הכנסה לפני מע״מ{vatPct ? ` (${vatPct})` : ''}, מתוך Buyz</p>
-          {d.locations.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="סניפים">
+    <div className="flex flex-col gap-6">
+      <PageHeader title={title}
+        subtitle={<>{subtitle ?? 'עסקים'} · הכנסה לפני מע״מ{vatPct ? ` (${vatPct})` : ''}, מתוך <bdi>Buyz</bdi></>}
+        actions={<>
+          <BasisToggle basis={d.basis} share={d.share} base={base} />
+          {d.ready && <RefreshButton />}
+        </>}
+        tabs={tabs} />
+      {d.locations.length > 0 && (
+            <ul className="-mt-2 flex flex-wrap gap-1.5" aria-label="סניפים">
               {d.locations.map(l => (
                 <li key={l.location}>
                   <Badge tone={l.has_data ? 'good' : undefined}>
@@ -63,15 +67,7 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <BasisToggle basis={d.basis} share={d.share} base={base} />
-          {d.ready && <RefreshButton />}
-        </div>
-      </div>
-
-      {tabs}
+      )}
 
       {!d.ready && (
         <Card className="border-warning/40 bg-warning-soft">
@@ -120,8 +116,8 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
         </CardHeader>
         <CardContent>
           {chart.length >= 2 ? <MonthlyBars data={chart} caption="הכנסה חודשית לפני מע״מ, 12 החודשים האחרונים" /> : (
-            <Empty icon={<Sparkles className="size-6" />} title="עוד אין היסטוריה חודשית">
-              {d.ready ? 'לחץ "רענן מ-Buyz" כדי למשוך עד 24 חודשים אחורה.' : 'ההיסטוריה תופיע אחרי שהטבלאות ייווצרו והנתונים יימשכו מ-Buyz.'}
+            <Empty icon={<Sparkles />} title="עוד אין היסטוריה חודשית">
+              {d.ready ? 'לחץ "סנכרן" כדי למשוך עד 24 חודשים אחורה.' : 'ההיסטוריה תופיע אחרי שהטבלאות ייווצרו והנתונים יימשכו מ-Buyz.'}
             </Empty>
           )}
         </CardContent>
@@ -155,22 +151,24 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
           <CardHeader><CardTitle>אמצעי תשלום החודש</CardTitle><span className="text-sm text-muted">כולל מע״מ</span></CardHeader>
           <CardContent>
             {!d.live?.methods.length ? <p className="text-sm text-muted">אין נתונים עדיין</p> : (
-              <table className="w-full text-sm">
-                <thead><tr className="border-b border-line text-xs text-muted">
-                  <th scope="col" className="py-2 text-start font-medium">אמצעי</th>
-                  <th scope="col" className="py-2 text-start font-medium">עסקאות</th>
-                  <th scope="col" className="py-2 text-end font-medium">סכום</th>
-                </tr></thead>
-                <tbody>
-                  {d.live.methods.map(m => (
-                    <tr key={m.method} className="border-b border-line last:border-0">
-                      <th scope="row" className="py-2 text-start font-normal"><bdi>{m.label}</bdi></th>
-                      <td className="py-2 tabular">{num(m.count) ?? '–'}</td>
-                      <td className="py-2 text-end"><Money value={m.total} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="relative overflow-x-auto">
+                <table className="data-table">
+                  <thead><tr>
+                    <th scope="col">אמצעי</th>
+                    <th scope="col" className="num">עסקאות</th>
+                    <th scope="col" className="num">סכום</th>
+                  </tr></thead>
+                  <tbody>
+                    {d.live.methods.map(m => (
+                      <tr key={m.method}>
+                        <td><bdi>{m.label}</bdi></td>
+                        <td className="num">{num(m.count) ?? '–'}</td>
+                        <td className="num"><Money value={m.total} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -183,7 +181,7 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
             {!d.live?.sales?.top_items.length ? <p className="text-sm text-muted">אין נתונים עדיין</p> : (
               <ul className="flex flex-col divide-y divide-[color:var(--border)] text-sm">
                 {d.live.sales.top_items.slice(0, 8).map((it, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 py-2">
+                  <li key={i} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <span className="truncate"><bdi>{it.name || '—'}</bdi>{it.count !== null && <span className="text-muted"> · {num(it.count)}</span>}</span>
                     <Money value={it.total} className="shrink-0" />
                   </li>
@@ -199,7 +197,7 @@ export function OspaView({ d, base, title, subtitle, tabs, children }: {
             {!d.live?.sales?.by_seller.length ? <p className="text-sm text-muted">אין נתונים עדיין</p> : (
               <ul className="flex flex-col divide-y divide-[color:var(--border)] text-sm">
                 {d.live.sales.by_seller.map((it, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 py-2">
+                  <li key={i} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <span className="truncate"><bdi>{it.name || '—'}</bdi>{it.count !== null && <span className="text-muted"> · {num(it.count)}</span>}</span>
                     <Money value={it.total} className="shrink-0" />
                   </li>

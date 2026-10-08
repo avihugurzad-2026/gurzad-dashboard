@@ -6,7 +6,10 @@ import { ils, shortDate } from '@/lib/format';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { ENTITIES } from '@/lib/places';
 import { TaskBoard } from '@/components/work/task-board';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, Section } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shell/page-header';
+import { VenturesNav } from './area-nav';
 
 export const metadata = { title: 'יזמות — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -16,11 +19,8 @@ export default async function VenturesOverview() {
   const [counts, s] = await Promise.all([openCounts(), venturesSummary(u)]);
   const items = ENTITIES.filter(e => e.domain === 'ventures');
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-page font-bold">יזמות</h1>
-        <p className="text-sm text-muted">נכסים, השקעות, משפטי ופיננסים</p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="יזמות" subtitle="נכסים, השקעות, משפטי ופיננסים" tabs={<VenturesNav />} />
       {s.ready && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="שווי הנכסים" href="/ventures/real-estate" value={ils(s.properties.value)}
@@ -36,20 +36,21 @@ export default async function VenturesOverview() {
         </div>
       )}
       {s.ready && s.legal.open > 0 && (
-        <p className="text-sm text-ink-2">
-          <Link href="/ventures/legal-and-tasks" className="hover:underline">{s.legal.open} תיקים פתוחים</Link>
-          {s.legal.overdue_deadlines > 0 && <span className="font-medium text-critical-ink"> · {s.legal.overdue_deadlines} מועדים שעברו</span>}
-          {s.legal.next_deadline && <> · המועד הבא <bdi>{shortDate(s.legal.next_deadline.due_on)}</bdi>: <bdi>{s.legal.next_deadline.title}</bdi> (<bdi>{s.legal.next_deadline.case_title}</bdi>)</>}
-        </p>
+        <Card className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4 text-sm text-ink-2 sm:px-6">
+          <Link href="/ventures/legal-and-tasks" className="font-medium text-ink hover:underline">{s.legal.open} תיקים פתוחים</Link>
+          {s.legal.overdue_deadlines > 0 && <Badge tone="critical">{s.legal.overdue_deadlines} מועדים שעברו</Badge>}
+          {s.legal.next_deadline && <span>המועד הבא <bdi>{shortDate(s.legal.next_deadline.due_on)}</bdi>: <bdi>{s.legal.next_deadline.title}</bdi> (<bdi>{s.legal.next_deadline.case_title}</bdi>)</span>}
+        </Card>
       )}
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Section title="תחומים">
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {items.map(e => {
           const c = counts[`ventures/${e.id}`];
           return (
             <li key={e.id}>
-              <Card className="h-full hover:border-line-strong">
-                <Link href={e.href} className="block p-4">
-                  <p className="font-medium">{e.label}</p>
+              <Card className="h-full transition-colors hover:border-line-strong">
+                <Link href={e.href} className="block h-full rounded-xl px-5 py-4">
+                  <p className="text-card font-semibold text-ink">{e.label}</p>
                   <p className="mt-1 text-sm text-muted">{c?.open ? `${c.open} משימות פתוחות${c.overdue ? ` · ${c.overdue} באיחור` : ''}` : 'אין משימות פתוחות'}</p>
                 </Link>
               </Card>
@@ -57,6 +58,7 @@ export default async function VenturesOverview() {
           );
         })}
       </ul>
+      </Section>
       <TaskBoard place={{ domain: 'ventures', branch: null, location: null }} path="/ventures" title="כל משימות היזמות" showContext />
     </div>
   );

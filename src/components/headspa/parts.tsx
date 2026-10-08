@@ -1,8 +1,10 @@
-import { CalendarDays, CircleDollarSign, Ban, Receipt, Sparkles, Target, Users } from 'lucide-react';
+import { CalendarDays, CircleDollarSign, Ban, Lock, PlugZap, Receipt, Sparkles, Target, Users } from 'lucide-react';
 import type { BranchIntegration, Named } from '@/server/headspa';
 import { ils, num, stamp } from '@/lib/format';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
 
 export type KpiNumbers = {
@@ -14,10 +16,35 @@ export type GoalsSummary = { total: number; done: number; active: number; avg_pc
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 // The seven headline numbers of Head Spa (company or one branch). Each null → "אין נתונים עדיין".
-export function HeadSpaKpis({ n, goals, mine, asOf, money = true }: {
-  n: KpiNumbers; goals: GoalsSummary; mine: boolean; asOf: string | null; money?: boolean;
+// When all six Buyz numbers are null for the same reason, one empty state replaces the six empty
+// cards (`explained` = the page already shows that empty state); the goals card stays if it has data.
+export function HeadSpaKpis({ n, goals, mine, asOf, money = true, explained = false }: {
+  n: KpiNumbers; goals: GoalsSummary; mine: boolean; asOf: string | null; money?: boolean; explained?: boolean;
 }) {
   const noData = money ? 'עוד לא נמשכו נתונים מ-Buyz' : 'אין הרשאה לנתוני הכנסות';
+  const goalsCard = (
+    <KpiCard label="יעדים" icon={<Target className="size-4" />} amount={false}
+      value={goals ? `${num(goals.done)}/${num(goals.total)}` : null}
+      hint={goals ? `הושגו${goals.avg_pct !== null ? ` · התקדמות ממוצעת ${pct(goals.avg_pct)}` : ''}` : undefined}
+      reason="לא הוגדרו יעדים" />
+  );
+  const allNull = [n.today_ex, n.month_ex, n.bookings_count, n.avg_ticket_incl, n.customers, n.cancellations].every(v => v === null);
+  if (allNull) {
+    return (
+      <div className="flex flex-col gap-4">
+        {!explained && (
+          <Card>
+            <Empty icon={money ? <PlugZap /> : <Lock />} title={money ? 'עוד אין נתונים מ-Buyz' : 'אין הרשאה לנתוני הכנסות'}>
+              {money
+                ? 'הכנסות, טיפולים, עסקה ממוצעת, לקוחות וביטולים יופיעו כאן אחרי המשיכה הראשונה מ-Buyz.'
+                : 'נתוני ההכנסות פתוחים לבעלים, למנהלים ולצופים.'}
+            </Empty>
+          </Card>
+        )}
+        {goals && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{goalsCard}</div>}
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <KpiCard label={mine ? 'החלק שלי בהכנסה היום' : 'הכנסה היום'} icon={<CalendarDays className="size-4" />}
@@ -34,10 +61,7 @@ export function HeadSpaKpis({ n, goals, mine, asOf, money = true }: {
         value={num(n.customers)} reason={money ? 'Buyz לא מחזיר מספר לקוחות מצטבר' : noData} />
       <KpiCard label="ביטולים החודש" icon={<Ban className="size-4" />} amount={false}
         value={num(n.cancellations)} reason={money ? 'Buyz לא מחזיר מספר ביטולים' : noData} />
-      <KpiCard label="יעדים" icon={<Target className="size-4" />} amount={false}
-        value={goals ? `${num(goals.done)}/${num(goals.total)}` : null}
-        hint={goals ? `הושגו${goals.avg_pct !== null ? ` · התקדמות ממוצעת ${pct(goals.avg_pct)}` : ''}` : undefined}
-        reason="לא הוגדרו יעדים" />
+      {goalsCard}
     </div>
   );
 }
@@ -55,19 +79,19 @@ export function NamedTable({ rows, caption, nameLabel, empty = 'אין נתונ�
   if (!rows.length) return <p className="text-sm text-muted">{empty}</p>;
   return (
     <div className="relative overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="data-table">
         <caption className="sr-only">{caption}</caption>
-        <thead><tr className="border-b border-line text-xs text-muted">
-          <th scope="col" className="py-2 text-start font-medium">{nameLabel}</th>
-          <th scope="col" className="py-2 text-start font-medium">כמות</th>
-          <th scope="col" className="py-2 text-end font-medium">סכום</th>
+        <thead><tr>
+          <th scope="col">{nameLabel}</th>
+          <th scope="col" className="num">כמות</th>
+          <th scope="col" className="num">סכום</th>
         </tr></thead>
         <tbody>
           {rows.map(r => (
-            <tr key={r.name} className="border-b border-line last:border-0">
-              <th scope="row" className="max-w-[16rem] truncate py-2 text-start font-normal"><bdi>{r.name}</bdi></th>
-              <td className="py-2 tabular">{num(r.count) ?? '–'}</td>
-              <td className="py-2 text-end"><Money value={r.total} /></td>
+            <tr key={r.name}>
+              <td className="max-w-[16rem] truncate"><bdi>{r.name}</bdi></td>
+              <td className="num">{num(r.count) ?? '–'}</td>
+              <td className="num"><Money value={r.total} /></td>
             </tr>
           ))}
         </tbody>

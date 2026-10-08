@@ -28,9 +28,9 @@ export function DailyBars({ data, caption }: { data: DayPoint[]; caption: string
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }} barCategoryGap="20%">
           <CartesianGrid stroke="var(--grid)" strokeWidth={1} vertical={false} />
-          <XAxis dataKey="day" tickFormatter={dayLabel} tick={{ fill: 'var(--muted)', fontSize: 12 }}
+          <XAxis dataKey="day" tickFormatter={dayLabel} tick={{ fill: 'var(--muted)', fontSize: 13 }}
             stroke="var(--axis)" tickMargin={6} interval="preserveStartEnd" minTickGap={24} reversed />
-          <YAxis orientation="right" tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--axis)" width={56}
+          <YAxis orientation="right" tick={{ fill: 'var(--muted)', fontSize: 13 }} stroke="var(--axis)" width={56}
             tickFormatter={v => new Intl.NumberFormat('he-IL', { notation: 'compact' }).format(v)} />
           <Tooltip content={<Readout />} cursor={{ fill: 'var(--grid)' }} />
           <Bar dataKey="value" fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={false} />

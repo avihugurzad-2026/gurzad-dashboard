@@ -48,9 +48,9 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
             <CartesianGrid stroke="var(--grid)" strokeWidth={1} vertical={false} />
-            <XAxis dataKey="period" tickFormatter={weekLabel} tick={{ fill: 'var(--muted)', fontSize: 12 }}
+            <XAxis dataKey="period" tickFormatter={weekLabel} tick={{ fill: 'var(--muted)', fontSize: 13 }}
               stroke="var(--axis)" tickMargin={6} interval="preserveStartEnd" reversed />
-            <YAxis orientation="right" tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--axis)" width={64}
+            <YAxis orientation="right" tick={{ fill: 'var(--muted)', fontSize: 13 }} stroke="var(--axis)" width={64}
               tickFormatter={v => new Intl.NumberFormat('he-IL', { notation: 'compact' }).format(v)} />
             <Tooltip content={<Readout />} cursor={{ stroke: 'var(--axis)', strokeWidth: 1 }} />
             {SERIES.map(s => (

@@ -14,6 +14,9 @@ import { NotReady } from '@/components/work/not-ready';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
+import { buttonClass } from '@/components/ui/button';
+import { PageHeader } from '@/components/shell/page-header';
+import { PersonalNav } from '../area-nav';
 
 export const metadata = { title: 'כספים משותפים — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -41,20 +44,17 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
   const maxCat = d.by_category[0]?.total ?? 0;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-page font-bold">כספים משותפים</h1>
-          <p className="text-sm text-muted">אישי · הכנסות והוצאות של הבית, כפי ששולמו</p>
-        </div>
-        <nav aria-label="בחירת חודש" className="flex items-center gap-1 text-sm">
-          <Link href={`${BASE}?m=${shift(month, -1)}`} className="rounded-md p-1.5 text-ink-2 hover:bg-surface-2" aria-label="חודש קודם"><ChevronRight className="size-4" aria-hidden /></Link>
-          <span className="min-w-28 text-center font-medium">{monthName(month)}</span>
-          {month < current
-            ? <Link href={shift(month, 1) === current ? BASE : `${BASE}?m=${shift(month, 1)}`} className="rounded-md p-1.5 text-ink-2 hover:bg-surface-2" aria-label="חודש הבא"><ChevronLeft className="size-4" aria-hidden /></Link>
-            : <span className="p-1.5 text-line-strong" aria-hidden><ChevronLeft className="size-4" /></span>}
-        </nav>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="כספים משותפים" subtitle="הכנסות והוצאות של הבית, כפי ששולמו" tabs={<PersonalNav />}
+        actions={
+          <nav aria-label="בחירת חודש" className="flex items-center gap-1">
+            <Link href={`${BASE}?m=${shift(month, -1)}`} className={buttonClass('ghost', 'icon')} aria-label="חודש קודם"><ChevronRight className="size-4" aria-hidden /></Link>
+            <span className="min-w-32 text-center text-body font-medium">{monthName(month)}</span>
+            {month < current
+              ? <Link href={shift(month, 1) === current ? BASE : `${BASE}?m=${shift(month, 1)}`} className={buttonClass('ghost', 'icon')} aria-label="חודש הבא"><ChevronLeft className="size-4" aria-hidden /></Link>
+              : <span className="grid size-9 place-items-center text-line-strong" aria-hidden><ChevronLeft className="size-4" /></span>}
+          </nav>
+        } />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="הכנסות החודש" icon={<TrendingUp className="size-4" />} value={ils(d.income)} reason="עוד לא הוזנו הכנסות לחודש הזה" />
@@ -76,31 +76,31 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
           <CardHeader><CardTitle>רשומות {monthName(month)}</CardTitle><span className="text-sm text-muted">{d.entries.length} רשומות</span></CardHeader>
           <CardContent>
             {d.entries.length === 0 ? (
-              <Empty icon={<Wallet className="size-6" />} title="אין רשומות בחודש הזה">כל הוצאה או הכנסה שתזין למעלה תופיע כאן.</Empty>
+              <Empty icon={<Wallet />} title="אין רשומות בחודש הזה">כל הוצאה או הכנסה שתזין למעלה תופיע כאן.</Empty>
             ) : (
-              <div className="relative -mx-5 overflow-x-auto px-5">
-                <table className="w-full min-w-md text-sm">
-                  <thead><tr className="border-b border-line text-xs text-muted">
-                    <th scope="col" className="py-2 text-start font-medium">תאריך</th>
-                    <th scope="col" className="py-2 text-start font-medium">קטגוריה</th>
-                    <th scope="col" className="py-2 text-start font-medium">של מי</th>
-                    <th scope="col" className="py-2 text-end font-medium">סכום</th>
+              <div className="relative overflow-x-auto">
+                <table className="data-table min-w-md">
+                  <thead><tr>
+                    <th scope="col">תאריך</th>
+                    <th scope="col">קטגוריה</th>
+                    <th scope="col">של מי</th>
+                    <th scope="col" className="num">סכום</th>
                     <th scope="col"><span className="sr-only">פעולות</span></th>
                   </tr></thead>
                   <tbody>{d.entries.map(e => (
-                    <tr key={e.id} className="border-b border-line last:border-0">
-                      <td className="py-2 text-xs text-muted whitespace-nowrap">{shortDate(e.occurred_on)}</td>
-                      <th scope="row" className="py-2 text-start font-normal">
+                    <tr key={e.id}>
+                      <td className="whitespace-nowrap text-muted"><bdi>{shortDate(e.occurred_on)}</bdi></td>
+                      <th scope="row" className="whitespace-normal font-normal text-ink [tr:last-child>&]:border-b-0 [tr:hover>&]:bg-surface-2">
                         <bdi>{e.category_label}</bdi>
                         {e.description && <span className="block text-xs text-muted"><bdi>{e.description}</bdi></span>}
                       </th>
-                      <td className="py-2 text-xs text-muted">
+                      <td className="text-sm text-muted">
                         {e.splits.length ? e.splits.map(s => `${name(s.user_id)} ${s.share_pct}%`).join(' · ') : name(e.owner_user_id)}
                       </td>
-                      <td className={cn('py-2 text-end font-medium whitespace-nowrap', e.direction === 'income' ? 'text-good-ink' : 'text-ink')}>
+                      <td className={cn('num whitespace-nowrap font-medium', e.direction === 'income' ? 'text-good-ink' : 'text-ink')}>
                         <bdi>{e.direction === 'income' ? '+' : '−'}</bdi><Money value={e.amount_gross} />
                       </td>
-                      <td className="w-8 py-2 text-end">{e.can_delete && <RemoveButton kind="transaction" id={e.id} path={path} label="מחק רשומה" />}</td>
+                      <td className="w-10 text-end">{e.can_delete && <RemoveButton kind="transaction" id={e.id} path={path} label="מחק רשומה" />}</td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -114,7 +114,7 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
             <CardHeader><CardTitle>לאן הלך הכסף</CardTitle><span className="text-sm text-muted">הוצאות לפי קטגוריה</span></CardHeader>
             <CardContent>
               {d.by_category.length === 0 ? <p className="text-sm text-muted">אין נתונים עדיין</p> : (
-                <ul className="flex flex-col gap-3">
+                <ul className="flex flex-col gap-4">
                   {d.by_category.map(c => (
                     <li key={c.category} className="flex flex-col gap-1">
                       <div className="flex items-center justify-between gap-3 text-sm">
@@ -138,29 +138,31 @@ export default async function PersonalFinancePage({ searchParams }: { searchPara
             <CardHeader><CardTitle>6 חודשים אחרונים</CardTitle></CardHeader>
             <CardContent>
               {d.months.length === 0 ? <p className="text-sm text-muted">אין נתונים עדיין</p> : (
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b border-line text-xs text-muted">
-                    <th scope="col" className="py-2 text-start font-medium">חודש</th>
-                    <th scope="col" className="py-2 text-end font-medium">הכנסות</th>
-                    <th scope="col" className="py-2 text-end font-medium">הוצאות</th>
-                    <th scope="col" className="py-2 text-end font-medium">מאזן</th>
+                <div className="relative overflow-x-auto">
+                <table className="data-table">
+                  <thead><tr>
+                    <th scope="col">חודש</th>
+                    <th scope="col" className="num">הכנסות</th>
+                    <th scope="col" className="num">הוצאות</th>
+                    <th scope="col" className="num">מאזן</th>
                   </tr></thead>
                   <tbody>
                     {d.months.map(m => {
                       const bal = (m.income ?? 0) - (m.expense ?? 0);
                       return (
-                        <tr key={m.month} className="border-b border-line last:border-0">
-                          <th scope="row" className="py-2 text-start font-normal">
+                        <tr key={m.month}>
+                          <th scope="row" className="whitespace-normal font-normal text-ink [tr:last-child>&]:border-b-0 [tr:hover>&]:bg-surface-2">
                             <Link href={m.month === current ? BASE : `${BASE}?m=${m.month}`} className="hover:underline">{monthName(m.month)}</Link>
                           </th>
-                          <td className="py-2 text-end"><Money value={m.income} empty="–" /></td>
-                          <td className="py-2 text-end"><Money value={m.expense} empty="–" /></td>
-                          <td className={bal < 0 ? 'py-2 text-end text-critical-ink' : 'py-2 text-end'}><Money value={bal} /></td>
+                          <td className="num text-good-ink"><Money value={m.income} empty="–" /></td>
+                          <td className="num"><Money value={m.expense} empty="–" /></td>
+                          <td className={cn('num font-medium', bal < 0 && 'text-critical-ink')}><Money value={bal} /></td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </CardContent>
           </Card>

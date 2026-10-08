@@ -4,6 +4,7 @@ import { requireUser } from '@/server/auth';
 import { activityFeed } from '@/server/activity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { encodePlace, type Place } from '@/lib/places';
+import { buttonClass } from '@/components/ui/button';
 import { ActivityList } from './activity-list';
 
 // Recent activity of one object or one place, for entity/branch/object profile pages.
@@ -23,15 +24,15 @@ export async function ActivityPanel({ objectType, objectId, place, title = 'פע
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><History className="size-4 text-muted" aria-hidden />{title}</CardTitle>
-        {items.length > 0 && <Link href={all} className="text-sm text-accent hover:underline">כל הפעילות</Link>}
+        <CardTitle className="flex items-center gap-2"><History className="size-[18px] text-muted" aria-hidden />{title}</CardTitle>
+        {items.length > 0 && <Link href={all} className="shrink-0 text-sm font-medium text-accent-ink hover:underline">כל הפעילות</Link>}
       </CardHeader>
       <CardContent>
         {!ready || items.length === 0
           ? <p className="text-sm text-muted">אין נתונים עדיין</p>
           : <>
               <ActivityList items={items} showContext={!place?.location && !objectId} />
-              {next && <Link href={all} className="mt-1 inline-block text-sm text-accent hover:underline">עוד</Link>}
+              {next && <Link href={all} className={buttonClass('secondary', 'sm', 'mt-3')}>עוד</Link>}
             </>}
       </CardContent>
     </Card>

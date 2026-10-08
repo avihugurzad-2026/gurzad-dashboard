@@ -12,6 +12,8 @@ import { TrendChart } from '@/components/charts/trend-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
+import { buttonClass } from '@/components/ui/button';
+import { PageHeader } from '@/components/shell/page-header';
 
 export const metadata = { title: 'סקירה עסקית — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -46,22 +48,15 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const horizon = d.horizon.slice(0, 8);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-page font-bold">סקירה עסקית</h1>
-          <p className="text-sm text-muted">{longDate(d.today)}</p>
-        </div>
-        <Filters workspaces={ws} workspace={branch} range={range} />
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="סקירה עסקית" subtitle={longDate(d.today)}
+        actions={<Filters workspaces={ws} workspace={branch} range={range} />} />
 
       {d.missing_params.length > 0 && (
-        <Card className="border-warning/40 bg-warning-soft">
-          <CardContent className="pt-4 text-sm text-warning-ink">
-            חסרים פרמטרים ({d.missing_params.join(', ')}), ולכן חלק מהמספרים לא מוצגים.{' '}
-            <Link href="/health" className="font-medium underline">שלמות נתונים</Link>
-          </CardContent>
-        </Card>
+        <p role="status" className="rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning-ink">
+          חסרים פרמטרים (<bdi>{d.missing_params.join(', ')}</bdi>), ולכן חלק מהמספרים לא מוצגים.{' '}
+          <Link href="/health" className="font-medium underline">שלמות נתונים</Link>
+        </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -104,13 +99,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           </CardHeader>
           <CardContent>
             {horizon.length === 0 ? (
-              <Empty icon={<CalendarClock className="size-6" />} title="אין מועדים בטווח הזה">
+              <Empty icon={<CalendarClock />} title="אין מועדים בטווח הזה">
                 משימות עם תאריך, מועדי הודעה על חידוש ותשלומים קבועים יופיעו כאן.
               </Empty>
             ) : (
               <ul className="flex flex-col divide-y divide-[color:var(--border)]">
                 {horizon.map((item, i) => (
-                  <li key={`${item.kind}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <li key={`${item.kind}-${i}`} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-ink"><bdi>{item.title}</bdi></p>
                       <p className="text-xs text-muted">{KIND_LABEL[item.kind]} · {shortDate(item.date)}</p>
@@ -144,12 +139,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           <CardContent className="flex flex-col gap-4">
             {AREAS.map(a => (
               <section key={a.title} aria-label={a.title}>
-                <h3 className="mb-1 text-xs font-medium text-muted">{a.title}</h3>
+                <h3 className="mb-1 text-xs font-semibold text-muted">{a.title}</h3>
                 <ul className="flex flex-col divide-y divide-[color:var(--border)]">
                   {a.items.map(it => {
                     const c = counts[it.key];
                     return (
-                      <li key={it.href} className="flex items-center justify-between gap-3 py-2">
+                      <li key={it.href} className="flex items-center justify-between gap-3 py-3">
                         <Link href={it.href} className="text-sm font-medium text-ink hover:text-accent"><bdi>{it.label}</bdi></Link>
                         {c?.open
                           ? <span className="text-xs text-muted">{c.open} פתוחות{c.overdue ? <span className="text-critical-ink"> · {c.overdue} באיחור</span> : null}</span>
@@ -165,7 +160,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
         <Card>
           <CardHeader><CardTitle>מצב המערכת</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-2 text-sm">
+          <CardContent className="flex flex-col gap-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="text-ink-2">סנכרון אחרון</span>
               <span className="text-muted">{d.attention.last_sync ? stamp(d.attention.last_sync) : 'עוד לא רץ'}</span>
@@ -178,7 +173,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
               <span className="text-ink-2">מע״מ</span>
               <span className="text-muted">{d.vat_rate !== null ? `${Math.round(d.vat_rate * 100)}%` : 'חסר פרמטר'}</span>
             </div>
-            <Link href="/health" className="mt-1 text-sm font-medium text-accent hover:underline">שלמות נתונים</Link>
+            <div className="mt-1"><Link href="/health" className={buttonClass('secondary', 'sm')}>שלמות נתונים</Link></div>
           </CardContent>
         </Card>
       </div>

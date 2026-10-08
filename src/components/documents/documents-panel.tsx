@@ -3,6 +3,7 @@ import { requireUser } from '@/server/auth';
 import { documentPlaces, listDocuments } from '@/server/documents';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NotReady } from '@/components/work/not-ready';
+import { buttonClass } from '@/components/ui/button';
 import { encodePlace, hrefFor, type Place } from '@/lib/places';
 import { DocumentList, NoDocuments } from './document-list';
 import { UploadDocumentDialog } from './document-forms';
@@ -28,8 +29,8 @@ export async function DocumentsPanel({ place, subject, path, title = 'מסמכי
     <Card>
       <CardHeader className="flex-wrap">
         <CardTitle>{title}</CardTitle>
-        <div className="flex items-center gap-3">
-          {!subject && <Link href={all} className="text-sm text-accent hover:underline">כל המסמכים</Link>}
+        <div className="flex items-center gap-2">
+          {!subject && <Link href={all} className={buttonClass('ghost', 'md', 'text-accent-ink')}>כל המסמכים</Link>}
           {ready && <UploadDocumentDialog places={places} defaultPlace={defaultPlace} subject={subject} path={here} />}
         </div>
       </CardHeader>
@@ -39,7 +40,7 @@ export async function DocumentsPanel({ place, subject, path, title = 'מסמכי
           : (
             <>
               <DocumentList items={items} path={here} showPlace={!place?.location} />
-              {more && <Link href={all} className="mt-2 inline-block text-sm text-accent hover:underline">עוד מסמכים</Link>}
+              {more && <Link href={all} className={buttonClass('secondary', 'sm', 'mt-3')}>עוד מסמכים</Link>}
             </>
           )}
       </CardContent>

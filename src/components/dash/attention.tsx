@@ -24,10 +24,10 @@ export function Attention({ items, more, snoozed, evaluated }: {
       <CardContent>
         {items.length === 0 ? (
           evaluated
-            ? <Empty icon={<CircleCheck className="size-6 text-good" />} title="הכול תקין">
+            ? <Empty icon={<CircleCheck className="text-good" />} title="הכול תקין">
                 אין חריגות פתוחות. הבדיקה רצה בסנכרון האחרון.
               </Empty>
-            : <Empty icon={<Clock className="size-6" />} title="הבדיקה עוד לא רצה"
+            : <Empty icon={<Clock />} title="הבדיקה עוד לא רצה"
                 action={{ href: '/health', label: 'מה חסר' }}>
                 צריך להריץ סנכרון אחד מלא כדי שהחריגות ייבדקו.
               </Empty>
@@ -41,7 +41,7 @@ export function Attention({ items, more, snoozed, evaluated }: {
                   <Icon className={red ? 'mt-0.5 size-[18px] shrink-0 text-critical' : 'mt-0.5 size-[18px] shrink-0 text-warning'} aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-ink"><bdi>{item.title}</bdi></p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
                       <Badge tone={red ? 'critical' : 'warning'}>{red ? 'דחוף' : 'לטיפול'}</Badge>
                       {item.amount != null && <Money value={item.amount} className="text-ink-2" />}
                       {item.open_days != null && <span>פתוח {item.open_days} ימים</span>}

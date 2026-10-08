@@ -16,11 +16,11 @@ export async function GoalsPanel({ place, path, title = 'יעדים', defaultUni
         <CardTitle>{title}</CardTitle>
         <span className="text-sm text-muted">{goals.filter(g => g.status === 'active').length} פעילים</span>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-col gap-4">
         {ready ? <GoalForm domain={place.domain} branch={place.branch} location={place.location} path={path}
           defaultUnit={defaultUnit} owners={withOwner} /> : <NotReady what="יעדים" />}
         {goals.length === 0 ? (
-          <Empty icon={<Target className="size-6" />} title="עוד אין יעדים">יעד עם מספר ותאריך יופיע כאן עם פס התקדמות.</Empty>
+          <Empty icon={<Target aria-hidden />} title="עוד אין יעדים">יעד עם מספר ותאריך יופיע כאן עם פס התקדמות.</Empty>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {goals.map(g => <GoalRow key={g.id} goal={g} path={path} />)}

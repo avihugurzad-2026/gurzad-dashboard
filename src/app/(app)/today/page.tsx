@@ -13,6 +13,8 @@ import { TaskRow } from '@/components/work/task-row';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { buttonClass } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shell/page-header';
 
 export const metadata = { title: 'היום — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -33,27 +35,25 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <EventEditorProvider editor={editor}>
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-page font-bold">{isToday ? 'היום' : long.format(new Date(`${date}T00:00:00Z`))}</h1>
-          {isToday && <p className="text-sm text-muted">{long.format(new Date(`${date}T00:00:00Z`))}</p>}
-        </div>
-        <nav aria-label="מעבר בין ימים" className="flex items-center gap-1">
-          <Link href={link(addDays(date, -1))} className={buttonClass('ghost', 'icon')} aria-label="יום קודם"><ChevronRight className="size-4" /></Link>
-          {!isToday && <Link href="/today" className={buttonClass('secondary', 'sm')}>היום</Link>}
-          <Link href={link(addDays(date, 1))} className={buttonClass('ghost', 'icon')} aria-label="יום הבא"><ChevronLeft className="size-4" /></Link>
-          <NewEventButton date={date} className="ms-1" />
-        </nav>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader title={isToday ? 'היום' : long.format(new Date(`${date}T00:00:00Z`))}
+        subtitle={isToday ? long.format(new Date(`${date}T00:00:00Z`)) : 'אירועים ומשימות של היום הזה לפי שעה'}
+        actions={
+          <nav aria-label="מעבר בין ימים" className="flex items-center gap-1">
+            <Link href={link(addDays(date, -1))} className={buttonClass('ghost', 'icon')} aria-label="יום קודם"><ChevronRight aria-hidden /></Link>
+            {!isToday && <Link href="/today" className={buttonClass('secondary', 'sm')}>היום</Link>}
+            <Link href={link(addDays(date, 1))} className={buttonClass('ghost', 'icon')} aria-label="יום הבא"><ChevronLeft aria-hidden /></Link>
+            <NewEventButton date={date} className="ms-1" />
+          </nav>
+        } />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">
         <Card>
-          <CardHeader><CardTitle>לפי שעה</CardTitle><span className="text-sm text-muted">{day.events.length} אירועים · {day.tasks.length} משימות</span></CardHeader>
+          <CardHeader><CardTitle>לפי שעה</CardTitle><span className="shrink-0 text-sm text-muted tabular">{day.events.length} אירועים · {day.tasks.length} משימות</span></CardHeader>
           <CardContent>
-            {!a.connected && <CalendarCta configured={a.configured} className="mb-3" />}
+            {!a.connected && <CalendarCta configured={a.configured} className="mb-4" />}
             {items.length === 0
-              ? <Empty icon={<CalendarDays className="size-6" />} title="היום הזה פנוי">אין אירועים ואין משימות עם התאריך הזה.</Empty>
+              ? <Empty icon={<CalendarDays aria-hidden />} title="היום הזה פנוי">אין אירועים ואין משימות עם התאריך הזה.</Empty>
               : <Timeline items={items} isToday={isToday} />}
           </CardContent>
         </Card>
@@ -61,7 +61,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader><CardTitle>משימות ליום הזה</CardTitle></CardHeader>
-            <CardContent className="flex flex-col gap-3">
+            <CardContent className="flex flex-col gap-4">
               <QuickTask path="/today" />
               {day.tasks.length === 0 ? <p className="text-sm text-muted">אין משימות עם התאריך הזה.</p> : (
                 <ul className="flex flex-col divide-y divide-[color:var(--border)]">
@@ -72,7 +72,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           </Card>
           {g && (
             <Card>
-              <CardHeader><CardTitle>באיחור</CardTitle><span className="text-sm text-muted">{g.groups.overdue.length}</span></CardHeader>
+              <CardHeader><CardTitle>באיחור</CardTitle><Badge tone={g.groups.overdue.length ? 'critical' : 'neutral'} className="tabular">{g.groups.overdue.length}</Badge></CardHeader>
               <CardContent>
                 {g.groups.overdue.length === 0 ? <p className="text-sm text-muted">שום דבר לא באיחור.</p> : (
                   <ul className="flex flex-col divide-y divide-[color:var(--border)]">
@@ -84,7 +84,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           )}
           {g && g.groups.waiting.length > 0 && (
             <Card>
-              <CardHeader><CardTitle>ממתין למישהו</CardTitle><span className="text-sm text-muted">{g.groups.waiting.length}</span></CardHeader>
+              <CardHeader><CardTitle>ממתין למישהו</CardTitle><Badge tone="warning" className="tabular">{g.groups.waiting.length}</Badge></CardHeader>
               <CardContent>
                 <ul className="flex flex-col divide-y divide-[color:var(--border)]">
                   {g.groups.waiting.map(t => <TaskRow key={`${t.source}-${t.id}`} item={t} path="/today" />)}

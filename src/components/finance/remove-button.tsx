@@ -2,6 +2,7 @@
 import { useTransition } from 'react';
 import { Trash2 } from 'lucide-react';
 import { removeReceivable, removeTransaction } from '@/app/finance-actions';
+import { buttonClass } from '@/components/ui/button';
 
 // Soft delete with a confirm. kind picks the action; errors are shown in an alert.
 export function RemoveButton({ kind, id, path, label }: { kind: 'transaction' | 'receivable'; id: string; path: string; label: string }) {
@@ -15,8 +16,8 @@ export function RemoveButton({ kind, id, path, label }: { kind: 'transaction' | 
           if (!r.ok) alert(r.error);
         });
       }}
-      className="rounded-md p-1 text-muted hover:bg-surface-2 hover:text-critical-ink disabled:opacity-50">
-      <Trash2 className="size-4" aria-hidden />
+      className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}>
+      <Trash2 aria-hidden />
     </button>
   );
 }

@@ -1,12 +1,13 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowRight, Landmark } from 'lucide-react';
+import { Landmark } from 'lucide-react';
 import { canCreateIn, requirePlace } from '@/server/auth';
 import { ASSET_KINDS, labelIn, propertyDetail } from '@/server/ventures';
 import { todayIL } from '@/lib/period';
 import { ils, shortDate } from '@/lib/format';
 import { KpiCard } from '@/components/dash/kpi-card';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, Section } from '@/components/ui/card';
+import { Empty } from '@/components/ui/empty';
+import { PageHeader } from '@/components/shell/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Money } from '@/components/ui/money';
 import { AddLoanDialog, PropertyValueDialog, RepaymentDialog } from '@/components/ventures/forms';
@@ -17,7 +18,6 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'נכס — דשבורד גורזד' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const th = 'py-2 text-start font-medium whitespace-nowrap';
 const ratePct = new Intl.NumberFormat('he-IL', { style: 'percent', maximumFractionDigits: 3 });
 const sharePct = (n: number) => new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2 }).format(n) + '%';
 
@@ -37,19 +37,14 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
   const estimate = p.value_source === 'estimate';
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <Link href="/ventures/real-estate" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"><ArrowRight className="size-4" aria-hidden />נכסים</Link>
-          <h1 className="text-page font-bold"><bdi>{p.name}</bdi></h1>
-          <p className="text-sm text-muted">{labelIn(ASSET_KINDS, p.kind)}{p.address ? <> · <bdi>{p.address}</bdi></> : null}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-8">
+      <PageHeader title={p.name} crumb={p.name}
+        subtitle={<>{labelIn(ASSET_KINDS, p.kind)}{p.address ? <> · <bdi>{p.address}</bdi></> : null}</>}
+        actions={(d.can_edit || d.can_delete) ? <>
           {d.can_edit && <PropertyValueDialog id={p.id} path={path} today={today} value={p.current_value} source={p.value_source} />}
           {d.can_edit && <AddLoanDialog assetId={p.id} path={path} today={today} />}
           {d.can_delete && <VentureRemove kind="property" id={p.id} path="/ventures/real-estate" after="/ventures/real-estate" label="למחוק את הנכס (וההלוואות שלו)" text="מחק" />}
-        </div>
-      </div>
+        </> : undefined} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="שווי נוכחי" value={ils(p.current_value)} reason="לא הוזן שווי"
@@ -61,10 +56,10 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
         <KpiCard label="החזר חודשי" value={ils(p.monthly_payment)} reason="אין הלוואה על הנכס" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
-        <Card>
-          <CardHeader><CardTitle>פרטי הנכס</CardTitle></CardHeader>
-          <CardContent>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-8 xl:grid-cols-2 [&>*]:min-w-0">
+        <Section title="פרטי הנכס">
+        <Card className="flex-1">
+          <CardContent className="pt-5 sm:pt-6">
             <Facts items={[
               { label: 'עלות רכישה', value: <Money value={p.purchase_cost} />, hint: 'כולל מס רכישה ועמלות' },
               { label: 'תאריך רכישה', value: p.purchase_date ? <bdi>{shortDate(p.purchase_date)} {p.purchase_date.slice(0, 4)}</bdi> : textOr(null) },
@@ -75,11 +70,11 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
             ]} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <div><CardTitle>תשואה</CardTitle><p className="text-sm text-muted">{months} · חלק היזמות · ללא מע״מ</p></div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+        </Section>
+        <Section title="תשואה">
+        <Card className="flex-1">
+          <CardContent className="flex flex-col gap-4 pt-5 sm:pt-6">
+            <p className="text-sm text-muted">{months} · חלק היזמות · ללא מע״מ</p>
             <Facts items={[
               { label: 'תשואה ברוטו', value: <Pct value={y.gross} />, hint: 'הכנסות ÷ עלות רכישה' },
               { label: 'תשואה נטו על ההון', value: <Pct value={y.net} />, hint: 'הכנסות − הוצאות − ריבית, ÷ הון עצמי' },
@@ -95,20 +90,22 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
             {y.gross === null && <p className="text-xs text-muted">התשואה תחושב אחרי שתירשם הכנסה לנכס (&quot;+ הכנסה/הוצאה&quot; למטה).</p>}
           </CardContent>
         </Card>
+        </Section>
       </div>
 
       {/* Loans */}
+      <Section title="הלוואות">
       {d.loans.length === 0 ? (
-        <Card><CardContent className="pt-5 text-sm text-muted"><Landmark className="me-1 inline size-4" aria-hidden />אין הלוואה על הנכס. נכס שמומן בהלוואה: הוסף אותה עם &quot;+ הלוואה&quot;.</CardContent></Card>
+        <Card><Empty compact icon={<Landmark />} title="אין הלוואה על הנכס">נכס שמומן בהלוואה: הוסף אותה עם &quot;+ הלוואה&quot;.</Empty></Card>
       ) : d.loans.map(l => (
         <Card key={l.id}>
           <CardHeader className="flex-wrap">
             <div>
-              <CardTitle className="flex flex-wrap items-center gap-2">
+              <CardTitle className="flex flex-wrap items-center gap-2.5">
                 <bdi>{l.lender}</bdi>
                 <Badge tone={l.status === 'active' ? 'accent' : 'neutral'}>{l.kind === 'mortgage' ? 'משכנתא' : 'הלוואה'}{l.status === 'closed' ? ' · נסגרה' : ''}</Badge>
               </CardTitle>
-              <p className="text-sm text-muted">
+              <p className="mt-1 text-sm text-muted">
                 <bdi>{ils(l.principal)}</bdi> · ריבית <bdi>{ratePct.format(l.annual_rate)}</bdi> · <bdi>{l.term_months}</bdi> חודשים מ-<bdi>{shortDate(l.start_date)} {l.start_date.slice(0, 4)}</bdi>
               </p>
             </div>
@@ -119,7 +116,7 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
               {d.can_delete && <VentureRemove kind="loan" id={l.id} path={path} label="למחוק את ההלוואה" />}
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-col gap-6">
             <Facts items={[
               { label: 'יתרה', value: <Money value={l.balance} />, hint: <>נכון ל-<bdi>{shortDate(l.balance_date)} {l.balance_date.slice(0, 4)}</bdi></> },
               { label: 'החזר חודשי', value: <Money value={l.monthly_payment} /> },
@@ -129,26 +126,26 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
                 hint: 'לפי היתרה, הריבית וההחזר הנוכחיים' },
             ]} />
 
-            <div>
-              <h3 className="mb-1 text-sm font-medium">החזרים שנרשמו</h3>
+            <div className="flex flex-col gap-2 border-t border-line pt-5">
+              <h3 className="text-sm font-semibold text-ink">החזרים שנרשמו</h3>
               {l.payments.length === 0 ? <p className="text-sm text-muted">אין החזרים עדיין</p> : (
-                <div className="relative -mx-5 overflow-x-auto px-5">
-                  <table className="w-full min-w-[640px] text-sm">
-                    <thead className="text-xs text-muted"><tr className="border-b border-line">
-                      <th scope="col" className={th}>תאריך</th><th scope="col" className={th}>סכום</th><th scope="col" className={th}>ריבית</th>
-                      <th scope="col" className={th}>קרן</th><th scope="col" className={th}>יתרה אחרי</th><th scope="col" className={th}>יזמות / אישי</th>
-                      <th scope="col" className={th}><span className="sr-only">פעולות</span></th>
+                <div className="relative overflow-x-auto">
+                  <table className="data-table min-w-[640px]">
+                    <thead><tr>
+                      <th scope="col">תאריך</th><th scope="col" className="num">סכום</th><th scope="col" className="num">ריבית</th>
+                      <th scope="col" className="num">קרן</th><th scope="col" className="num">יתרה אחרי</th><th scope="col" className="num">יזמות / אישי</th>
+                      <th scope="col"><span className="sr-only">פעולות</span></th>
                     </tr></thead>
                     <tbody>
                       {l.payments.map(pm => (
-                        <tr key={pm.id} className="border-b border-line last:border-0">
-                          <td className="py-2 whitespace-nowrap"><bdi>{shortDate(pm.paid_on)}</bdi></td>
-                          <td className="py-2"><Money value={pm.amount} /></td>
-                          <td className="py-2"><Money value={pm.interest} /></td>
-                          <td className="py-2"><Money value={pm.principal} /></td>
-                          <td className="py-2"><Money value={pm.balance_after} /></td>
-                          <td className="py-2 whitespace-nowrap text-xs"><Money value={pm.venture_amount} /> / <Money value={pm.personal_amount} /></td>
-                          <td className="py-2 text-end">{pm.is_latest && d.can_delete && <VentureRemove kind="repayment" id={pm.id} path={path} label="לבטל את ההחזר האחרון" />}</td>
+                        <tr key={pm.id}>
+                          <td className="whitespace-nowrap text-muted"><bdi>{shortDate(pm.paid_on)}</bdi></td>
+                          <td className="num font-medium"><Money value={pm.amount} /></td>
+                          <td className="num"><Money value={pm.interest} /></td>
+                          <td className="num"><Money value={pm.principal} /></td>
+                          <td className="num"><Money value={pm.balance_after} /></td>
+                          <td className="num text-xs"><Money value={pm.venture_amount} /> / <Money value={pm.personal_amount} /></td>
+                          <td className="w-10 text-end">{pm.is_latest && d.can_delete && <VentureRemove kind="repayment" id={pm.id} path={path} label="לבטל את ההחזר האחרון" />}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -158,40 +155,41 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
             </div>
 
             {l.schedule.length > 0 && (
-              <details className="group">
+              <details className="group border-t border-line pt-4">
                 <summary className="cursor-pointer text-sm font-medium text-accent">לוח סילוקין ל-12 החודשים הבאים</summary>
-                <div className="relative -mx-5 mt-2 overflow-x-auto px-5">
-                  <table className="w-full min-w-[520px] text-sm">
-                    <thead className="text-xs text-muted"><tr className="border-b border-line">
-                      <th scope="col" className={th}>#</th><th scope="col" className={th}>תאריך</th><th scope="col" className={th}>החזר</th>
-                      <th scope="col" className={th}>ריבית</th><th scope="col" className={th}>קרן</th><th scope="col" className={th}>יתרה</th>
+                <div className="relative mt-3 overflow-x-auto">
+                  <table className="data-table min-w-[520px]">
+                    <thead><tr>
+                      <th scope="col" className="num">#</th><th scope="col">תאריך</th><th scope="col" className="num">החזר</th>
+                      <th scope="col" className="num">ריבית</th><th scope="col" className="num">קרן</th><th scope="col" className="num">יתרה</th>
                     </tr></thead>
                     <tbody>
                       {l.schedule.map(r => (
-                        <tr key={r.n} className="border-b border-line last:border-0">
-                          <td className="py-1.5 tabular text-muted">{r.n}</td>
-                          <td className="py-1.5 whitespace-nowrap"><bdi>{r.date ? `${shortDate(r.date)} ${r.date.slice(0, 4)}` : ''}</bdi></td>
-                          <td className="py-1.5"><Money value={r.payment} /></td>
-                          <td className="py-1.5"><Money value={r.interest} /></td>
-                          <td className="py-1.5"><Money value={r.principal} /></td>
-                          <td className="py-1.5"><Money value={r.balance} /></td>
+                        <tr key={r.n}>
+                          <td className="num text-muted">{r.n}</td>
+                          <td className="whitespace-nowrap"><bdi>{r.date ? `${shortDate(r.date)} ${r.date.slice(0, 4)}` : ''}</bdi></td>
+                          <td className="num"><Money value={r.payment} /></td>
+                          <td className="num"><Money value={r.interest} /></td>
+                          <td className="num"><Money value={r.principal} /></td>
+                          <td className="num"><Money value={r.balance} /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <p className="mt-1 text-xs text-muted">תחזית לפי ריבית קבועה ושפיצר; לא כולל הצמדה או שינויי ריבית.</p>
+                  <p className="mt-2 text-xs text-muted">תחזית לפי ריבית קבועה ושפיצר; לא כולל הצמדה או שינויי ריבית.</p>
                 </div>
               </details>
             )}
           </CardContent>
         </Card>
       ))}
+      </Section>
 
       <SubjectMoney title="הכנסות והוצאות של הנכס" items={d.transactions} path={path}
         note={`ללא מע״מ · כולל חלק היזמות בהחזרי ההלוואה${y.gross !== null ? ` · תשואה ברוטו ${pctText(y.gross)}` : ''}`}
         add={d.can_edit ? { subjectType: 'asset', subjectId: p.id, today } : null} />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-8 xl:grid-cols-2 [&>*]:min-w-0">
         <SubjectTasks items={d.tasks} subjectType="asset" subjectId={p.id} path={path} canAdd={canTask && d.can_edit} />
         <SubjectContacts items={d.contacts} subjectType="asset" subjectId={p.id} path={path} canAdd={d.can_edit} />
       </div>

@@ -3,6 +3,8 @@ import { useState, useTransition } from 'react';
 import { Check, X } from 'lucide-react';
 import { setGoalStatus, updateGoalCurrent } from '@/app/actions';
 import { Badge } from '@/components/ui/badge';
+import { Button, buttonClass } from '@/components/ui/button';
+import { compactInputClass } from '@/components/work/fields';
 import { ils, num, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Goal } from '@/server/entries';
@@ -19,31 +21,31 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
   const done = goal.status === 'done';
 
   return (
-    <li className={cn('flex flex-col gap-2 py-3', pending && 'opacity-60')}>
+    <li className={cn('flex flex-col gap-3 py-4', pending && 'opacity-60')}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className={cn('text-sm font-medium text-ink', done && 'text-muted line-through')}><bdi>{goal.title}</bdi></p>
-          <p className="mt-0.5 text-xs text-muted">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <p className={cn('text-body font-medium text-ink', done && 'font-normal text-muted line-through')}><bdi>{goal.title}</bdi></p>
+          <p className="text-xs text-muted">
             {goal.target !== null ? <>יעד: <bdi className={cn('tabular', goal.unit === 'ils' && 'amount')}>{fmt(goal.unit, goal.target)}</bdi></> : 'בלי יעד מספרי'}
             {goal.due && <> · עד {shortDate(goal.due)}</>}
           </p>
-          <p className="mt-1 flex flex-wrap items-center gap-1">
+          <p className="flex flex-wrap items-center gap-1.5">
             {goalTypeLabel(goal.goal_type) && <Badge>{goalTypeLabel(goal.goal_type)}</Badge>}
             {context && <Badge tone="accent"><bdi dir="rtl">{context}</bdi></Badge>}
             {goal.scope === 'shared' && <Badge>משותף</Badge>}
           </p>
-          {goal.notes && <p className="mt-1 text-xs text-ink-2"><bdi>{goal.notes}</bdi></p>}
+          {goal.notes && <p className="text-sm text-ink-2"><bdi>{goal.notes}</bdi></p>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {done ? <Badge tone="good">הושג</Badge> : (
             <button type="button" disabled={pending} onClick={() => start(async () => { await setGoalStatus(goal.id, 'done', path); })}
-              className="rounded-md px-2 py-1 text-xs text-ink-2 hover:bg-surface-2" aria-label="סמן כהושג">
-              <Check className="inline size-3.5" aria-hidden /> הושג
+              className={buttonClass('ghost', 'sm')} aria-label="סמן כהושג">
+              <Check aria-hidden />הושג
             </button>
           )}
           <button type="button" disabled={pending} aria-label="הסר יעד"
             onClick={() => { if (confirm('להסיר את היעד?')) start(async () => { await setGoalStatus(goal.id, 'dropped', path); }); }}
-            className="rounded-md p-1 text-muted hover:bg-surface-2 hover:text-critical-ink"><X className="size-4" aria-hidden /></button>
+            className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}><X aria-hidden /></button>
         </div>
       </div>
       {goal.target !== null && (
@@ -52,18 +54,18 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
             {pct !== null && <div className="h-2 rounded-full bg-[color:var(--series-1)]" style={{ width: `${Math.max(pct, 2)}%` }} />}
           </div>
           {edit ? (
-            <form className="flex items-center gap-1" onSubmit={e => {
+            <form className="flex items-center gap-1.5" onSubmit={e => {
               e.preventDefault();
               const v = val.trim() === '' ? null : Number(val.replace(/,/g, ''));
               start(async () => { await updateGoalCurrent(goal.id, v, path); setEdit(false); });
             }}>
               <label className="sr-only" htmlFor={`cur-${goal.id}`}>מצב היום</label>
               <input id={`cur-${goal.id}`} autoFocus inputMode="decimal" value={val} onChange={e => setVal(e.target.value)}
-                className="h-7 w-24 rounded-md border border-line-strong bg-surface px-2 text-xs" />
-              <button type="submit" className="rounded-md bg-accent px-2 py-1 text-xs text-white">שמור</button>
+                className={cn(compactInputClass, 'w-28 tabular')} />
+              <Button type="submit" variant="primary" size="sm">שמור</Button>
             </form>
           ) : (
-            <button type="button" onClick={() => setEdit(true)} className="text-xs text-ink-2 hover:underline">
+            <button type="button" onClick={() => setEdit(true)} className="shrink-0 rounded-md text-sm text-ink-2 hover:text-ink hover:underline">
               {goal.current === null ? 'עדכן מצב' : <>{pct !== null && `${Math.round(pct)}% · `}<bdi className={cn('tabular', goal.unit === 'ils' && 'amount')}>{fmt(goal.unit, goal.current)}</bdi></>}
             </button>
           )}

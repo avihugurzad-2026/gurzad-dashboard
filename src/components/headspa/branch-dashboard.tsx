@@ -7,6 +7,7 @@ import { KpiCard } from '@/components/dash/kpi-card';
 import { RefreshButton } from '@/components/dash/refresh-button';
 import { BasisToggle } from '@/components/ospa/ospa-view';
 import { Tabs } from '@/components/shell/tabs';
+import { PageHeader } from '@/components/shell/page-header';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,69 +35,73 @@ export function BranchDashboard({ d, b, tab, goals, counts, canRefresh }: {
   const connected = !!b.integration && b.integration.status !== 'disabled' && b.integration.status !== 'not_connected';
   const inclVat = b.integration?.amounts_include_vat ?? true;
 
+  const moneyTab = ['overview', 'sales', 'bookings', 'customers', 'staff'].includes(tab);
+  // The page already explains why there are no numbers (no source / in setup / no permission)
+  const explained = (!connected && !b.has_data) || !b.can_see_money;
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-page font-bold"><bdi>{title}</bdi></h1>
-          <p className="text-sm text-muted">עסקים · <bdi>Head Spa Israel</bdi> · <VatNote rate={d.vat_rate} inclVat={inclVat} /></p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {b.status === 'setup' && <Badge tone="warning">בהקמה</Badge>}
-            <IntegrationBadge i={b.integration} />
-          </div>
-        </div>
-        {b.can_see_money && (
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-6">
+      <PageHeader title={title} subtitle="נתוני פעילות, ביצועים ומשימות של הסניף"
+        status={<>
+          {b.status === 'setup' && <Badge tone="warning">בהקמה</Badge>}
+          <IntegrationBadge i={b.integration} />
+        </>}
+        actions={b.can_see_money ? (
+          <>
             <BasisToggle basis={d.basis} share={d.share} base={base} />
             {canRefresh && connected && <RefreshButton />}
-          </div>
-        )}
-      </div>
-
-      <Tabs base={base} active={tab} tabs={[
-        { key: 'overview', label: 'סקירה' },
-        { key: 'sales', label: 'מכירות' },
-        { key: 'bookings', label: 'טיפולים והזמנות' },
-        { key: 'customers', label: 'לקוחות' },
-        { key: 'staff', label: 'צוות' },
-        { key: 'tasks', label: 'משימות', count: counts.tasks },
-        { key: 'goals', label: 'יעדים', count: counts.goals },
-      ]} />
+          </>
+        ) : undefined}
+        tabs={<Tabs base={base} active={tab} tabs={[
+          { key: 'overview', label: 'סקירה' },
+          { key: 'sales', label: 'מכירות' },
+          { key: 'bookings', label: 'טיפולים והזמנות' },
+          { key: 'customers', label: 'לקוחות' },
+          { key: 'staff', label: 'צוות' },
+          { key: 'tasks', label: 'משימות', count: counts.tasks },
+          { key: 'goals', label: 'יעדים', count: counts.goals },
+        ]} />} />
 
       {b.integration?.status === 'error' && (
-        <Card className="border-warning/40 bg-warning-soft">
-          <CardContent className="pt-4 text-sm text-warning-ink">
-            הסנכרון האחרון נכשל: {b.integration.last_error ?? 'שגיאה לא ידועה'}. {b.has_data ? 'מוצגים הנתונים האחרונים שנשמרו.' : ''}
-          </CardContent>
-        </Card>
+        <p role="status" className="rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning-ink">
+          הסנכרון האחרון נכשל: {b.integration.last_error ?? 'שגיאה לא ידועה'}. {b.has_data ? 'מוצגים הנתונים האחרונים שנשמרו.' : ''}
+        </p>
       )}
-      {!connected && !b.has_data && ['overview', 'sales', 'bookings', 'customers', 'staff'].includes(tab) && (
-        <Card><CardContent className="pt-5">
-          <Empty icon={<PlugZap className="size-6" />} title={b.status === 'setup' ? 'הסניף בהקמה' : 'אין מקור נתונים מחובר'}>
-            כשיחובר לסניף מקור נתונים (חשבון Buyz משלו), יופיעו כאן אותם נתונים כמו בכל סניף: הכנסות, טיפולים, מכירות וצוות.
+      {!connected && !b.has_data && b.can_see_money && moneyTab && (
+        <Card>
+          <Empty icon={<PlugZap />} title={b.status === 'setup' ? 'הסניף בהקמה' : 'אין מקור נתונים מחובר'}>
+            כשיחובר לסניף מקור נתונים (חשבון <bdi>Buyz</bdi> משלו), יופיעו כאן אותם נתונים כמו בכל סניף: הכנסות, טיפולים, מכירות וצוות.
             {b.status === 'setup' ? ' בינתיים אפשר לנהל כאן משימות ויעדים להקמת הסניף.' : ''}
           </Empty>
-        </CardContent></Card>
+        </Card>
       )}
-      {!b.can_see_money && ['overview', 'sales', 'bookings', 'customers', 'staff'].includes(tab) && (
-        <Card><CardContent className="pt-5">
-          <Empty icon={<Lock className="size-6" />} title="אין הרשאה לנתוני הכנסות">נתוני ההכנסות של הסניף פתוחים לבעלים, למנהלים ולצופים.</Empty>
-        </CardContent></Card>
+      {connected && !b.has_data && b.can_see_money && moneyTab && tab !== 'overview' && (
+        <Card>
+          <Empty icon={<PlugZap />} title="עוד אין נתונים מ-Buyz">הסניף מחובר. הנתונים יופיעו כאן אחרי הסנכרון הבא.</Empty>
+        </Card>
+      )}
+      {!b.can_see_money && moneyTab && (
+        <Card>
+          <Empty icon={<Lock />} title="אין הרשאה לנתוני הכנסות">נתוני ההכנסות של הסניף פתוחים לבעלים, למנהלים ולצופים.</Empty>
+        </Card>
       )}
 
-      {tab === 'overview' && <Overview d={d} b={b} goals={goals} mine={mine} place={place} title={title} />}
-      {tab === 'sales' && b.can_see_money && <Sales b={b} />}
-      {tab === 'bookings' && b.can_see_money && <Bookings b={b} />}
-      {tab === 'customers' && b.can_see_money && <Customers b={b} />}
-      {tab === 'staff' && b.can_see_money && <Staff b={b} />}
+      {tab === 'overview' && <Overview d={d} b={b} goals={goals} mine={mine} place={place} title={title} explained={explained} />}
+      {tab === 'sales' && b.can_see_money && b.has_data && <Sales b={b} />}
+      {tab === 'bookings' && b.can_see_money && b.has_data && <Bookings b={b} />}
+      {tab === 'customers' && b.can_see_money && b.has_data && <Customers b={b} />}
+      {tab === 'staff' && b.can_see_money && b.has_data && <Staff b={b} />}
+      {b.can_see_money && b.has_data && moneyTab && tab !== 'overview' && (
+        <p className="-mt-2 text-xs text-muted"><VatNote rate={d.vat_rate} inclVat={inclVat} /></p>
+      )}
       {tab === 'tasks' && <TaskBoard place={place} path={base} title={`משימות ${title}`} />}
       {tab === 'goals' && <GoalsPanel place={place} path={base} title={`יעדי ${title}`} />}
     </div>
   );
 }
 
-function Overview({ d, b, goals, mine, place, title }: {
-  d: HeadSpaData; b: BranchData; goals: GoalsSummary; mine: boolean;
+function Overview({ d, b, goals, mine, place, title, explained }: {
+  d: HeadSpaData; b: BranchData; goals: GoalsSummary; mine: boolean; explained: boolean;
   place: { domain: 'business'; branch: 'head-spa-israel'; location: string }; title: string;
 }) {
   const sc = (v: number | null) => (v === null ? null : mine ? (d.share === null ? null : v * d.share) : v);
@@ -104,9 +109,10 @@ function Overview({ d, b, goals, mine, place, title }: {
   const daily = b.daily.map(x => ({ day: x.day, value: sc(x.ex) }));
   return (
     <>
-      <HeadSpaKpis n={b.numbers} goals={goals} mine={mine} asOf={b.as_of} money={b.can_see_money} />
+      <HeadSpaKpis n={b.numbers} goals={goals} mine={mine} asOf={b.as_of} money={b.can_see_money} explained={explained} />
       {b.can_see_money && b.has_data && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
+          <p className="text-xs text-muted xl:col-span-2"><VatNote rate={d.vat_rate} inclVat={b.integration?.amounts_include_vat ?? true} /></p>
           <Card>
             <CardHeader><CardTitle>הכנסה יומית החודש</CardTitle><span className="text-sm text-muted">לפני מע״מ</span></CardHeader>
             <CardContent>
@@ -188,21 +194,21 @@ function Sales({ b }: { b: BranchData }) {
           <CardContent>
             {!b.monthly.length ? <p className="text-sm text-muted">אין נתונים עדיין</p> : (
               <div className="relative overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <caption className="sr-only">הכנסה ועסקאות לפי חודש</caption>
-                  <thead><tr className="border-b border-line text-xs text-muted">
-                    <th scope="col" className="py-2 text-start font-medium">חודש</th>
-                    <th scope="col" className="py-2 text-start font-medium">עסקאות</th>
-                    <th scope="col" className="py-2 text-end font-medium">כולל מע״מ</th>
-                    <th scope="col" className="py-2 text-end font-medium">לפני מע״מ</th>
+                  <thead><tr>
+                    <th scope="col">חודש</th>
+                    <th scope="col" className="num">עסקאות</th>
+                    <th scope="col" className="num">כולל מע״מ</th>
+                    <th scope="col" className="num">לפני מע״מ</th>
                   </tr></thead>
                   <tbody>
                     {b.monthly.slice(-12).reverse().map(m => (
-                      <tr key={m.month} className="border-b border-line last:border-0">
-                        <th scope="row" className="py-2 text-start font-normal">{mName(m.month)}</th>
-                        <td className="py-2 tabular">{num(m.tx) ?? '–'}</td>
-                        <td className="py-2 text-end"><Money value={m.incl} /></td>
-                        <td className="py-2 text-end"><Money value={m.ex} /></td>
+                      <tr key={m.month}>
+                        <td>{mName(m.month)}</td>
+                        <td className="num">{num(m.tx) ?? '–'}</td>
+                        <td className="num"><Money value={m.incl} /></td>
+                        <td className="num"><Money value={m.ex} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -233,7 +239,7 @@ function Bookings({ b }: { b: BranchData }) {
         <CardHeader><CardTitle>הכנסה מטיפולים לפי חודש</CardTitle><span className="text-sm text-muted">כולל מע״מ · 12 חודשים</span></CardHeader>
         <CardContent>
           {hist.length >= 2 ? <MonthlyBars data={hist} caption="הכנסה מטיפולים (תורים) לפי חודש, כולל מע״מ" /> : <p className="text-sm text-muted">אין נתונים עדיין</p>}
-          <p className="mt-2 text-xs text-muted">Buyz מדווח טיפולים כסכום וכמות תורים בחודש. פירוט תור-תור (שמות לקוחות) לא נמשך.</p>
+          <p className="mt-3 text-xs text-muted">Buyz מדווח טיפולים כסכום וכמות תורים בחודש. פירוט תור-תור (שמות לקוחות) לא נמשך.</p>
         </CardContent>
       </Card>
     </>
@@ -251,11 +257,11 @@ function Customers({ b }: { b: BranchData }) {
         <KpiCard label="עסקה ממוצעת" value={ils(b.numbers.avg_ticket_incl)} hint={b.numbers.avg_ticket_incl !== null ? 'כולל מע״מ' : undefined} reason="אין נתונים עדיין" />
       </div>
       {!any && (
-        <Card><CardContent className="pt-5">
-          <Empty icon={<Users className="size-6" />} title="אין נתוני לקוחות מצטברים">
+        <Card>
+          <Empty icon={<Users />} title="אין נתוני לקוחות מצטברים">
             הדשבורד שומר רק מספרים מצטברים שהמקור מחזיר, ולא מושך פרטי לקוחות (שמות, טלפונים). כש-Buyz יחזיר מספר לקוחות, הוא יופיע כאן.
           </Empty>
-        </CardContent></Card>
+        </Card>
       )}
     </>
   );
@@ -273,7 +279,7 @@ function Staff({ b }: { b: BranchData }) {
           <CardHeader><CardTitle>{m.title}</CardTitle><span className="text-sm text-muted">כולל מע״מ</span></CardHeader>
           <CardContent>
             <NamedTable caption={m.title} nameLabel="עובד/ת" rows={m.rows} />
-            {b.as_of && <p className="mt-2 text-xs text-muted">לפי המוכר/ת שנרשם ב-Buyz · עודכן {stamp(b.as_of)}</p>}
+            {b.as_of && <p className="mt-3 text-xs text-muted">לפי המוכר/ת שנרשם ב-Buyz · עודכן {stamp(b.as_of)}</p>}
           </CardContent>
         </Card>
       ))}

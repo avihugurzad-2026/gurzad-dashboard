@@ -4,7 +4,8 @@ import { Plus } from 'lucide-react';
 import { addMoney, type ActionResult } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Field, inputClass } from './fields';
+import { DateField } from '@/components/ui/date-field';
+import { Field, inputClass, selectClass } from './fields';
 
 const DEFAULT_CATEGORIES = {
   expense: ['שכירות / משכנתא', 'סופר', 'חשבונות', 'רכב ודלק', 'ילדים', 'בריאות', 'לימודים', 'בילויים', 'ביגוד', 'מנויים', 'אחר'],
@@ -21,13 +22,13 @@ export function MoneyForm({ path, today, categories, owners }: {
   const options = [...new Set([...DEFAULT_CATEGORIES[kind], ...categories])];
 
   return (
-    <form ref={form} action={action} className="grid grid-cols-2 gap-3 rounded-lg border border-line bg-surface-2/40 p-3 sm:grid-cols-6">
+    <form ref={form} action={action} className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-2/40 p-4 sm:grid-cols-6">
       <input type="hidden" name="path" value={path} />
       <input type="hidden" name="kind" value={kind} />
       <div role="group" aria-label="סוג" className="col-span-2 inline-flex rounded-lg border border-line-strong p-0.5 text-sm sm:col-span-6 sm:w-fit">
         {(['expense', 'income'] as const).map(k => (
           <button key={k} type="button" onClick={() => setKind(k)} aria-pressed={kind === k}
-            className={cn('rounded-md px-4 py-1.5', kind === k ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2')}>
+            className={cn('h-8 rounded-md px-4 font-medium transition-colors', kind === k ? 'bg-accent-soft text-accent-ink' : 'text-ink-2 hover:bg-surface-2')}>
             {k === 'expense' ? 'הוצאה' : 'הכנסה'}
           </button>
         ))}
@@ -40,10 +41,10 @@ export function MoneyForm({ path, today, categories, owners }: {
         <datalist id="m-cats">{options.map(c => <option key={c} value={c} />)}</datalist>
       </Field>
       <Field label="תאריך" htmlFor="m-date">
-        <input id="m-date" name="occurred_on" type="date" required defaultValue={today} className={inputClass} />
+        <DateField id="m-date" name="occurred_on" required defaultValue={today} />
       </Field>
       <Field label="של מי" htmlFor="m-owner">
-        <select id="m-owner" name="owner" defaultValue="avihu" className={inputClass}>
+        <select id="m-owner" name="owner" defaultValue="avihu" className={selectClass}>
           {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       </Field>
@@ -53,7 +54,7 @@ export function MoneyForm({ path, today, categories, owners }: {
       <div className="col-span-2 flex items-end sm:col-span-1">
         <Button type="submit" variant="primary" disabled={pending} className="w-full"><Plus className="size-4" aria-hidden />שמור</Button>
       </div>
-      {state && !state.ok && <p role="alert" className="col-span-full text-xs text-critical-ink">{state.error}</p>}
+      {state && !state.ok && <p role="alert" className="col-span-full text-sm text-critical-ink">{state.error}</p>}
     </form>
   );
 }

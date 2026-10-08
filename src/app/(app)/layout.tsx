@@ -4,7 +4,7 @@ import { db } from '@/server/db';
 import { todayIL } from '@/lib/period';
 import { encodePlace, placeOptions } from '@/lib/places';
 import { AppShell } from '@/components/shell/app-shell';
-import { NAV_BOTTOM, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from '@/components/shell/nav';
+import { NAV_BOTTOM, NAV_HUBS, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from '@/components/shell/nav';
 import type { ClientSession } from '@/components/shell/session-context';
 import { inboxCount } from '@/server/entries';
 import { loadLocations } from '@/server/locations';
@@ -23,9 +23,11 @@ function navHrefs(u: SessionUser): string[] {
       if (i.children) walk(i.children, test);
     }
   };
-  walk(NAV_TOP, i => i.href !== '/finance' || u.isOwner || u.memberships.some(m => ['admin', 'manager', 'viewer'].includes(m.role)));
+  walk(NAV_TOP, () => true);
+  walk(NAV_HUBS, i => i.href === '/tasks' ? canSeePlace(u, { domain: 'personal' })
+    : i.href !== '/finance' || u.isOwner || u.memberships.some(m => ['admin', 'manager', 'viewer'].includes(m.role)));
   walk(navAreas(), i => canSeePlace(u, placeOf(i.href)));
-  walk(NAV_TOOLS, () => u.isAdmin);
+  walk(NAV_TOOLS, i => i.href === '/activity' || u.isAdmin);
   walk(NAV_BOTTOM, i => !i.href.startsWith('/health') || u.isAdmin);
   return out;
 }

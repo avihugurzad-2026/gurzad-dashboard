@@ -8,6 +8,7 @@ import { Empty } from '@/components/ui/empty';
 import { GoalRow } from '@/components/work/goal-row';
 import { GoalForm } from '@/components/work/goal-form';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shell/page-header';
 
 export const metadata = { title: 'יעדים — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -22,25 +23,22 @@ export default async function GoalsPage({ searchParams }: { searchParams: Promis
   const count = (t: string | null) => goals.filter(g => g.status === 'active' && (t === null || g.goal_type === t)).length;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-page font-bold">יעדים</h1>
-        <p className="text-sm text-muted">כל היעדים במקום אחד: אישי, עסקי, סניף, פיננסי, לימודים ויזמות</p>
-      </div>
-      <nav aria-label="סוג יעד" className="flex flex-wrap gap-1.5">
+    <div className="flex flex-col gap-6">
+      <PageHeader title="יעדים" subtitle="כל היעדים במקום אחד: אישי, עסקי, סניף, פיננסי, לימודים ויזמות" />
+      <nav aria-label="סוג יעד" className="flex flex-wrap gap-2">
         {[{ id: null, label: 'הכל' }, ...GOAL_TYPES].map(t => (
           <Link key={t.id ?? 'all'} href={t.id ? `/goals?type=${t.id}` : '/goals'} aria-current={active === t.id ? 'page' : undefined}
-            className={cn('rounded-full border px-3 py-1 text-sm', active === t.id ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line hover:bg-surface-2')}>
-            {t.label}{count(t.id) > 0 && <span className="ms-1 text-xs text-muted">{count(t.id)}</span>}
+            className={cn('inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors', active === t.id ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line-strong bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink')}>
+            {t.label}{count(t.id) > 0 && <span className="text-xs text-muted tabular">{count(t.id)}</span>}
           </Link>
         ))}
       </nav>
       <Card>
-        <CardHeader><CardTitle>{active ? `יעדים: ${goalTypeLabel(active)}` : 'כל היעדים'}</CardTitle><span className="text-sm text-muted">{shown.filter(g => g.status === 'active').length} פעילים</span></CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardHeader><CardTitle>{active ? `יעדים: ${goalTypeLabel(active)}` : 'כל היעדים'}</CardTitle><span className="shrink-0 text-sm text-muted">{shown.filter(g => g.status === 'active').length} פעילים</span></CardHeader>
+        <CardContent className="flex flex-col gap-4">
           {ready && <GoalForm domain="personal" path="/goals" owners />}
           {shown.length === 0 ? (
-            <Empty icon={<Target className="size-6" />} title="אין יעדים עדיין">יעד עם מספר ותאריך יופיע כאן עם פס התקדמות. יעד של עסק או סניף מוסיפים מהעמוד שלו.</Empty>
+            <Empty icon={<Target aria-hidden />} title="אין יעדים עדיין">יעד עם מספר ותאריך יופיע כאן עם פס התקדמות. יעד של עסק או סניף מוסיפים מהעמוד שלו.</Empty>
           ) : (
             <ul className="flex flex-col divide-y divide-[color:var(--border)]">
               {shown.map(g => <GoalRow key={g.id} goal={g} path="/goals" context={contextLabel({ domain: g.domain, branch: g.branch, location: g.location })} />)}

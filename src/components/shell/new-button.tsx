@@ -31,8 +31,8 @@ export function NewButton() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={buttonClass('primary', 'sm')} aria-haspopup="dialog" aria-keyshortcuts="n">
-        <Plus className="size-4" aria-hidden />חדש
+      <button type="button" onClick={() => setOpen(true)} className={buttonClass('primary', 'md', 'max-sm:w-9 max-sm:px-0')} aria-haspopup="dialog" aria-keyshortcuts="n" aria-label="חדש">
+        <Plus aria-hidden /><span className="max-sm:sr-only">חדש</span>
       </button>
       <dialog ref={dialog} onClose={() => setOpen(false)} aria-label="משימה חדשה"
         className="m-auto w-[min(640px,calc(100vw-2rem))] rounded-xl border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/40">

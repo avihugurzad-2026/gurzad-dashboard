@@ -114,13 +114,14 @@ export function decodePlace(v: string): Place | null {
 export function contextLabel(p: { domain: string; branch: string | null; location: string | null }, category?: string | null): string {
   if (p.domain === 'personal') {
     const c = categoryLabel(category ?? null);
-    return c && c !== 'כללי' ? `אישי · ${c}` : 'אישי';
+    // "אישי · אישי" reads as one label
+    return c && c !== 'כללי' && c !== 'אישי' ? `אישי · ${c}` : 'אישי';
   }
   const e = entity(p.branch);
   if (!e) return area(p.domain)?.label ?? p.domain;
   const l = location(p.branch, p.location);
   if (l) return `${e.short} · ${l.label}`;
-  return p.domain === 'ventures' ? `יזמות · ${e.label}` : e.label;
+  return p.domain === 'ventures' && e.label !== 'יזמות' ? `יזמות · ${e.label}` : e.label;
 }
 
 export function hrefFor(p: Place): string {
@@ -172,6 +173,5 @@ export function crumbs(path: string, tab: string | null): { label: string; href:
     out.push({ label: PAGE_LABEL[a], href: `/${a}` });
   }
   if (tab && TAB_LABEL[tab] && tab !== 'overview' && tab !== 'all') out.push({ label: TAB_LABEL[tab], href: null });
-  if (out.length) out[out.length - 1] = { ...out[out.length - 1], href: null };
-  return out;
+  return out; // the last crumb is rendered as plain text by <Breadcrumb>
 }

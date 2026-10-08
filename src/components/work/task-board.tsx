@@ -25,12 +25,12 @@ export async function TaskBoard({ place, path, title = 'משימות', category,
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <span className="text-sm text-muted">{open.length} פתוחות{overdue ? ` · ${overdue} באיחור` : ''}</span>
+        <span className="text-sm text-muted tabular">{open.length} פתוחות{overdue ? ` · ${overdue} באיחור` : ''}</span>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-col gap-4">
         {ready ? <QuickTask place={place} path={path} className="rounded-lg border border-line bg-surface-2/40 p-3" /> : <NotReady what="משימות" />}
         {items.length === 0 ? (
-          <Empty icon={<ListChecks className="size-6" />} title="אין משימות פתוחות">משימה חדשה נכנסת מהשורה למעלה.</Empty>
+          <Empty icon={<ListChecks aria-hidden />} title="אין משימות פתוחות">משימה חדשה נכנסת מהשורה למעלה.</Empty>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {items.map(i => <TaskRow key={`${i.source}-${i.id}`} item={i} path={path} ownerLabel={ownerLabel(i)}

@@ -18,9 +18,9 @@ export function GreetingClock({ name, initial }: { name: string; initial: string
     return () => clearInterval(t);
   }, []);
   return (
-    <div>
-      <h1 className="text-page font-bold">{greeting(now)}, {name}</h1>
-      <p className="text-sm text-muted">{date.format(now)} · <time className="tabular" dateTime={now.toISOString()}>{time.format(now)}</time></p>
+    <div className="flex min-w-0 flex-col gap-1">
+      <h1 className="text-title font-bold text-ink">{greeting(now)}, {name}</h1>
+      <p className="text-body text-muted">{date.format(now)} · <time className="tabular" dateTime={now.toISOString()}>{time.format(now)}</time></p>
     </div>
   );
 }

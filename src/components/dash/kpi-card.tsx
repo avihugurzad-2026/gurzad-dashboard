@@ -4,30 +4,30 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 // One KPI. `value` already formatted; null → "אין נתונים עדיין" plus the reason, never 0.
-export function KpiCard({ label, value, hint, reason, href, icon, amount = true, foot }: {
-  label: string; value: string | null; hint?: string; reason?: string;
-  href?: string; icon?: React.ReactNode; amount?: boolean; foot?: React.ReactNode;
+export function KpiCard({ label, value, hint, reason, href, icon, amount = true, foot, className }: {
+  label: string; value: string | null; hint?: React.ReactNode; reason?: string;
+  href?: string; icon?: React.ReactNode; amount?: boolean; foot?: React.ReactNode; className?: string;
 }) {
   const body = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-ink-2">{label}</p>
-        {icon && <span className="text-muted">{icon}</span>}
+        <p className="text-sm font-medium text-ink-2">{label}</p>
+        {icon && <span className="text-muted [&_svg]:size-4">{icon}</span>}
       </div>
       {value === null ? (
-        <p className="mt-2 text-sm text-muted">{NO_DATA}</p>
+        <p className="mt-3 text-body text-muted">{NO_DATA}</p>
       ) : (
-        <p className={cn('mt-2 text-kpi font-semibold text-ink tabular', amount && 'amount')}>
+        <p className={cn('mt-2 text-kpi font-bold text-ink tabular', amount && 'amount')}>
           <bdi>{value}</bdi>
         </p>
       )}
-      {value !== null && hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
+      {value !== null && hint && <p className="mt-1.5 text-sm text-muted">{hint}</p>}
       {value === null && reason && <p className="mt-1 text-xs text-muted">{reason}</p>}
-      {foot && <div className="mt-3 border-t border-line pt-2 text-xs text-muted">{foot}</div>}
+      {foot && <div className="mt-4 border-t border-line pt-3 text-xs text-muted">{foot}</div>}
     </>
   );
-  const className = 'block p-5 transition-colors';
+  const pad = 'block p-5 sm:p-6';
   return href
-    ? <Card className="hover:border-line-strong"><Link href={href} className={className}>{body}</Link></Card>
-    : <Card className={className}>{body}</Card>;
+    ? <Card className={cn('transition-colors hover:border-line-strong', className)}><Link href={href} className={cn(pad, 'rounded-xl')}>{body}</Link></Card>
+    : <Card className={cn(pad, className)}>{body}</Card>;
 }

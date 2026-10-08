@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { DateField } from '@/components/ui/date-field';
 
 // Snoozing writes to Supabase only — never to the vault
 export function SnoozeForm({ id }: { id: number }) {
@@ -27,8 +28,7 @@ export function SnoozeForm({ id }: { id: number }) {
   return (
     <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
       <label className="sr-only" htmlFor={`until-${id}`}>דחייה עד תאריך</label>
-      <input id={`until-${id}`} type="date" required value={until} onChange={e => setUntil(e.target.value)}
-        className="h-8 rounded-lg border border-line-strong bg-surface px-2 text-sm" />
+      <DateField id={`until-${id}`} required compact value={until} onChange={iso => setUntil(iso)} />
       <Button size="sm" variant="primary" type="submit" disabled={busy || !until}>שמור</Button>
       <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>ביטול</Button>
       {error && <span role="alert" className="text-xs text-critical-ink">{error}</span>}

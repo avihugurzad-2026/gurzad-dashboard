@@ -7,12 +7,12 @@ import {
   recordRepayment, updateCase, updateInvestment, updatePropertyValue, type VenturesResult,
 } from '@/app/ventures-actions';
 import { Button, buttonClass } from '@/components/ui/button';
-import { Field, inputClass } from '@/components/work/fields';
+import { Field, inputClass, selectClass, textareaClass } from '@/components/work/fields';
+import { DateField } from '@/components/ui/date-field';
 import { FormDialog } from '@/components/finance/dialog';
 import { CLASSIFICATIONS, PAYMENT_METHODS, categoriesOf, type Direction } from '@/lib/finance';
 import { PRIORITIES } from '@/lib/places';
 import { ils } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import ventures from '@domain/ventures';
 
 type Act = (prev: VenturesResult | null, f: FormData) => Promise<VenturesResult>;
@@ -33,7 +33,7 @@ const Hidden = ({ v }: { v: Record<string, string> }) => <>{Object.entries(v).ma
 function ScopeField({ id, defaultValue = 'user' }: { id: string; defaultValue?: string }) {
   return (
     <Field label="מי רואה" htmlFor={id}>
-      <select id={id} name="scope" defaultValue={defaultValue} className={inputClass}>
+      <select id={id} name="scope" defaultValue={defaultValue} className={selectClass}>
         <option value="user">רק אני</option>
         <option value="shared">משותף לפי הרשאות</option>
       </select>
@@ -61,27 +61,27 @@ function PropertyForm({ path, today, onSaved }: { path: string; today: string; o
   const { state, act, pending } = useForm(addProperty, onSaved);
   const id = useId();
   return (
-    <form action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form action={act} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ path }} />
       <Field label="שם הנכס" htmlFor={`${id}-n`}><input id={`${id}-n`} name="name" required maxLength={120} className={inputClass} /></Field>
       <Field label="סוג" htmlFor={`${id}-k`}>
-        <select id={`${id}-k`} name="kind" defaultValue="apartment" className={inputClass}>
+        <select id={`${id}-k`} name="kind" defaultValue="apartment" className={selectClass}>
           <option value="apartment">דירה</option><option value="house">בית</option><option value="commercial">מסחרי</option>
           <option value="land">קרקע</option><option value="other">אחר</option>
         </select>
       </Field>
       <Field label="כתובת" htmlFor={`${id}-a`} className="sm:col-span-2"><input id={`${id}-a`} name="address" maxLength={200} className={inputClass} /></Field>
-      <Field label="תאריך רכישה" htmlFor={`${id}-pd`}><input id={`${id}-pd`} name="purchase_date" type="date" className={inputClass} /></Field>
+      <Field label="תאריך רכישה" htmlFor={`${id}-pd`}><DateField id={`${id}-pd`} name="purchase_date" /></Field>
       <Field label="עלות רכישה כולל מס רכישה ועמלות (₪)" htmlFor={`${id}-pc`}><input id={`${id}-pc`} name="purchase_cost" inputMode="decimal" className={inputClass} /></Field>
       <Field label="שווי נוכחי (₪)" htmlFor={`${id}-v`}><input id={`${id}-v`} name="current_value" inputMode="decimal" className={inputClass} /></Field>
       <Field label="מקור השווי" htmlFor={`${id}-s`}>
-        <select id={`${id}-s`} name="value_source" defaultValue="estimate" className={inputClass}>
+        <select id={`${id}-s`} name="value_source" defaultValue="estimate" className={selectClass}>
           <option value="estimate">הערכה</option><option value="appraisal">שמאות</option><option value="purchase">מחיר רכישה</option>
         </select>
       </Field>
-      <Field label="נכון לתאריך" htmlFor={`${id}-vd`}><input id={`${id}-vd`} name="value_date" type="date" defaultValue={today} className={inputClass} /></Field>
+      <Field label="נכון לתאריך" htmlFor={`${id}-vd`}><DateField id={`${id}-vd`} name="value_date" defaultValue={today} /></Field>
       <ScopeField id={`${id}-sc`} />
-      <Field label="הערות" htmlFor={`${id}-o`} className="sm:col-span-2"><textarea id={`${id}-o`} name="notes" maxLength={2000} rows={2} className={cn(inputClass, 'h-auto py-2')} /></Field>
+      <Field label="הערות" htmlFor={`${id}-o`} className="sm:col-span-2"><textarea id={`${id}-o`} name="notes" maxLength={2000} rows={2} className={textareaClass} /></Field>
       <Err s={state} />
       <Submit pending={pending}><Plus className="size-4" aria-hidden />שמור נכס</Submit>
     </form>
@@ -99,15 +99,15 @@ function PropertyValueForm({ id, path, today, value, source, onSaved }: { id: st
   const { state, act, pending } = useForm(updatePropertyValue, onSaved);
   const uid = useId();
   return (
-    <form action={act} className="grid grid-cols-2 gap-3">
+    <form action={act} className="grid grid-cols-2 gap-4">
       <Hidden v={{ id, path }} />
       <Field label="שווי (₪)" htmlFor={`${uid}-v`} className="col-span-2"><input id={`${uid}-v`} name="current_value" required inputMode="decimal" defaultValue={value ?? ''} className={inputClass} /></Field>
       <Field label="מקור" htmlFor={`${uid}-s`}>
-        <select id={`${uid}-s`} name="value_source" defaultValue={source ?? 'estimate'} className={inputClass}>
+        <select id={`${uid}-s`} name="value_source" defaultValue={source ?? 'estimate'} className={selectClass}>
           <option value="estimate">הערכה</option><option value="appraisal">שמאות</option><option value="purchase">מחיר רכישה</option>
         </select>
       </Field>
-      <Field label="נכון לתאריך" htmlFor={`${uid}-d`}><input id={`${uid}-d`} name="value_date" type="date" required defaultValue={today} className={inputClass} /></Field>
+      <Field label="נכון לתאריך" htmlFor={`${uid}-d`}><DateField id={`${uid}-d`} name="value_date" required defaultValue={today} /></Field>
       <Err s={state} />
       <Submit pending={pending}>שמור</Submit>
     </form>
@@ -130,24 +130,24 @@ function LoanForm({ assetId, path, today, onSaved }: { assetId: string; path: st
   const [term, setTerm] = useState('');
   const computed = ventures.monthlyPayment(Number(principal.replace(/,/g, '')), ventures.parseRatePct(rate), Number(term));
   return (
-    <form action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form action={act} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ path, asset_id: assetId }} />
       <Field label="מלווה (בנק / גוף)" htmlFor={`${id}-l`}><input id={`${id}-l`} name="lender" required maxLength={120} className={inputClass} /></Field>
       <Field label="סוג" htmlFor={`${id}-k`}>
-        <select id={`${id}-k`} name="kind" defaultValue="mortgage" className={inputClass}>
+        <select id={`${id}-k`} name="kind" defaultValue="mortgage" className={selectClass}>
           <option value="mortgage">משכנתא</option><option value="loan">הלוואה</option><option value="other">אחר</option>
         </select>
       </Field>
       <Field label="סכום ההלוואה (₪)" htmlFor={`${id}-p`}><input id={`${id}-p`} name="principal" required inputMode="decimal" value={principal} onChange={e => setPrincipal(e.target.value)} className={inputClass} /></Field>
       <Field label="ריבית שנתית (%)" htmlFor={`${id}-r`}><input id={`${id}-r`} name="annual_rate_pct" required inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} placeholder="4.5" className={inputClass} /></Field>
-      <Field label="תאריך תחילה" htmlFor={`${id}-s`}><input id={`${id}-s`} name="start_date" type="date" required defaultValue={today} className={inputClass} /></Field>
+      <Field label="תאריך תחילה" htmlFor={`${id}-s`}><DateField id={`${id}-s`} name="start_date" required defaultValue={today} /></Field>
       <Field label="תקופה (חודשים)" htmlFor={`${id}-t`}><input id={`${id}-t`} name="term_months" required inputMode="numeric" value={term} onChange={e => setTerm(e.target.value)} placeholder="300" className={inputClass} /></Field>
       <Field label="החזר חודשי (₪) — ריק = לפי שפיצר" htmlFor={`${id}-m`}>
         <input id={`${id}-m`} name="monthly_payment" inputMode="decimal" placeholder={computed ? String(computed) : ''} className={inputClass} />
       </Field>
       <Field label="חלק היזמות בכל החזר (%)" htmlFor={`${id}-v`}><input id={`${id}-v`} name="venture_share_pct" inputMode="decimal" defaultValue="100" className={inputClass} /></Field>
       <Field label="יתרה היום (₪) — ריק = סכום ההלוואה" htmlFor={`${id}-b`}><input id={`${id}-b`} name="balance" inputMode="decimal" className={inputClass} /></Field>
-      <Field label="היתרה נכונה לתאריך — ריק = תאריך התחילה" htmlFor={`${id}-bd`}><input id={`${id}-bd`} name="balance_date" type="date" className={inputClass} /></Field>
+      <Field label="היתרה נכונה לתאריך — ריק = תאריך התחילה" htmlFor={`${id}-bd`}><DateField id={`${id}-bd`} name="balance_date" /></Field>
       <p className="text-xs text-muted sm:col-span-2">
         {computed ? <>החזר מחושב (שפיצר): <bdi className="amount tabular">{ils(computed)}</bdi> לחודש. </> : null}
         החלק שאינו של היזמות נרשם בכל החזר כהוצאה באזור האישי.
@@ -176,13 +176,13 @@ function RepaymentForm({ loanId, payment, balance, sharePct, path, today, onSave
   const [amount, setAmount] = useState(String(payment));
   const share = ventures.shareSplit(Number(amount.replace(/,/g, '')), sharePct);
   return (
-    <form action={act} className="grid grid-cols-2 gap-3">
+    <form action={act} className="grid grid-cols-2 gap-4">
       <Hidden v={{ path, liability_id: loanId }} />
       <p className="col-span-2 text-sm text-muted">יתרה: <bdi className="amount tabular font-medium text-ink">{ils(balance)}</bdi></p>
       <Field label="סכום (₪)" htmlFor={`${id}-a`}><input id={`${id}-a`} name="amount" required inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className={inputClass} /></Field>
-      <Field label="תאריך" htmlFor={`${id}-d`}><input id={`${id}-d`} name="paid_on" type="date" required defaultValue={today} className={inputClass} /></Field>
+      <Field label="תאריך" htmlFor={`${id}-d`}><DateField id={`${id}-d`} name="paid_on" required defaultValue={today} /></Field>
       <Field label="אמצעי תשלום" htmlFor={`${id}-m`} className="col-span-2">
-        <select id={`${id}-m`} name="payment_method" defaultValue="transfer" className={inputClass}>
+        <select id={`${id}-m`} name="payment_method" defaultValue="transfer" className={selectClass}>
           {PAYMENT_METHODS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
       </Field>
@@ -218,7 +218,7 @@ function SubjectTxForm({ subjectType, subjectId, path, today, defaultDirection, 
   const cats = categoriesOf(direction);
   const def = direction === 'income' ? (subjectType === 'asset' ? 'rent-income' : 'other') : (subjectType === 'legal_case' ? 'professional' : 'other');
   return (
-    <form action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form action={act} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ path, subject_type: subjectType, subject_id: subjectId }} />
       <Field label="כיוון" htmlFor={`${id}-dir`}>
         <select id={`${id}-dir`} name="direction" value={direction} onChange={e => setDirection(e.target.value as Direction)} className={inputClass}>
@@ -231,9 +231,9 @@ function SubjectTxForm({ subjectType, subjectId, path, today, defaultDirection, 
         </select>
       </Field>
       <Field label="סכום (₪)" htmlFor={`${id}-a`}><input id={`${id}-a`} name="amount" required inputMode="decimal" className={inputClass} /></Field>
-      <Field label="תאריך" htmlFor={`${id}-d`}><input id={`${id}-d`} name="occurred_on" type="date" required defaultValue={today} className={inputClass} /></Field>
+      <Field label="תאריך" htmlFor={`${id}-d`}><DateField id={`${id}-d`} name="occurred_on" required defaultValue={today} /></Field>
       <Field label="סיווג" htmlFor={`${id}-cl`}>
-        <select id={`${id}-cl`} name="classification" defaultValue="personal" className={inputClass}>
+        <select id={`${id}-cl`} name="classification" defaultValue="personal" className={selectClass}>
           {CLASSIFICATIONS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
       </Field>
@@ -268,22 +268,22 @@ function InvestmentForm({ path, today, onSaved }: { path: string; today: string;
   const { state, act, pending } = useForm(addInvestment, onSaved);
   const id = useId();
   return (
-    <form action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form action={act} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ path }} />
       <Field label="שם" htmlFor={`${id}-n`}><input id={`${id}-n`} name="name" required maxLength={120} className={inputClass} /></Field>
       <Field label="קטגוריה" htmlFor={`${id}-c`}>
-        <select id={`${id}-c`} name="category" defaultValue="fund" className={inputClass}>{INV_CATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        <select id={`${id}-c`} name="category" defaultValue="fund" className={selectClass}>{INV_CATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
       </Field>
       <Field label="סכום ההשקעה (₪)" htmlFor={`${id}-a`}><input id={`${id}-a`} name="amount_invested" required inputMode="decimal" className={inputClass} /></Field>
-      <Field label="תאריך ההשקעה" htmlFor={`${id}-d`}><input id={`${id}-d`} name="invested_on" type="date" required defaultValue={today} className={inputClass} /></Field>
+      <Field label="תאריך ההשקעה" htmlFor={`${id}-d`}><DateField id={`${id}-d`} name="invested_on" required defaultValue={today} /></Field>
       <Field label="שווי נוכחי (₪)" htmlFor={`${id}-v`}><input id={`${id}-v`} name="current_value" inputMode="decimal" className={inputClass} /></Field>
       <Field label="מקור השווי" htmlFor={`${id}-s`}>
-        <select id={`${id}-s`} name="value_source" defaultValue="statement" className={inputClass}>{INV_SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        <select id={`${id}-s`} name="value_source" defaultValue="statement" className={selectClass}>{INV_SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
       </Field>
-      <Field label="נכון לתאריך" htmlFor={`${id}-vd`}><input id={`${id}-vd`} name="value_date" type="date" defaultValue={today} className={inputClass} /></Field>
+      <Field label="נכון לתאריך" htmlFor={`${id}-vd`}><DateField id={`${id}-vd`} name="value_date" defaultValue={today} /></Field>
       <Field label="סימול (לחיבור עתידי לשוק ההון)" htmlFor={`${id}-t`}><input id={`${id}-t`} name="ticker" dir="ltr" maxLength={20} className={inputClass} /></Field>
       <ScopeField id={`${id}-sc`} />
-      <Field label="הערות" htmlFor={`${id}-o`} className="sm:col-span-2"><textarea id={`${id}-o`} name="notes" maxLength={2000} rows={2} className={cn(inputClass, 'h-auto py-2')} /></Field>
+      <Field label="הערות" htmlFor={`${id}-o`} className="sm:col-span-2"><textarea id={`${id}-o`} name="notes" maxLength={2000} rows={2} className={textareaClass} /></Field>
       <Err s={state} />
       <Submit pending={pending}><Plus className="size-4" aria-hidden />שמור השקעה</Submit>
     </form>
@@ -305,17 +305,17 @@ function UpdateInvestmentForm({ inv, path, today, onSaved }: {
   const { state, act, pending } = useForm(updateInvestment, onSaved);
   const id = useId();
   return (
-    <form action={act} className="grid grid-cols-2 gap-3">
+    <form action={act} className="grid grid-cols-2 gap-4">
       <Hidden v={{ path, id: inv.id }} />
       <Field label="שווי נוכחי (₪)" htmlFor={`${id}-v`} className="col-span-2"><input id={`${id}-v`} name="current_value" inputMode="decimal" defaultValue={inv.current_value ?? ''} className={inputClass} /></Field>
       <Field label="מקור" htmlFor={`${id}-s`}>
-        <select id={`${id}-s`} name="value_source" defaultValue={inv.value_source ?? 'statement'} className={inputClass}>{INV_SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+        <select id={`${id}-s`} name="value_source" defaultValue={inv.value_source ?? 'statement'} className={selectClass}>{INV_SOURCES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
       </Field>
-      <Field label="נכון לתאריך" htmlFor={`${id}-d`}><input id={`${id}-d`} name="value_date" type="date" defaultValue={today} className={inputClass} /></Field>
+      <Field label="נכון לתאריך" htmlFor={`${id}-d`}><DateField id={`${id}-d`} name="value_date" defaultValue={today} /></Field>
       <Field label="סטטוס" htmlFor={`${id}-st`} className="col-span-2">
-        <select id={`${id}-st`} name="status" defaultValue={inv.status} className={inputClass}><option value="active">פעילה</option><option value="exited">מומשה</option></select>
+        <select id={`${id}-st`} name="status" defaultValue={inv.status} className={selectClass}><option value="active">פעילה</option><option value="exited">מומשה</option></select>
       </Field>
-      <Field label="הערות" htmlFor={`${id}-o`} className="col-span-2"><textarea id={`${id}-o`} name="notes" maxLength={2000} rows={3} defaultValue={inv.notes ?? ''} className={cn(inputClass, 'h-auto py-2')} /></Field>
+      <Field label="הערות" htmlFor={`${id}-o`} className="col-span-2"><textarea id={`${id}-o`} name="notes" maxLength={2000} rows={3} defaultValue={inv.notes ?? ''} className={textareaClass} /></Field>
       <Err s={state} />
       <Submit pending={pending}>שמור</Submit>
     </form>
@@ -348,11 +348,11 @@ function CaseForm({ action, path, today, values, onSaved }: { action: Act; path:
   const id = useId();
   const isNew = !values.id;
   return (
-    <form action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form action={act} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={values.id ? { path, id: values.id } : { path }} />
       <Field label="שם התיק" htmlFor={`${id}-t`} className="sm:col-span-2"><input id={`${id}-t`} name="title" required maxLength={200} defaultValue={values.title ?? ''} className={inputClass} /></Field>
       <Field label="סטטוס" htmlFor={`${id}-s`}>
-        <select id={`${id}-s`} name="status" defaultValue={values.status ?? 'open'} className={inputClass}>
+        <select id={`${id}-s`} name="status" defaultValue={values.status ?? 'open'} className={selectClass}>
           <option value="open">פתוח</option><option value="waiting">ממתין</option><option value="closed">סגור</option>
         </select>
       </Field>
@@ -360,16 +360,16 @@ function CaseForm({ action, path, today, values, onSaved }: { action: Act; path:
       <Field label="צדדים" htmlFor={`${id}-p`} className="sm:col-span-2"><input id={`${id}-p`} name="parties" maxLength={500} defaultValue={values.parties ?? ''} placeholder="תובע נגד נתבע" className={inputClass} /></Field>
       <Field label="עורך/ת דין" htmlFor={`${id}-l`}><input id={`${id}-l`} name="lawyer" maxLength={120} defaultValue={values.lawyer ?? ''} className={inputClass} /></Field>
       <Field label="ערכאה" htmlFor={`${id}-c`}><input id={`${id}-c`} name="court" maxLength={120} defaultValue={values.court ?? ''} className={inputClass} /></Field>
-      <Field label="נפתח בתאריך" htmlFor={`${id}-o`}><input id={`${id}-o`} name="opened_on" type="date" defaultValue={values.opened_on ?? (isNew ? today : '')} className={inputClass} /></Field>
-      {!isNew && <Field label="נסגר בתאריך" htmlFor={`${id}-cl`}><input id={`${id}-cl`} name="closed_on" type="date" defaultValue={values.closed_on ?? ''} className={inputClass} /></Field>}
+      <Field label="נפתח בתאריך" htmlFor={`${id}-o`}><DateField id={`${id}-o`} name="opened_on" defaultValue={values.opened_on ?? (isNew ? today : '')} /></Field>
+      {!isNew && <Field label="נסגר בתאריך" htmlFor={`${id}-cl`}><DateField id={`${id}-cl`} name="closed_on" defaultValue={values.closed_on ?? ''} /></Field>}
       {isNew && (
         <>
-          <Field label="מועד ראשון (לא חובה)" htmlFor={`${id}-dd`}><input id={`${id}-dd`} name="deadline_on" type="date" className={inputClass} /></Field>
+          <Field label="מועד ראשון (לא חובה)" htmlFor={`${id}-dd`}><DateField id={`${id}-dd`} name="deadline_on" /></Field>
           <Field label="מה המועד" htmlFor={`${id}-dt`}><input id={`${id}-dt`} name="deadline_title" maxLength={200} placeholder="הגשת כתב הגנה" className={inputClass} /></Field>
           <ScopeField id={`${id}-sc`} />
         </>
       )}
-      <Field label="הערות" htmlFor={`${id}-nt`} className="sm:col-span-2"><textarea id={`${id}-nt`} name="notes" maxLength={4000} rows={3} defaultValue={values.notes ?? ''} className={cn(inputClass, 'h-auto py-2')} /></Field>
+      <Field label="הערות" htmlFor={`${id}-nt`} className="sm:col-span-2"><textarea id={`${id}-nt`} name="notes" maxLength={4000} rows={3} defaultValue={values.notes ?? ''} className={textareaClass} /></Field>
       <Err s={state} />
       <Submit pending={pending}>{isNew ? <><Plus className="size-4" aria-hidden />פתח תיק</> : 'שמור'}</Submit>
     </form>
@@ -381,10 +381,10 @@ export function AddDeadlineForm({ caseId, path }: { caseId: string; path: string
   const { state, act, pending } = useForm(addDeadline, () => setKey(k => k + 1));
   const id = useId();
   return (
-    <form key={key} action={act} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_10rem_auto] sm:items-end">
+    <form key={key} action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_11rem_auto] sm:items-end">
       <Hidden v={{ path, case_id: caseId }} />
       <Field label="מועד חדש" htmlFor={`${id}-t`}><input id={`${id}-t`} name="title" required maxLength={200} placeholder="דיון / הגשה / תשלום" className={inputClass} /></Field>
-      <Field label="תאריך" htmlFor={`${id}-d`}><input id={`${id}-d`} name="due_on" type="date" required className={inputClass} /></Field>
+      <Field label="תאריך" htmlFor={`${id}-d`}><DateField id={`${id}-d`} name="due_on" required /></Field>
       <Button type="submit" variant="secondary" disabled={pending}><CalendarPlus className="size-4" aria-hidden />הוסף</Button>
       <Err s={state} />
     </form>
@@ -397,12 +397,12 @@ export function SubjectTaskForm({ subjectType, subjectId, path }: Opts & { subje
   const { state, act, pending } = useForm(addSubjectTask, () => setKey(k => k + 1));
   const id = useId();
   return (
-    <form key={key} action={act} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9rem_6rem_auto] sm:items-end">
+    <form key={key} action={act} className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_11rem_6rem_auto] sm:items-end">
       <Hidden v={{ path, subject_type: subjectType, subject_id: subjectId }} />
       <Field label="משימה חדשה" htmlFor={`${id}-t`}><input id={`${id}-t`} name="title" required maxLength={300} className={inputClass} /></Field>
-      <Field label="עד" htmlFor={`${id}-d`}><input id={`${id}-d`} name="due_date" type="date" className={inputClass} /></Field>
+      <Field label="עד" htmlFor={`${id}-d`}><DateField id={`${id}-d`} name="due_date" /></Field>
       <Field label="עדיפות" htmlFor={`${id}-p`}>
-        <select id={`${id}-p`} name="priority" defaultValue="3" className={inputClass}>{PRIORITIES.map(p => <option key={p.value} value={p.value}>P{p.value}</option>)}</select>
+        <select id={`${id}-p`} name="priority" defaultValue="3" className={selectClass}>{PRIORITIES.map(p => <option key={p.value} value={p.value}>P{p.value}</option>)}</select>
       </Field>
       <Button type="submit" variant="secondary" disabled={pending}><Plus className="size-4" aria-hidden />משימה</Button>
       <Err s={state} />
@@ -421,7 +421,7 @@ function ContactForm({ subjectType, subjectId, path, onSaved }: { subjectType: s
   const { state, act, pending } = useForm(addContact, onSaved);
   const id = useId();
   return (
-    <form action={act} className="grid grid-cols-2 gap-3">
+    <form action={act} className="grid grid-cols-2 gap-4">
       <Hidden v={{ path, subject_type: subjectType, subject_id: subjectId }} />
       <Field label="שם" htmlFor={`${id}-n`}><input id={`${id}-n`} name="name" required maxLength={120} className={inputClass} /></Field>
       <Field label="תפקיד" htmlFor={`${id}-r`}><input id={`${id}-r`} name="role" maxLength={60} placeholder="שוכר / עו״ד / מתווך" className={inputClass} /></Field>

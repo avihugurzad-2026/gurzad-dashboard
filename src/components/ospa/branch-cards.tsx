@@ -18,7 +18,7 @@ export function BranchCards({ d, counts }: { d: OspaData; counts: Record<string,
             const tasks = counts[`business/head-spa-israel/${l.location}`];
             return (
               <li key={l.location}>
-                <Link href={href} className="flex h-full flex-col gap-2 rounded-lg border border-line p-4 transition-colors hover:border-line-strong hover:bg-surface-2/50">
+                <Link href={href} className="flex h-full flex-col gap-2 rounded-xl border border-line p-4 transition-colors hover:border-line-strong hover:bg-surface-2/50">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 font-medium"><MapPin className="size-4 text-muted" aria-hidden />סניף {l.name_he}</span>
                     <Badge tone={l.has_data ? 'good' : undefined}>{l.has_data ? 'מחובר ל-Buyz' : l.connected ? 'אין נתונים עדיין' : 'בהקמה'}</Badge>

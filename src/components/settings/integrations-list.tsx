@@ -21,33 +21,33 @@ export function IntegrationsList({ items }: { items: IntegrationStatus[] | null 
     <Card id="integrations">
       <CardHeader>
         <CardTitle>חיבורים</CardTitle>
-        <span className="text-sm text-muted">מקורות נתונים לסניפים · סנכרון יומי</span>
+        <span className="shrink-0 text-sm text-muted">מקורות נתונים לסניפים · סנכרון יומי</span>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
-          <Empty icon={<PlugZap className="size-6" />} title="אין חיבורים">חיבור נוסף נוצר בשורה בטבלת integrations.</Empty>
+          <Empty icon={<PlugZap aria-hidden />} title="אין חיבורים">חיבור נוסף נוצר בשורה בטבלת integrations.</Empty>
         ) : (
           <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
+            <table className="data-table min-w-[520px]">
               <caption className="sr-only">חיבורים למקורות נתונים</caption>
-              <thead><tr className="border-b border-line text-xs text-muted">
-                <th scope="col" className="py-2 text-start font-medium">מקור</th>
-                <th scope="col" className="py-2 text-start font-medium">מקום</th>
-                <th scope="col" className="py-2 text-start font-medium">מצב</th>
-                <th scope="col" className="py-2 text-start font-medium">סנכרון אחרון</th>
-                <th scope="col" className="py-2 text-start font-medium">מפתח</th>
+              <thead><tr>
+                <th scope="col">מקור</th>
+                <th scope="col">מקום</th>
+                <th scope="col">מצב</th>
+                <th scope="col">סנכרון אחרון</th>
+                <th scope="col">מפתח</th>
               </tr></thead>
               <tbody>
                 {items.map(i => (
-                  <tr key={i.id} className="border-b border-line align-top last:border-0">
-                    <th scope="row" className="py-2 text-start font-medium"><bdi>{PROVIDER[i.provider] ?? i.provider}</bdi></th>
-                    <td className="py-2"><bdi>{i.place}</bdi></td>
-                    <td className="py-2">
+                  <tr key={i.id}>
+                    <th scope="row" className="font-medium"><bdi>{PROVIDER[i.provider] ?? i.provider}</bdi></th>
+                    <td><bdi>{i.place}</bdi></td>
+                    <td>
                       <Badge tone={STATUS[i.status]?.tone ?? 'neutral'}>{STATUS[i.status]?.label ?? i.status}</Badge>
-                      {i.status === 'error' && i.last_error && <p className="mt-1 text-xs text-critical-ink">{i.last_error}</p>}
+                      {i.status === 'error' && i.last_error && <p className="mt-1.5 text-xs text-critical-ink">{i.last_error}</p>}
                     </td>
-                    <td className="py-2 text-ink-2">{i.last_sync_at ? stamp(i.last_sync_at) : 'עוד לא'}</td>
-                    <td className="py-2 text-xs text-muted"><bdi>{i.credentials}</bdi></td>
+                    <td className="whitespace-nowrap text-ink-2">{i.last_sync_at ? stamp(i.last_sync_at) : 'עוד לא'}</td>
+                    <td className="text-xs text-muted"><bdi dir="ltr">{i.credentials}</bdi></td>
                   </tr>
                 ))}
               </tbody>

@@ -31,7 +31,7 @@ export function VentureRemove({ kind, id, path, label, after, text }: {
           else if (after) router.push(after);
         });
       }}
-      className={text ? buttonClass('ghost', 'sm', 'text-critical-ink') : 'rounded-md p-1 text-muted hover:bg-surface-2 hover:text-critical-ink disabled:opacity-50'}>
+      className={text ? buttonClass('danger', 'sm') : buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}>
       <Icon className="size-4" aria-hidden />{text}
     </button>
   );

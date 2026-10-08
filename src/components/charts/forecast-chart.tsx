@@ -32,14 +32,14 @@ export function ForecastChart({ weeks, floor }: { weeks: ForecastWeek[]; floor: 
             </linearGradient>
           </defs>
           <CartesianGrid stroke="var(--grid)" vertical={false} />
-          <XAxis dataKey="start" tickFormatter={shortDate} tick={{ fill: 'var(--muted)', fontSize: 12 }}
+          <XAxis dataKey="start" tickFormatter={shortDate} tick={{ fill: 'var(--muted)', fontSize: 13 }}
             stroke="var(--axis)" tickMargin={6} interval="preserveStartEnd" reversed />
-          <YAxis orientation="right" tick={{ fill: 'var(--muted)', fontSize: 12 }} stroke="var(--axis)" width={64}
+          <YAxis orientation="right" tick={{ fill: 'var(--muted)', fontSize: 13 }} stroke="var(--axis)" width={64}
             domain={[0, 'auto']} tickFormatter={v => new Intl.NumberFormat('he-IL', { notation: 'compact' }).format(v)} />
           <Tooltip content={<Readout />} cursor={{ stroke: 'var(--axis)' }} />
           {floor !== null && (
             <ReferenceLine y={floor} stroke="var(--critical)" strokeDasharray="4 4"
-              label={{ value: 'רצפת מזומן', position: 'insideTopRight', fill: 'var(--critical-ink)', fontSize: 12 }} />
+              label={{ value: 'רצפת מזומן', position: 'insideTopRight', fill: 'var(--critical-ink)', fontSize: 13 }} />
           )}
           <Area type="monotone" dataKey="closing" stroke="var(--series-1)" strokeWidth={2} fill="url(#fcFill)"
             connectNulls={false} isAnimationActive={false} />

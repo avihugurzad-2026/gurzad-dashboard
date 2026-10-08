@@ -22,6 +22,7 @@ import { QuickTask } from '@/components/work/quick-task';
 import { TaskRow } from '@/components/work/task-row';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
+import { Badge } from '@/components/ui/badge';
 
 export const metadata = { title: 'בית — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -65,19 +66,19 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const eventsToday = today.events.length;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <GreetingClock name={u.name} initial={new Date().toISOString()} />
-        <HomeFilters area={area} range={range} areas={areas} />
-      </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2"><HomeFilters area={area} range={range} areas={areas} /></div>
+      </header>
 
       <Card>
-        <CardContent className="pt-4">
+        <CardContent className="pt-5 sm:pt-6">
           <QuickTask path="/" />
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <KpiCard label="משימות דחופות" icon={<ListChecks className="size-4" />} amount={false} href="#tasks"
           value={t.ready ? num(t.urgent) : null} reason="טבלת המשימות עוד לא זמינה"
           hint={t.overdue_count ? `${t.overdue_count} באיחור` : 'שום דבר לא באיחור'} />
@@ -105,18 +106,18 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">
         <Card>
-          <CardHeader><CardTitle>היום שלי</CardTitle><Link href="/today" className="text-sm text-accent hover:underline">לוח היום</Link></CardHeader>
+          <CardHeader><CardTitle>היום שלי</CardTitle><Link href="/today" className="shrink-0 text-sm font-medium text-accent-ink hover:underline">לוח היום</Link></CardHeader>
           <CardContent>
-            {!week.connected && <CalendarCta configured={week.configured} className="mb-3" />}
+            {!week.connected && <CalendarCta configured={week.configured} className="mb-4" />}
             {toItems(today).length === 0 ? (
-              <Empty icon={<CalendarDays className="size-6" />} title="אין אירועים ומשימות עם שעה להיום">
+              <Empty icon={<CalendarDays aria-hidden />} title="אין אירועים ומשימות עם שעה להיום">
                 משימה עם תאריך של היום, או פגישה ביומן, תופיע כאן לפי השעה.
               </Empty>
             ) : <Timeline items={toItems(today)} isToday />}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>השבוע הקרוב</CardTitle><Link href="/calendar?view=week" className="text-sm text-accent hover:underline">לוח שנה</Link></CardHeader>
+          <CardHeader><CardTitle>השבוע הקרוב</CardTitle><Link href="/calendar?view=week" className="shrink-0 text-sm font-medium text-accent-ink hover:underline">לוח שנה</Link></CardHeader>
           <CardContent><WeekStrip days={week.days} today={week.today} connected={week.connected} /></CardContent>
         </Card>
       </div>
@@ -130,7 +131,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 <CardTitle className="flex items-center gap-2">
                   {g.key === 'overdue' && items.length > 0 && <AlertTriangle className="size-4 text-critical" aria-hidden />}{g.title}
                 </CardTitle>
-                <span className="text-sm text-muted">{items.length}</span>
+                <Badge tone={g.key === 'overdue' && items.length > 0 ? 'critical' : 'neutral'} className="tabular">{items.length}</Badge>
               </CardHeader>
               <CardContent>
                 {items.length === 0 ? <p className="text-sm text-muted">{g.empty}</p> : (
@@ -138,7 +139,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                     {items.slice(0, 8).map(i => <TaskRow key={`${i.source}-${i.id}`} item={i} path="/" />)}
                   </ul>
                 )}
-                {items.length > 8 && <p className="pt-2 text-xs text-muted">ועוד {items.length - 8}</p>}
+                {items.length > 8 && <p className="pt-3 text-xs text-muted">ועוד {items.length - 8}</p>}
               </CardContent>
             </Card>
           );

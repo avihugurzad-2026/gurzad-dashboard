@@ -141,21 +141,21 @@ export function CommandPalette({ placeholder = 'חיפוש משימות, לקו�
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[min(12vh,6rem)]" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
       <div role="dialog" aria-modal="true" aria-label="חיפוש בכל המערכת" dir="rtl"
-        className="flex max-h-[min(70dvh,560px)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-line bg-surface text-ink shadow-xl">
-        <div className="flex items-center gap-2 border-b border-line px-3">
+        className="flex max-h-[min(70dvh,560px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-line bg-surface text-ink shadow-xl">
+        <div className="flex items-center gap-3 border-b border-line px-4">
           {loading ? <Loader2 className="size-4 shrink-0 animate-spin text-muted" aria-hidden /> : <Search className="size-4 shrink-0 text-muted" aria-hidden />}
           <input ref={input} value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKeyDown}
             role="combobox" aria-expanded={options.length > 0} aria-controls={`${id}-list`} aria-autocomplete="list"
             aria-activedescendant={options.length ? optId(active) : undefined} aria-label="חיפוש"
             placeholder={placeholder} maxLength={100} autoComplete="off" spellCheck={false}
-            className="h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted" />
-          <kbd className="hidden shrink-0 rounded border border-line-strong px-1.5 text-[11px] text-muted sm:inline">Esc</kbd>
+            className="h-14 min-w-0 flex-1 bg-transparent text-body outline-none placeholder:text-muted" />
+          <kbd className="hidden h-6 shrink-0 items-center rounded-md border border-line-strong px-1.5 text-xs font-medium text-muted sm:inline-flex">Esc</kbd>
         </div>
-        <div ref={list} id={`${id}-list`} role="listbox" aria-label="תוצאות" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+        <div ref={list} id={`${id}-list`} role="listbox" aria-label="תוצאות" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
           {data?.groups.map(g => (
             <div key={g.type} role="group" aria-labelledby={`${id}-g-${g.type}`} className="pb-1">
-              <div id={`${id}-g-${g.type}`} className="flex items-center gap-1.5 px-2 pb-1 pt-2 text-xs font-medium text-muted">
-                <TypeIcon type={g.type} className="size-3.5" />{g.label}
+              <div id={`${id}-g-${g.type}`} className="px-3 pb-1.5 pt-3 text-xs font-semibold text-muted">
+                {g.label}
               </div>
               {g.items.map(it => {
                 n++;
@@ -163,15 +163,18 @@ export function CommandPalette({ placeholder = 'חיפוש משימות, לקו�
                 return (
                   <div key={`${g.type}:${it.id}`} id={optId(i)} role="option" aria-selected={i === active}
                     onMouseMove={() => { if (active !== i) setActive(i); }} onClick={() => go(options[i])}
-                    className={cn('flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2', i === active ? 'bg-accent-soft' : 'hover:bg-surface-2')}>
-                    <div className="min-w-0 flex-1">
+                    className={cn('flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5', i === active ? 'bg-accent-soft' : 'hover:bg-surface-2')}>
+                    <span className={cn('grid size-8 shrink-0 place-items-center rounded-lg', i === active ? 'bg-surface text-accent-ink' : 'bg-surface-2 text-ink-2')}>
+                      <TypeIcon type={g.type} />
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <div className="flex items-baseline gap-2">
-                        <span className="truncate text-sm font-medium"><bdi>{it.title}</bdi></span>
-                        {it.subtitle && <span className="truncate text-xs text-muted"><bdi>{it.subtitle}</bdi></span>}
+                        <span className="truncate text-sm font-medium text-ink"><bdi>{it.title}</bdi></span>
+                        {it.subtitle && <span className="shrink-0 text-xs text-muted"><bdi>{it.subtitle}</bdi></span>}
                       </div>
-                      <div className="truncate text-xs text-muted"><bdi dir="rtl">{it.crumbs}</bdi></div>
+                      {it.crumbs && <div className="truncate text-xs text-muted"><bdi dir="rtl">{it.crumbs}</bdi></div>}
                     </div>
-                    {i === active && <CornerDownLeft className="size-3.5 shrink-0 text-muted" aria-hidden />}
+                    {i === active && <CornerDownLeft className="size-4 shrink-0 text-muted" aria-hidden />}
                   </div>
                 );
               })}
@@ -182,13 +185,13 @@ export function CommandPalette({ placeholder = 'חיפוש משימות, לקו�
             return (
               <div id={optId(i)} role="option" aria-selected={i === active} onMouseMove={() => { if (active !== i) setActive(i); }}
                 onClick={() => go(options[i])}
-                className={cn('flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-accent', i === active ? 'bg-accent-soft' : 'hover:bg-surface-2')}>
-                <Search className="size-3.5" aria-hidden />כל התוצאות עבור "<bdi>{text}</bdi>"
+                className={cn('mt-1 flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-accent-ink', i === active ? 'bg-accent-soft' : 'hover:bg-surface-2')}>
+                <span className="grid size-8 shrink-0 place-items-center"><Search className="size-4" aria-hidden /></span>כל התוצאות עבור "<bdi>{text}</bdi>"
               </div>
             );
           })()}
         </div>
-        <div className="border-t border-line px-3 py-2 text-xs text-muted" aria-live="polite">
+        <div className="border-t border-line bg-surface-2/50 px-4 py-2.5 text-xs text-muted" aria-live="polite">
           {error ? <span className="text-critical-ink">{error}</span>
             : text.length < 2 ? 'הקלד לפחות שני תווים · ↑↓ לבחירה · Enter לפתיחה'
             : loading && !data ? 'מחפש…'

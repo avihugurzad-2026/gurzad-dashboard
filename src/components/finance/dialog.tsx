@@ -18,14 +18,14 @@ export function FormDialog({ trigger, title, triggerClass, children, wide = true
   }, [open]);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className={triggerClass ?? buttonClass('primary', 'sm')}>{trigger}</button>
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className={triggerClass ?? buttonClass('primary', 'md')}>{trigger}</button>
       <dialog ref={ref} onClose={() => setOpen(false)} aria-label={title}
-        className={`m-auto ${wide ? 'w-[min(760px,calc(100vw-2rem))]' : 'w-[min(440px,calc(100vw-2rem))]'} max-h-[calc(100dvh-2rem)] rounded-xl border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/40`}>
+        className={`m-auto ${wide ? 'w-[min(760px,calc(100vw-2rem))]' : 'w-[min(440px,calc(100vw-2rem))]'} max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/40`}>
         {open && (
-          <div className="flex flex-col gap-3 p-4">
+          <div className="flex flex-col gap-5 p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-semibold">{title}</h2>
-              <button type="button" onClick={() => setOpen(false)} className={buttonClass('ghost', 'icon')} aria-label="סגירה"><X className="size-4" /></button>
+              <h2 className="text-card font-semibold text-ink"><bdi>{title}</bdi></h2>
+              <button type="button" onClick={() => setOpen(false)} className={buttonClass('ghost', 'icon')} aria-label="סגירה"><X aria-hidden /></button>
             </div>
             {children(() => setOpen(false))}
           </div>
