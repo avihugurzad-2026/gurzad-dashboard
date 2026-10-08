@@ -50,11 +50,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [open, inbox, people] = await Promise.all([
     u.isAdmin ? openAlerts() : Promise.resolve([]),
     inboxCount(),
-    db().query(`SELECT DISTINCT us.id, us.name FROM users us
+    db().query(`SELECT DISTINCT us.id, us.name, (us.id = $1) AS is_me FROM users us
       WHERE us.active AND (us.id = $1 OR EXISTS (
         SELECT 1 FROM workspace_members mine JOIN workspace_members peer ON peer.workspace_id = mine.workspace_id
         WHERE mine.user_id = $1 AND mine.revoked_at IS NULL AND peer.user_id = us.id AND peer.revoked_at IS NULL
-      )) ORDER BY (us.id = $1) DESC, us.name`, [u.id]).then(r => r.rows as { id: string; name: string }[]),
+      )) ORDER BY is_me DESC, us.name`, [u.id]).then(r => r.rows as { id: string; name: string }[]),
   ]);
   const active = open.filter(a => !(a.snoozed_until && a.snoozed_until > today));
   const session: ClientSession = {
