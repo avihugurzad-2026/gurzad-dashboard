@@ -14,7 +14,7 @@ import { createEventForTask, removeEventForTask } from '@/server/calendar';
 
 export type ActionResult = { ok: true; warning?: string } | { ok: false; error: string };
 
-const DOMAINS = new Set(['business', 'personal', 'ventures']);
+const DOMAINS = new Set(['business', 'personal', 'household', 'ventures']);
 const STATUS = new Set(['todo', 'in_progress', 'waiting', 'done', 'cancelled']);
 const GOAL_TYPES = new Set(['personal', 'business', 'branch', 'financial', 'study', 'ventures']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,7 +86,9 @@ async function place(f: FormData): Promise<{ domain: string; branch: string | nu
 }
 
 function done(path: string | null): ActionResult {
-  revalidatePath(path && path.startsWith('/') ? path : '/', 'layout');
+  // A task mutation should refresh the active task surface, not remount the
+  // application layout and refetch navigation, finance and integrations.
+  revalidatePath(path && path.startsWith('/') ? path : '/');
   return { ok: true };
 }
 
@@ -118,6 +120,7 @@ export async function addTask(_: ActionResult | null, f: FormData): Promise<Acti
   if (description && description.length > 4000) return { ok: false, error: 'התיאור ארוך מדי' };
   // Who does it: yourself by default. Handing it to someone else makes it shared, so they see it.
   const assigned = str(f, 'assigned_to') ?? str(f, 'owner');
+  if (p.domain === 'personal' && ((assigned && assigned !== u.id) || str(f, 'scope') === 'shared')) return NO_ACCESS;
   if (assigned && assigned !== u.id && !(await activeUser(assigned))) return { ok: false, error: 'אחראי לא תקין' };
   const handedOver = Boolean(assigned && assigned !== u.id);
   const scope = handedOver || str(f, 'scope') === 'shared' ? 'shared' : 'user';
@@ -270,6 +273,7 @@ export async function addGoal(_: ActionResult | null, f: FormData): Promise<Acti
   const due = str(f, 'due');
   if (due && !DATE.test(due)) return { ok: false, error: 'תאריך לא תקין' };
   const owner = str(f, 'owner') ?? u.id;
+  if (p.domain === 'personal' && (owner !== u.id || str(f, 'scope') === 'shared')) return NO_ACCESS;
   if (owner !== u.id && !(await activeUser(owner))) return { ok: false, error: 'אחראי לא תקין' };
   const goalType = str(f, 'goal_type') ?? defaultGoalType(p, unit);
   if (!GOAL_TYPES.has(goalType)) return { ok: false, error: 'סוג יעד לא תקין' };
@@ -315,6 +319,7 @@ export async function addMoney(_: ActionResult | null, f: FormData): Promise<Act
   const on = str(f, 'occurred_on');
   if (!on || !DATE.test(on)) return { ok: false, error: 'צריך תאריך' };
   const owner = str(f, 'owner') ?? u.id;
+  if (owner !== u.id) return NO_ACCESS;
   if (owner !== u.id && !(await activeUser(owner))) return { ok: false, error: 'לא תקין' };
   const note = str(f, 'note');
   if (note && note.length > 500) return { ok: false, error: 'ההערה ארוכה מדי' };

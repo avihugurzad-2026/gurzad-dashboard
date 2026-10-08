@@ -9,10 +9,10 @@ import { TaskRow } from './task-row';
 import { NotReady } from './not-ready';
 
 // Tasks for one place: quick add (pre-filled with this place), then dashboard and vault tasks, most urgent first
-export async function TaskBoard({ place, path, title = 'משימות', category, withOwner = false, showContext = false }: {
-  place: Place; path: string; title?: string; category?: string | null; withOwner?: boolean; showContext?: boolean;
+export async function TaskBoard({ place, path, title = 'משימות', category, withOwner = false, showContext = false, includeDone = false }: {
+  place: Place; path: string; title?: string; category?: string | null; withOwner?: boolean; showContext?: boolean; includeDone?: boolean;
 }) {
-  const [{ ready, items }, names, me] = await Promise.all([workItems({ ...place, category }), peopleNames(), requireUser()]);
+  const [{ ready, items }, names, me] = await Promise.all([workItems({ ...place, category }, { includeDone }), peopleNames(), requireUser()]);
   const open = items.filter(i => i.status !== 'done' && i.status !== 'cancelled');
   const overdue = open.filter(i => i.days_past).length;
   // Who does it: shown when it's someone else's, or always on shared lists
@@ -25,7 +25,7 @@ export async function TaskBoard({ place, path, title = 'משימות', category,
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <span className="text-sm text-muted tabular">{open.length} פתוחות{overdue ? ` · ${overdue} באיחור` : ''}</span>
+        <span className="text-sm text-muted tabular">{includeDone ? `${items.length} בארכיון` : `${open.length} פתוחות`}{overdue ? ` · ${overdue} באיחור` : ''}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {ready ? <QuickTask place={place} path={path} className="rounded-lg border border-line bg-surface-2/40 p-3" /> : <NotReady what="משימות" />}

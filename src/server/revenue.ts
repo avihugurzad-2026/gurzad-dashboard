@@ -2,7 +2,7 @@ import 'server-only';
 import { db } from './db';
 import { addDays, todayIL } from '@/lib/period';
 import paramsLib from '@domain/params';
-import { buyzReport, BUYZ_ERROR, type BuyzReport } from './buyz';
+import type { BuyzReport } from './buyz';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Head Spa Israel revenue. Stored months come from revenue_monthly (filled by the daily
@@ -14,6 +14,14 @@ export const parseBasis = (v: unknown): Basis => (v === 'mine' ? 'mine' : 'all')
 
 export type OspaMonth = { month: string; incl_vat: number; ex_vat: number | null; tx_count: number | null };
 export type OspaLocation = { location: string; name_he: string; connected: boolean; months: OspaMonth[]; last_fetched: string | null };
+type LiveDetail = {
+  revenue_ex: number | null; revenue_incl: number | null; unpaid_incl: number | null;
+  tx: number | null; avg_incl: number | null; by_source: BuyzReport['summary']['by_source'];
+  methods: BuyzReport['methods']; sales: BuyzReport['sales']; daily: BuyzReport['daily'];
+};
+// Kept as a function so consumers retain the nullable compatibility shape while
+// navigation remains database-only.
+const storedLiveDetail = (): LiveDetail | null => null;
 
 const BRANCH = 'head-spa-israel';
 
@@ -73,27 +81,14 @@ export async function ospa(basis: Basis, location: string | null = null) {
   const ytd = monthly.filter(m => m.month.slice(0, 4) === today.slice(0, 4));
   const sum = (xs: (number | null)[]) => (xs.length && xs.every(x => x !== null) ? xs.reduce((a, b) => a! + b!, 0) : null);
 
-  // Live detail for this month (summary, methods, sales, daily). One Buyz key = one location for now,
-  // so a branch without a Buyz mapping gets no live call (its numbers would be another branch's).
-  const wantLive = ready ? locations.some(l => l.connected) : location === null;
-  const live = wantLive ? await buyzReport({ period: 'this_month' }) : null;
-  const report: BuyzReport | null = live?.ok ? live.report : null;
-  const liveScaled = report && {
-    revenue_ex: scale(exVat(report.summary.revenue_total, vatNow)),
-    revenue_incl: scale(report.summary.revenue_total),
-    unpaid_incl: report.summary.unpaid_total,
-    tx: report.summary.transactions_count,
-    avg_incl: report.summary.average_transaction,
-    by_source: report.summary.by_source,
-    methods: report.methods,
-    sales: report.sales,
-    daily: report.daily,
-  };
+  // Navigation is database-only. Buyz is refreshed by the protected cron and
+  // the stored monthly figures remain available if the provider is unavailable.
+  const liveScaled = storedLiveDetail();
 
   return {
     today, basis, share, vat_rate: vatNow, ready,
-    live_error: !live || live.ok ? null : BUYZ_ERROR[live.reason],
-    fetched_at: live?.ok ? live.fetched_at : null,
+    live_error: null,
+    fetched_at: null,
     locations: locations.map(l => {
       const lm = l.months.find(m => m.month === lastMonth)?.ex_vat ?? null;
       const ly = l.months.filter(m => m.month.slice(0, 4) === today.slice(0, 4));

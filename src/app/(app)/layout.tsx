@@ -1,11 +1,12 @@
-import { canCreateIn, canSeePlace, requireUser, type SessionUser } from '@/server/auth';
+import { canCreateIn, canSeePlace, currentRegistry, requireUser, type SessionUser } from '@/server/auth';
+import { cookies } from 'next/headers';
 import { openAlerts } from '@/server/data';
 import { db } from '@/server/db';
 import { todayIL } from '@/lib/period';
 import { encodePlace, placeOptions } from '@/lib/places';
 import { AppShell } from '@/components/shell/app-shell';
 import { NAV_BOTTOM, NAV_MORE, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from '@/components/shell/nav';
-import { currentHousehold, entityRows, myWorkspaces } from '@/server/workspaces';
+import { canOpenWorkspace, entityRows, HOUSEHOLD_COOKIE } from '@/server/workspaces';
 import type { NavWorkspace } from '@/components/shell/nav';
 import type { ClientSession } from '@/components/shell/session-context';
 import { inboxCount } from '@/server/entries';
@@ -32,9 +33,16 @@ function navHrefs(u: SessionUser, ws: NavWorkspace[]): string[] {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Branch registry first: nav, place menus and breadcrumbs are built from it
   const u = await requireUser();   // also loads the workspace and branch registry
-  const [mine, hh] = await Promise.all([myWorkspaces(u), currentHousehold(u)]);
-  const { loadLocations } = await import('@/server/locations');
-  const locations = await loadLocations();
+  const registry = await currentRegistry();
+  // `currentUser` and this layout share the same request-local registry. This
+  // avoids three identical workspace reads on every navigation without caching
+  // memberships beyond the current request.
+  const allWorkspaces = registry?.workspaces ?? [];
+  const locations = registry?.locations ?? [];
+  const mine = allWorkspaces.filter(w => canOpenWorkspace(u, w));
+  const picked = (await cookies()).get(HOUSEHOLD_COOKIE)?.value;
+  const households = mine.filter(w => w.kind === 'household');
+  const hh = households.find(w => w.id === picked) ?? households[0] ?? null;
   // Current household first, so the nav and place menus default to it
   const ordered = [...mine].sort((a, b) => (a.id === hh?.id ? -1 : b.id === hh?.id ? 1 : 0));
   const workspaces: NavWorkspace[] = ordered.map(w => ({ id: w.id, kind: w.kind, name: w.name, branch: w.branch }));
@@ -42,7 +50,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [open, inbox, people] = await Promise.all([
     u.isAdmin ? openAlerts() : Promise.resolve([]),
     inboxCount(),
-    db().query(`SELECT id, name FROM users WHERE active ORDER BY (id = $1) DESC, name`, [u.id]).then(r => r.rows as { id: string; name: string }[]),
+    db().query(`SELECT DISTINCT us.id, us.name FROM users us
+      WHERE us.active AND (us.id = $1 OR EXISTS (
+        SELECT 1 FROM workspace_members mine JOIN workspace_members peer ON peer.workspace_id = mine.workspace_id
+        WHERE mine.user_id = $1 AND mine.revoked_at IS NULL AND peer.user_id = us.id AND peer.revoked_at IS NULL
+      )) ORDER BY (us.id = $1) DESC, us.name`, [u.id]).then(r => r.rows as { id: string; name: string }[]),
   ]);
   const active = open.filter(a => !(a.snoozed_until && a.snoozed_until > today));
   const session: ClientSession = {

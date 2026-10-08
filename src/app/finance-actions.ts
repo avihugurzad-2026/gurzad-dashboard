@@ -26,7 +26,9 @@ const str = (f: FormData, k: string) => {
 const bool = (f: FormData, k: string) => ['on', 'true', '1'].includes(String(f.get(k) ?? ''));
 
 function finish(path: string | null): FinanceResult {
-  revalidatePath(path && path.startsWith('/') && !path.startsWith('//') ? path.split('?')[0] : '/', 'layout');
+  // Finance writes only need the current financial surface refreshed. Invalidating
+  // the layout remounted the shell and repeated its navigation queries.
+  revalidatePath(path && path.startsWith('/') && !path.startsWith('//') ? path.split('?')[0] : '/');
   return { ok: true };
 }
 

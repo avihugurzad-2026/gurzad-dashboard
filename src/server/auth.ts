@@ -101,12 +101,20 @@ async function loadUser(id: string): Promise<SessionUser | null> {
 
 // The signed-in user for this request, or null. Cached per request.
 // Also loads the workspace/branch registry, so every page that asks who is signed in can rely on it.
-export const currentUser = cache(async (): Promise<SessionUser | null> => {
+const currentSession = cache(async () => {
   const id = tokenUserId((await cookies()).get(COOKIE)?.value);
-  if (!id) return null;
-  const [u] = await Promise.all([loadUser(id), import('./workspaces').then(m => m.loadRegistry())]);
-  return u;
+  if (!id) return { user: null, registry: null };
+  const [user, registry] = await Promise.all([loadUser(id), import('./workspaces').then(m => m.loadRegistry())]);
+  return { user, registry };
 });
+
+export const currentUser = async (): Promise<SessionUser | null> => (await currentSession()).user;
+
+// Request-scoped only. The shell can reuse the registry already loaded beside the
+// session lookup without retaining authorization data after this render.
+export async function currentRegistry() {
+  return (await currentSession()).registry;
+}
 
 export async function isAuthed(): Promise<boolean> {
   return (await currentUser()) !== null;

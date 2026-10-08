@@ -4,6 +4,7 @@ import { stamp } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, type Tone } from '@/components/ui/badge';
 import { Empty } from '@/components/ui/empty';
+import { BuyzSyncButton } from './buyz-sync-button';
 
 const STATUS: Record<IntegrationStatus['status'], { label: string; tone: Tone }> = {
   ok: { label: 'תקין', tone: 'good' },
@@ -14,7 +15,7 @@ const STATUS: Record<IntegrationStatus['status'], { label: string; tone: Tone }>
 const PROVIDER: Record<string, string> = { buyz: 'Buyz' };
 
 // Settings → "חיבורים" (read-only). Pass the result of integrationsStatus(u); null = not for this user.
-// Shows where each key is read from (an env var name), never the key.
+// Credential implementation details stay server-side.
 export function IntegrationsList({ items }: { items: IntegrationStatus[] | null }) {
   if (items === null) return null;
   return (
@@ -35,7 +36,8 @@ export function IntegrationsList({ items }: { items: IntegrationStatus[] | null 
                 <th scope="col">מקום</th>
                 <th scope="col">מצב</th>
                 <th scope="col">סנכרון אחרון</th>
-                <th scope="col">מפתח</th>
+                <th scope="col">חיבור</th>
+                <th scope="col"><span className="sr-only">פעולות</span></th>
               </tr></thead>
               <tbody>
                 {items.map(i => (
@@ -48,6 +50,7 @@ export function IntegrationsList({ items }: { items: IntegrationStatus[] | null 
                     </td>
                     <td className="whitespace-nowrap text-ink-2">{i.last_sync_at ? stamp(i.last_sync_at) : 'עוד לא'}</td>
                     <td className="text-xs text-muted"><bdi dir="ltr">{i.credentials}</bdi></td>
+                    <td>{i.provider === 'buyz' && <BuyzSyncButton />}</td>
                   </tr>
                 ))}
               </tbody>

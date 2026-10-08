@@ -15,7 +15,12 @@ import { fingerprint, similarity } from '@/lib/fingerprint';
 
 // Names of everyone (for "who does it" labels)
 export async function peopleNames(): Promise<Record<string, string>> {
-  const { rows } = await db().query(`SELECT id, name FROM users`);
+  const u = await requireUser();
+  const { rows } = await db().query(`SELECT DISTINCT us.id, us.name FROM users us
+    WHERE us.id = $1 OR EXISTS (
+      SELECT 1 FROM workspace_members mine JOIN workspace_members peer ON peer.workspace_id = mine.workspace_id
+      WHERE mine.user_id = $1 AND mine.revoked_at IS NULL AND peer.user_id = us.id AND peer.revoked_at IS NULL
+    )`, [u.id]);
   return Object.fromEntries(rows.map((r: any) => [r.id, r.name]));
 }
 export const PERSONAL_LISTS = [
@@ -88,17 +93,28 @@ export async function workItems(p: Filter, { includeDone = false } = {}) {
   try {
     const q = params([today]);
     const w = where(p, q);
-    const { rows } = await db().query(
+    // Dashboard and legacy vault tasks are independent reads. Starting them
+    // together removes a request-time waterfall on Home, Today and task views.
+    const dashboard = db().query(
       `SELECT ${COLS}, CASE WHEN due_date < $1::date AND ${OPEN} THEN ($1::date - due_date) END AS days_past
        FROM work_items WHERE ${w} AND ${visibleSql(u, 'task', '', q.p)}
          ${includeDone ? '' : `AND (${OPEN} OR completed_at > now() - interval '7 days')`}`,
       q.values);
-    for (const r of rows) items.push(fromRow(r));
+    const vault = !p.location && !p.category ? vaultTasks(u, p, today) : Promise.resolve([] as WorkItem[]);
+    const [dashboardResult, vaultResult] = await Promise.allSettled([dashboard, vault]);
+    if (dashboardResult.status === 'fulfilled') {
+      for (const r of dashboardResult.value.rows) items.push(fromRow(r));
+    } else if (missing(dashboardResult.reason)) {
+      ready = false;
+    } else {
+      throw dashboardResult.reason;
+    }
+    if (vaultResult.status === 'fulfilled') items.push(...vaultResult.value);
+    else if (!missing(vaultResult.reason)) throw vaultResult.reason;
   } catch (e) {
     if (!missing(e)) throw e;
     ready = false;
   }
-  if (!p.location && !p.category) items.push(...await vaultTasks(u, p, today));
   const rank: Record<Status, number> = { in_progress: 0, todo: 1, waiting: 2, done: 3, cancelled: 4 };
   items.sort((a, b) => rank[a.status] - rank[b.status] || a.priority - b.priority
     || (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title, 'he'));

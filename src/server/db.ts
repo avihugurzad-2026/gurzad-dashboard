@@ -8,6 +8,8 @@ function makePool() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL env var is required');
   // Supabase needs TLS; a local test database opts out with ?sslmode=disable in its URL
+  // Supabase's current pooler chain is not trusted by this runtime. Keep the
+  // existing connection behavior until a CA bundle can be configured safely.
   const ssl = url.includes('sslmode=disable') ? false : { rejectUnauthorized: false };
   return new Pool({ connectionString: url, ssl, max: 5 });
 }

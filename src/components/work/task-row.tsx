@@ -26,10 +26,10 @@ export function TaskRow({ item, path, ownerLabel, showContext = true }: {
   const due = item.due_date ? `${shortDate(item.due_date)}${item.due_time ? `, ${item.due_time}` : ''}` : null;
 
   return (
-    <li className={cn('flex items-start gap-3 py-3', pending && 'opacity-60')}>
-      <button type="button" disabled={vault || pending}
+    <li className={cn('flex flex-wrap items-start gap-3 py-3 sm:flex-nowrap', pending && 'opacity-60')}>
+      <button type="button" disabled={vault || pending || item.status === 'cancelled'}
         onClick={() => run(() => setTaskStatus(item.id, item.status === 'done' ? 'todo' : 'done', path))}
-        aria-label={vault ? 'משימה מהוואלט: לקריאה בלבד' : item.status === 'done' ? 'החזר לפתוחה' : 'סמן כבוצעה'}
+        aria-label={vault ? 'משימה מהוואלט: לקריאה בלבד' : item.status === 'cancelled' ? 'משימה מבוטלת: שנה סטטוס כדי לפתוח מחדש' : item.status === 'done' ? 'החזר לפתוחה' : 'סמן כבוצעה'}
         className={cn('mt-0.5 shrink-0 rounded-full', item.status === 'done' ? 'text-good' : item.status === 'in_progress' ? 'text-accent' : 'text-muted', !vault && 'hover:text-ink')}>
         <Icon className="size-5" aria-hidden />
       </button>
@@ -48,7 +48,7 @@ export function TaskRow({ item, path, ownerLabel, showContext = true }: {
         </div>
       </div>
       {!vault && (
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+        <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-1.5 sm:w-auto">
           <label className="sr-only" htmlFor={`st-${item.id}`}>סטטוס</label>
           <select id={`st-${item.id}`} value={item.status} disabled={pending} className={rowSelect}
             onChange={e => run(() => setTaskStatus(item.id, e.target.value, path))}>

@@ -29,8 +29,9 @@ const tooLong = (v: string | null, max: number) => v !== null && v.length > max;
 
 function finish(path: unknown, id?: string): VenturesResult {
   const p = typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') ? path.split('?')[0] : '/ventures';
-  revalidatePath(p, 'layout');
-  revalidatePath('/ventures', 'layout');
+  // Revalidate the changed detail and overview, not the shared app layout.
+  revalidatePath(p);
+  if (p !== '/ventures') revalidatePath('/ventures');
   return { ok: true, id };
 }
 

@@ -23,8 +23,8 @@ const ilDate = (offset: number) => {
 // Quick Task: one field. Enter opens the small form (place, category, priority, when) with
 // everything pre-filled from where you are; Enter again saves. "Context first": inside an
 // entity or branch the place is that one, elsewhere it is Personal.
-export function QuickTask({ place, path, autoFocus, onSaved, className }: {
-  place?: Place; path?: string; autoFocus?: boolean; onSaved?: () => void; className?: string;
+export function QuickTask({ place, path, defaultDate, autoFocus, onSaved, className }: {
+  place?: Place; path?: string; defaultDate?: string; autoFocus?: boolean; onSaved?: () => void; className?: string;
 }) {
   const pathname = usePathname();
   const session = useSession();
@@ -38,7 +38,7 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(addTask, null);
   const [open, setOpen] = useState(false);
   const [where, setWhere] = useState(encodePlace(context));
-  const [when, setWhen] = useState<(typeof WHEN)[number]['key']>('none');
+  const [when, setWhen] = useState<(typeof WHEN)[number]['key']>(defaultDate ? 'date' : 'none');
   const [time, setTime] = useState('');
   const me = session?.user.id ?? null;
   const [assignee, setAssignee] = useState(me ?? '');
@@ -56,7 +56,7 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
     title.current?.focus(); onSaved?.();
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dueDate = when === 'today' ? ilDate(0) : when === 'tomorrow' ? ilDate(1) : undefined;
+  const dueDate = when === 'date' ? defaultDate : when === 'today' ? ilDate(0) : when === 'tomorrow' ? ilDate(1) : undefined;
 
   return (
     <form ref={form} className={cn('flex flex-col gap-3', className)}
@@ -98,7 +98,7 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
               {WHEN.map(w => <option key={w.key} value={w.key}>{w.label}</option>)}
             </select>
           </fieldset>
-          {when === 'date' ? (
+          {when === 'date' && !defaultDate ? (
             <label className={cn(labelClass, 'flex flex-col gap-1.5')}>תאריך
               <DateField name="due_date" required aria-label="תאריך" />
             </label>

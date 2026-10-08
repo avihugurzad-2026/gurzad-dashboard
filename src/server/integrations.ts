@@ -44,8 +44,9 @@ export type IntegrationStatus = {
 const PROVIDER_LABEL: Record<string, string> = { buyz: 'Buyz' };
 export const providerLabel = (p: string) => PROVIDER_LABEL[p] ?? p;
 
-// Settings → "חיבורים": owner/admin only (null for anyone else). Shows where the key is read from,
-// never the key.
+// Settings → "חיבורים": owner/admin only (null for anyone else). The UI only
+// reveals whether a server-side credential reference exists; environment names
+// are configuration internals and are not sent to a browser.
 export async function integrationsStatus(u: SessionUser): Promise<IntegrationStatus[] | null> {
   if (!u.isOwner && !u.isAdmin) return null;
   try {
@@ -56,7 +57,7 @@ export async function integrationsStatus(u: SessionUser): Promise<IntegrationSta
       id: r.id, provider: r.provider, domain: r.domain, branch: r.branch, location: r.location,
       place: contextLabel(r), status: r.status, last_error: r.last_error,
       last_sync_at: r.last_sync_at ? new Date(r.last_sync_at).toISOString() : null,
-      credentials: r.credentials_ref ? `משתנה סביבה ${String(r.credentials_ref).replace(/^env:/, '')}` : 'לא הוגדר',
+      credentials: r.credentials_ref ? 'מוגדר בשרת' : 'לא הוגדר',
     }));
   } catch (e) {
     if (missing(e)) return [];

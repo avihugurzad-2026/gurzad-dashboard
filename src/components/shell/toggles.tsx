@@ -37,6 +37,7 @@ export function PrivacyToggle() {
     const next = !hidden;
     if (next) document.documentElement.dataset.private = '1'; else delete document.documentElement.dataset.private;
     write('private', next ? '1' : null);
+    window.dispatchEvent(new Event('dashboard:privacy'));
     setHidden(next);
   };
   return (

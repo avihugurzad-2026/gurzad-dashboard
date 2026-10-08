@@ -22,7 +22,8 @@ const str = (f: FormData, k: string) => {
 };
 
 function done(path?: string | null): CalendarActionResult {
-  revalidatePath(path && path.startsWith('/') && !path.startsWith('//') ? path : '/', 'layout');
+  // Keep the persistent application shell mounted for ordinary calendar edits.
+  revalidatePath(path && path.startsWith('/') && !path.startsWith('//') ? path : '/');
   return { ok: true };
 }
 

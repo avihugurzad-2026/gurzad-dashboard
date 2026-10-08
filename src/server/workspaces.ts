@@ -19,13 +19,12 @@ export type MemberRow = { id: string; user_id: string; name: string; email: stri
 
 const missing = (e: unknown) => ['42P01', '42703'].includes((e as { code?: string })?.code ?? '');
 
-// ── Registry (all workspaces; cached ~60s per server instance, dropped on every write) ──
-const TTL_MS = 60_000;
-let cached: { at: number; rows: WorkspaceRow[] } | null = null;
-export const dropRegistry = () => { cached = null; };
+// ── Registry ─────────────────────────────────────────────────────────────────
+// Authorization must observe a revoked membership or archived workspace on the
+// next request, so this registry intentionally has no process-global cache.
+export const dropRegistry = () => {};
 
 export async function loadWorkspaces(): Promise<WorkspaceRow[]> {
-  if (cached && Date.now() - cached.at < TTL_MS) { applyRegistry(cached.rows); return cached.rows; }
   let rows: WorkspaceRow[] = [];
   try {
     ({ rows } = await db().query(
@@ -34,7 +33,6 @@ export async function loadWorkspaces(): Promise<WorkspaceRow[]> {
   } catch (e) {
     if (!missing(e)) throw e;   // before the workspaces migration
   }
-  cached = { at: Date.now(), rows };
   applyRegistry(rows);
   return rows;
 }

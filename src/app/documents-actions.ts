@@ -28,7 +28,7 @@ const tableMissing = (e: unknown) => ['42P01', '42703'].includes((e as { code?: 
 function finish(path: string | null): DocResult {
   revalidatePath('/documents');
   revalidatePath('/activity');
-  if (path && path.startsWith('/') && !path.startsWith('//')) revalidatePath(path.split('?')[0], 'layout');
+  if (path && path.startsWith('/') && !path.startsWith('//')) revalidatePath(path.split('?')[0]);
   return { ok: true };
 }
 
