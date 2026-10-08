@@ -12,6 +12,8 @@ import L from '@domain/ledger';
 export type ParsedRow = {
   occurred_on: string | null; amount: number | null; direction: 'income' | 'expense' | null; merchant: string | null; description?: string | null;
   currency?: string | null; reference?: string | null; vat_amount?: number | null; document_number?: string | null; external_id?: string | null;
+  /** Discovery can conservatively keep an ambiguous or rejected Gmail message out of the import flow. */
+  initial_status?: 'skipped' | 'unrecognized';
 };
 
 export type ImportSource = 'statement' | 'receipt' | 'gmail';
@@ -48,7 +50,7 @@ export async function addCandidates(c: PoolClient, u: SessionUser, importId: str
     const dupSaved = r.occurred_on && r.amount ? L.isDuplicate(cand, existing) as any : null;
     const dupFile = r.occurred_on && r.amount ? L.isDuplicate(cand, seen) : null;
     const complete = !!(r.occurred_on && r.amount && r.direction);
-    const status = dupSaved || dupFile ? 'duplicate' : !complete ? 'unrecognized' : rule ? 'auto' : 'review';
+    const status = dupSaved || dupFile ? 'duplicate' : r.initial_status ?? (!complete ? 'unrecognized' : rule ? 'auto' : 'review');
     const res = await c.query(
       `INSERT INTO import_candidates (import_id, owner_user_id, occurred_on, merchant, merchant_normalized, description, amount, currency, direction, vat_amount,
          document_number, target_workspace_id, category_id, subcategory_id, fixed_or_variable, frequency, rule_id, status, duplicate_of, external_id, sort)

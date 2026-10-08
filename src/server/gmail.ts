@@ -30,7 +30,7 @@ export type GmailStatus = {
 export type GmailImport = { id: string; status: string; row_count: number; imported_count: number; error: string | null; created_at: string };
 
 export type SyncResult =
-  | { ok: true; importId: string; added: number; skipped: number; failed: number; more: boolean }
+  | { ok: true; importId: string; added: number; skipped: number; rejected: number; failed: number; more: boolean }
   | { ok: false; error: GmailError };
 
 export type GmailError = 'not_configured' | 'not_connected' | 'no_scope' | 'reconnect' | 'no_workspace' | 'busy' | 'google' | 'failed';
@@ -125,7 +125,8 @@ const codeOf = (e: unknown) => (e instanceof gcal.GoogleError ? e.code : 'error'
 const AUTH = new Set(['invalid_grant', 'unauthorized_client', 'token_unreadable', 'http_401', 'authError']);
 const SCOPE = new Set(['insufficientPermissions', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT', 'PERMISSION_DENIED', 'http_403']);
 
-// One message → a candidate row, or null when it could not be read (counted as failed)
+// One message → one candidate row. Low confidence rows remain unrecognized for manual review;
+// clearly irrelevant mail is retained as "skipped" only for idempotency, never as an expense.
 async function readMessage(accessToken: string, id: string): Promise<ParsedRow | null> {
   try {
     const parts = gmail.messageParts(await gmail.getMessage(accessToken, id));
@@ -137,8 +138,12 @@ async function readMessage(accessToken: string, id: string): Promise<ParsedRow |
         if (buf && buf.length && buf.length <= MAX_PDF_BYTES) texts.push(S.pdfText(buf));
       } catch { /* an unreadable PDF: the body may still have the amount */ }
     }
-    const row = gmail.extractFromMessage(parts, texts);
-    return { ...row, external_id: `gmail:${id}` };
+    const classification = gmail.classifyMessage(parts, texts);
+    return {
+      ...classification.parsed,
+      external_id: `gmail:${id}`,
+      initial_status: classification.rejected ? 'skipped' : classification.confidence === 'low' ? 'unrecognized' : undefined,
+    };
   } catch (e) {
     if (e instanceof gcal.GoogleError && (AUTH.has(e.code) || SCOPE.has(e.code))) throw e;
     return null;
@@ -174,7 +179,10 @@ export async function syncGmail(u: SessionUser): Promise<SyncResult> {
 
     let ids: string[];
     try {
-      ids = (await gmail.listMessages(tok.accessToken, gmail.searchQuery({ since }), { max: MAX_LIST })).map(m => m.id);
+      const queries = gmail.searchQueries({ since });
+      const each = Math.max(50, Math.floor(MAX_LIST / queries.length));
+      const batches = await Promise.all(queries.map(q => gmail.listMessages(tok.accessToken, q, { max: each })));
+      ids = [...new Set(batches.flatMap(batch => batch.map(m => m.id)))].slice(0, MAX_LIST);
     } catch (e) {
       const code = codeOf(e);
       await log(u, conn.id, 'gmail_sync_failed', { error: code });
@@ -198,6 +206,7 @@ export async function syncGmail(u: SessionUser): Promise<SyncResult> {
     }
     const rows = read.done.filter((r): r is ParsedRow => r !== null);
     const failed = read.done.length - rows.length;
+    const rejected = rows.filter(r => r.initial_status === 'skipped').length;
 
     const client = await db().connect();
     let importId: string, added: number, skipped: number;
@@ -215,8 +224,8 @@ export async function syncGmail(u: SessionUser): Promise<SyncResult> {
       client.release();
     }
     const more = fresh.length - batch.length + read.left > 0;
-    await log(u, importId, 'gmail_synced', { found: ids.length, added, skipped, failed, more });
-    return { ok: true, importId, added, skipped, failed, more };
+    await log(u, importId, 'gmail_synced', { found: ids.length, added, skipped, rejected, failed, more });
+    return { ok: true, importId, added, skipped, rejected, failed, more };
   } catch (e) {
     console.error('Gmail sync failed:', codeOf(e));
     return { ok: false, error: 'failed' };

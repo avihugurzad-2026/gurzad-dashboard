@@ -8,7 +8,7 @@ import { log, secondsSinceLastGmailImport, syncGmail, type GmailError } from '@/
 // for them to review; nothing is shared until they approve it at /finance-import. Errors are Hebrew.
 
 export type GmailSyncResult =
-  | { ok: true; importId: string; added: number; skipped: number; failed: number; more: boolean }
+  | { ok: true; importId: string; added: number; skipped: number; rejected: number; failed: number; more: boolean }
   | { ok: false; error: string };
 
 const MIN_GAP_S = 120;

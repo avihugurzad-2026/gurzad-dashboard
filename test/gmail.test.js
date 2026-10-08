@@ -56,6 +56,16 @@ test('searchQuery: after: in epoch seconds, Hebrew + English terms in one OR gro
   assert.throws(() => gm.searchQuery({ since: 'nonsense' }));
 });
 
+test('searchQueries use complementary Hebrew, English and generic-PDF discovery queries', () => {
+  const qs = gm.searchQueries({ since: '2026-07-01T00:00:00Z' });
+  assert.equal(qs.length, 4);
+  assert.ok(qs.every(q => q.startsWith('after:1782864000 -in:chats -category:social ')));
+  assert.ok(qs.some(q => q.includes('חשבונית')));
+  assert.ok(qs.some(q => q.includes('"tax invoice"')));
+  assert.ok(qs.some(q => q.includes('filename:pdf')));
+  assert.throws(() => gm.searchQueries({ since: 'nope' }));
+});
+
 test('listMessages: paginates, honours max, sends the bearer token and the query', async () => {
   let page = 0;
   const { impl, calls } = fakeFetch([['/messages', () => (++page === 1
@@ -184,4 +194,22 @@ test('extractFromMessage: nothing stated → nulls, never an invented amount', (
   assert.equal(r.merchant, 'Service');
   const empty = gm.extractFromMessage({}, []);
   assert.deepEqual([empty.amount, empty.merchant, empty.occurred_on, empty.description], [null, null, null, null]);
+});
+
+test('classifyMessage accepts generic-PDF invoices, sends ambiguous mail to review, and rejects pro-formas', () => {
+  const invoice = gm.classifyMessage({ subject: 'מסמך מצורף', text: '', attachments: [{ filename: 'document.pdf', mimeType: 'application/pdf' }] }, [PDF_TEXT]);
+  assert.equal(invoice.rejected, false);
+  assert.equal(invoice.confidence, 'high');
+  assert.ok(invoice.score >= 70);
+
+  const uncertain = gm.classifyMessage({ subject: 'הודעה', text: 'תודה', attachments: [{ filename: 'file.pdf', mimeType: 'application/pdf' }] }, []);
+  assert.equal(uncertain.rejected, false);
+  assert.equal(uncertain.confidence, 'low');
+
+  const newsletter = gm.classifyMessage({ subject: 'עדכון שבועי', text: 'לקריאה נוספת', attachments: [] }, []);
+  assert.equal(newsletter.rejected, true);
+
+  const quote = gm.classifyMessage({ subject: 'Invoice / Proforma Invoice', text: 'Total 400.00', attachments: [{ filename: 'invoice.pdf', mimeType: 'application/pdf' }] }, []);
+  assert.equal(quote.rejected, true);
+  assert.ok(quote.reasons.includes('סוג מסמך לא מתאים'));
 });

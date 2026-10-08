@@ -41,6 +41,7 @@ export function GmailControls({ alsoCalendar }: { alsoCalendar: boolean }) {
         <div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-2">
           <span>
             {result.added === 0 ? 'לא נמצאו חשבוניות או קבלות חדשות.' : result.added === 1 ? 'נמצא פריט חדש אחד לסקירה.' : `נמצאו ${result.added} פריטים חדשים לסקירה.`}
+            {result.rejected > 0 && ` ${result.rejected} הודעות לא רלוונטיות סוננו.`}
             {result.failed > 0 && ` ${result.failed} הודעות לא נקראו.`}
             {result.more && ' יש עוד הודעות: סנכרן שוב בעוד כמה דקות.'}
           </span>
