@@ -1,11 +1,11 @@
-import { LocalNav } from '@/components/shell/local-nav';
+import { PERSONAL } from '@/lib/workspaces';
+import { WorkspaceBadge, WorkspaceNav } from '@/components/workspace/workspace-ui';
 
-// The Personal area menu. Each page passes it to <PageHeader tabs> so it sits under the title.
-export const PERSONAL_NAV = [
-  { href: '/personal', label: 'סקירה' }, { href: '/personal/tasks', label: 'משימות' },
-  { href: '/personal/finance', label: 'כספים משותפים' }, { href: '/personal/goals', label: 'יעדים פיננסיים' },
-];
-
+// The Personal workspace menu (modules from src/lib/workspaces.ts). Each page passes it to <PageHeader tabs>.
 export function PersonalNav() {
-  return <LocalNav items={PERSONAL_NAV} label="תפריט אישי" />;
+  return <WorkspaceNav ws={PERSONAL} />;
+}
+
+export function PersonalBadge() {
+  return <WorkspaceBadge ws={PERSONAL} />;
 }

@@ -9,7 +9,7 @@ import { TaskBoard } from '@/components/work/task-board';
 import { Card, Section } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shell/page-header';
-import { VenturesNav } from './area-nav';
+import { VenturesBadge, VenturesNav } from './area-nav';
 
 export const metadata = { title: 'יזמות — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export default async function VenturesOverview() {
   const items = ENTITIES.filter(e => e.domain === 'ventures');
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="יזמות" subtitle="נכסים, השקעות, משפטי ופיננסים" tabs={<VenturesNav />} />
+      <PageHeader title="יזמות" subtitle="נכסים, השקעות, משפטי ומימון" status={<VenturesBadge />} tabs={<VenturesNav />} />
       {s.ready && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="שווי הנכסים" href="/ventures/real-estate" value={ils(s.properties.value)}

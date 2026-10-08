@@ -9,13 +9,17 @@ import { Tabs, pickTab } from '@/components/shell/tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
+import { BUSINESSES } from '@/lib/workspaces';
+import { WorkspaceBadge, workspaceTabs } from '@/components/workspace/workspace-ui';
+import { BusinessModule } from '@/components/workspace/business-module';
 
 export const metadata = { title: 'Head Spa Israel — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
 
 const BASE = '/business/head-spa-israel';
 const PLACE = { domain: 'business', branch: 'head-spa-israel', location: null } as const;
-const TABS = ['overview', 'tasks', 'goals'] as const;
+const WS = BUSINESSES.find(w => w.id === 'head-spa-israel')!;
+const TABS = WS.modules.map(m => m.key);
 
 // Company overview: every branch in the registry (DB `locations`), summed and compared.
 // Numbers come from the local tables the integration sync fills; no live Buyz call here.
@@ -36,14 +40,14 @@ export default async function HeadSpaPage({ searchParams }: { searchParams: Prom
             {u.isAdmin && anyConnected && <RefreshButton />}
           </>
         ) : undefined}
-        tabs={<Tabs base={BASE} active={tab} tabs={[
-          { key: 'overview', label: 'סקירה' },
-          { key: 'tasks', label: 'משימות', count: counts['business/head-spa-israel']?.open },
-          { key: 'goals', label: 'יעדים', count: g.goals.filter(x => x.status === 'active').length },
-        ]} />} />
+        status={<WorkspaceBadge ws={WS} />}
+        tabs={<Tabs base={BASE} active={tab} tabs={workspaceTabs(WS, {
+          tasks: counts['business/head-spa-israel']?.open, goals: g.goals.filter(x => x.status === 'active').length,
+        })} />} />
       {tab === 'overview' && <CompanyOverview d={d} goals={integrationsLib.goalsProgress(g.goals)} counts={counts} />}
       {tab === 'tasks' && <TaskBoard place={PLACE} path={BASE} title="משימות Head Spa Israel" />}
       {tab === 'goals' && <GoalsPanel place={PLACE} path={BASE} title="יעדי Head Spa Israel" />}
+      {!['overview', 'tasks', 'goals'].includes(tab) && <BusinessModule ws={WS} tab={tab} u={u} />}
     </div>
   );
 }

@@ -8,16 +8,16 @@ import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shell/page-header';
-import { VenturesNav } from '../area-nav';
+import { VenturesBadge, VenturesNav } from '../area-nav';
 import { Empty } from '@/components/ui/empty';
 
 export const dynamic = 'force-dynamic';
 
 // Nav labels win over the vault's branch names (e.g. real-estate is "נכסים" here)
-const LABEL: Record<string, string> = { 'real-estate': 'נכסים', investments: 'השקעות', 'legal-and-tasks': 'משפטי', finance: 'פיננסים' };
+const LABEL: Record<string, string> = { 'real-estate': 'נכסים', investments: 'השקעות', 'legal-and-tasks': 'משפטי', finance: 'מימון' };
 const SUBTITLE: Record<string, string> = {
   'real-estate': 'שווי, הלוואות, תשואה ומשימות לכל נכס', investments: 'סכום, שווי ותשואה לכל השקעה',
-  'legal-and-tasks': 'תיקים, מועדים, תשלומים ומשימות', finance: 'משימות, יעדים ורשומות כספיות של היזמות',
+  'legal-and-tasks': 'תיקים, מועדים, תשלומים ומשימות', finance: 'הלוואות, מימון ורשומות כספיות של היזמות',
 };
 const TYPE_LABEL: Record<string, string> = {
   'cash-account': 'חשבונות', 'fixed-commitment': 'התחייבויות קבועות', debt: 'חובות', retainer: 'ריטיינרים', invoice: 'חשבוניות',
@@ -41,7 +41,7 @@ export default async function VenturePage({ params }: { params: Promise<{ branch
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={title} subtitle={SUBTITLE[branch] ?? 'יזמות'} tabs={<VenturesNav />} />
+      <PageHeader title={title} subtitle={SUBTITLE[branch] ?? 'יזמות'} status={<VenturesBadge />} tabs={<VenturesNav />} />
       {branch === 'real-estate' && <PropertiesSection u={u} path={path} />}
       {branch === 'investments' && <InvestmentsSection u={u} path={path} />}
       {branch === 'legal-and-tasks' && <CasesSection u={u} path={path} />}

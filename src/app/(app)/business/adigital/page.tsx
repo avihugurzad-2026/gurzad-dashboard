@@ -11,13 +11,17 @@ import { Tabs, pickTab } from '@/components/shell/tabs';
 import { PageHeader } from '@/components/shell/page-header';
 import { TaskBoard } from '@/components/work/task-board';
 import { GoalsPanel } from '@/components/work/goals-panel';
+import { BUSINESSES } from '@/lib/workspaces';
+import { WorkspaceBadge, workspaceTabs } from '@/components/workspace/workspace-ui';
+import { BusinessModule } from '@/components/workspace/business-module';
 
 export const metadata = { title: 'a-digital — דשבורד גורזד' };
 export const dynamic = 'force-dynamic';
 
 const BASE = '/business/adigital';
 const PLACE = { domain: 'business', branch: 'adigital', location: null } as const;
-const TABS = ['overview', 'tasks', 'clients', 'collections', 'goals'] as const;
+const WS = BUSINESSES.find(w => w.id === 'adigital')!;
+const TABS = WS.modules.map(m => m.key);
 
 export default async function AdigitalPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
@@ -37,13 +41,10 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="a-digital" subtitle="לקוחות, גבייה, משימות ויעדים · הכנסה ללא מע״מ, יתרות לגבייה כולל מע״מ"
-        tabs={<Tabs base={BASE} active={tab} tabs={[
-          { key: 'overview', label: 'סקירה' },
-          { key: 'tasks', label: 'משימות', count: open?.open },
-          { key: 'clients', label: 'לקוחות', count: d.retainers.length },
-          { key: 'collections', label: 'גבייה', count: openRec + d.debts.length },
-          { key: 'goals', label: 'יעדים', count: activeGoals },
-        ]} />} />
+        status={<WorkspaceBadge ws={WS} />}
+        tabs={<Tabs base={BASE} active={tab} tabs={workspaceTabs(WS, {
+          tasks: open?.open, clients: d.retainers.length, collections: openRec + d.debts.length, goals: activeGoals,
+        })} />} />
 
       {tab === 'overview' && (
         <>
@@ -70,6 +71,7 @@ export default async function AdigitalPage({ searchParams }: { searchParams: Pro
       {tab === 'clients' && <RetainersTable d={d} />}
       {tab === 'collections' && collections('collections')}
       {tab === 'goals' && <GoalsPanel place={PLACE} path={BASE} title="יעדי a-digital" />}
+      {['finance', 'documents', 'reports', 'members'].includes(tab) && <BusinessModule ws={WS} tab={tab} u={u} />}
     </div>
   );
 }

@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Activity, Bell, Briefcase, Building2, CalendarDays, CalendarClock, ChartColumn, ChevronDown, ClipboardCheck, FileText, Gauge, History,
-  House, Inbox, ListChecks, MapPin, Rocket, Search, Settings, Sparkles, Target, User, UserRound, Wallet } from 'lucide-react';
-import { NAV_BOTTOM, NAV_HUBS, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from './nav';
+  House, Inbox, ListChecks, Lock, MapPin, MoreHorizontal, Rocket, Search, Settings, Sofa, Sparkles, Target, User, UserRound, Wallet } from 'lucide-react';
+import { NAV_BOTTOM, NAV_MORE, NAV_TOOLS, NAV_TOP, navAreas, type NavItem } from './nav';
 import { useSession } from './session-context';
 import { badgeClass } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ const ICONS = {
   home: House, today: CalendarClock, calendar: CalendarDays, inbox: Inbox, personal: UserRound, ventures: Rocket, business: Building2,
   agency: Briefcase, spa: Sparkles, branch: MapPin, chart: ChartColumn, review: ClipboardCheck, scorecard: Gauge, health: Activity,
   search: Search, bell: Bell, settings: Settings, profile: User, money: Wallet, goal: Target, document: FileText, history: History,
-  tasks: ListChecks,
+  tasks: ListChecks, household: Sofa,
 } as const;
 
 export type Counts = { inbox: number; alerts: number };
@@ -23,7 +23,6 @@ export type Counts = { inbox: number; alerts: number };
 function isActive(item: NavItem, path: string): boolean {
   const href = item.href.split('#')[0];
   if (href === '/') return path === '/';
-  if (href === '/tasks') return path === '/tasks' || path.startsWith('/personal/tasks');
   if (item.href.includes('#')) return false;
   // A parent is "active" only on its own page; its children light up for theirs
   return path === href || (!item.children && path.startsWith(`${href}/`));
@@ -50,7 +49,7 @@ function NavLink({ item, depth, path, collapsed, counts, onNavigate, tip }: { it
   const Icon = ICONS[item.icon as keyof typeof ICONS];
   const active = isActive(item, path);
   const n = item.count ? counts[item.count] : 0;
-  const label = item.tag ? `${item.label} · ${item.tag}` : item.label;
+  const label = item.tag ? `${item.label} · ${item.tag}` : item.private ? `${item.label} · פרטי` : item.label;
   return (
     <Link href={item.href} onClick={onNavigate} aria-current={active ? 'page' : undefined} aria-label={collapsed ? label : undefined}
       onMouseEnter={collapsed ? tip.show(label) : undefined} onMouseLeave={collapsed ? tip.hide : undefined}
@@ -64,6 +63,7 @@ function NavLink({ item, depth, path, collapsed, counts, onNavigate, tip }: { it
         {collapsed && n > 0 && <span className="absolute -end-1.5 -top-1.5 size-2 rounded-full bg-critical" aria-hidden />}
       </span>
       {!collapsed && <span className="min-w-0 flex-1 truncate"><bdi>{item.label}</bdi></span>}
+      {!collapsed && item.private && <Lock className="size-3.5 shrink-0 text-muted" aria-label="פרטי" />}
       {!collapsed && item.tag && <span className={badgeClass('warning', 'h-5 px-2 text-xs')}>{item.tag}</span>}
       {!collapsed && n > 0 && <span className="min-w-6 rounded-full bg-surface-2 px-1.5 text-center text-xs text-ink-2 tabular" aria-label={`${n} פריטים`}>{n}</span>}
     </Link>
@@ -100,26 +100,29 @@ export function SidebarNav({ collapsed = false, counts, onNavigate }: { collapse
   const session = useSession();
   const tip = useTooltip();
   const hrefs = session ? new Set(session.hrefs) : null;
-  const top = allowedOnly(NAV_TOP, hrefs), hubs = allowedOnly(NAV_HUBS, hrefs);
-  const areas = allowedOnly(navAreas(), hrefs), tools = allowedOnly(NAV_TOOLS, hrefs);
-  const [showTools, setTools] = useState(NAV_TOOLS.some(t => path.startsWith(t.href)));
+  const top = allowedOnly(NAV_TOP, hrefs), areas = allowedOnly(navAreas(), hrefs);
+  const tools = allowedOnly(NAV_TOOLS, hrefs), more = allowedOnly(NAV_MORE, hrefs);
+  const [showMore, setMore] = useState(NAV_MORE.some(t => path.startsWith(t.href)));
   const props = { path, collapsed, counts, onNavigate, tip };
   return (
     <nav aria-label="ניווט ראשי" className="flex flex-1 flex-col gap-6">
       <div><Heading collapsed={collapsed}>כללי</Heading><Tree items={top} {...props} /></div>
-      {hubs.length > 0 && <div><Heading collapsed={collapsed}>מרכזים</Heading><Tree items={hubs} {...props} /></div>}
-      {areas.length > 0 && <div><Heading collapsed={collapsed}>אזורים</Heading><Tree items={areas} {...props} /></div>}
-      {tools.length > 0 && (
-        <div>
-          {collapsed ? <Heading collapsed>כלים</Heading> : (
-            <button type="button" onClick={() => setTools(t => !t)} aria-expanded={showTools}
-              className="mb-1.5 flex w-full items-center justify-between rounded-md px-3 text-xs font-semibold text-muted hover:text-ink">
-              כלים<ChevronDown className={cn('size-4 transition-transform', showTools && 'rotate-180')} aria-hidden />
+      {areas.length > 0 && <div><Heading collapsed={collapsed}>האזורים שלי</Heading><Tree items={areas} {...props} /></div>}
+      <div>
+        <Heading collapsed={collapsed}>כלים</Heading>
+        <Tree items={collapsed ? [...tools, ...more] : tools} {...props} />
+        {more.length > 0 && !collapsed && (
+          <div className="mt-0.5">
+            <button type="button" onClick={() => setMore(t => !t)} aria-expanded={showMore}
+              className="flex min-h-9 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-nav font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink">
+              <MoreHorizontal className="size-[18px] shrink-0" aria-hidden />
+              <span className="flex-1 text-start">עוד</span>
+              <ChevronDown className={cn('size-4 text-muted transition-transform', showMore && 'rotate-180')} aria-hidden />
             </button>
-          )}
-          {(showTools || collapsed) && <Tree items={tools} {...props} />}
-        </div>
-      )}
+            {showMore && <Tree items={more} depth={1} {...props} />}
+          </div>
+        )}
+      </div>
       <div className="mt-auto border-t border-line pt-4">
         <Tree items={allowedOnly(NAV_BOTTOM, hrefs)} {...props} />
       </div>

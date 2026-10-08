@@ -1,17 +1,21 @@
 import Link from 'next/link';
 import { AlertTriangle, CalendarDays, CircleDollarSign, HandCoins, ListChecks } from 'lucide-react';
 import { agenda } from '@/server/day';
-import { taskGroups, type WorkItem } from '@/server/entries';
+import { openCounts, taskGroups, type WorkItem } from '@/server/entries';
 import { ils, num } from '@/lib/format';
 import { requireUser } from '@/server/auth';
-import { monthRevenue, openReceivablesTotal } from '@/server/finance';
-import { parseRange, rangeLabel, todayIL } from '@/lib/period';
+import { financeSummary, householdTransactions, monthRevenue, openReceivablesTotal } from '@/server/finance';
+import { parseRange, periodBounds, rangeLabel, todayIL } from '@/lib/period';
 import { canSeePlace } from '@/server/auth';
 import { businessSnapshot, personalSnapshot } from '@/server/snapshot';
 import { headSpaSnapshot } from '@/server/headspa';
 import { venturesSummary } from '@/server/ventures';
 import { HomeFilters, type HomeArea } from '@/components/home/home-filters';
-import { BusinessSnapshot, PersonalSnapshot, VenturesSnapshot } from '@/components/home/snapshots';
+import { VenturesSnapshot } from '@/components/home/snapshots';
+import { WorkspaceSummaries, type BusinessSummary, type HouseholdSummary } from '@/components/home/workspace-summary';
+import { BUSINESSES } from '@/lib/workspaces';
+import type { BusinessCard } from '@/server/snapshot';
+import type { SessionUser } from '@/server/auth';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { GreetingClock } from '@/components/day/clock';
 import { Timeline } from '@/components/day/timeline';
@@ -43,6 +47,22 @@ async function headSpaRevenue(u: Awaited<ReturnType<typeof requireUser>>, range:
   return { 'head-spa-israel': { net, count: 0, today: h.total.today_ex } };
 }
 
+// Each business's own expenses for the period (net of VAT), next to its revenue. Read per business,
+// never summed across workspaces.
+async function withExpenses(u: SessionUser, cards: BusinessCard[], range: Parameters<typeof periodBounds>[0]): Promise<BusinessSummary[]> {
+  const { start, end } = periodBounds(range, todayIL());
+  return Promise.all(cards.map(async c => {
+    if (!c.revenue) return { ...c, expenses: null };
+    const f = await financeSummary(u, { from: start, to: end, place: { domain: 'business', branch: c.branch } }).catch(() => null);
+    return { ...c, expenses: f?.expense?.net ?? null };
+  }));
+}
+
+async function householdSummary(u: SessionUser, counts: { open: number; overdue: number } | undefined): Promise<HouseholdSummary> {
+  const h = await householdTransactions(u, todayIL().slice(0, 7));
+  return { expense: h.expense, homeOpen: counts?.open ?? 0, homeOverdue: counts?.overdue ?? 0 };
+}
+
 export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const u = await requireUser();
@@ -55,12 +75,15 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const showBiz = area === 'all' || area === 'business';
   const showMe = area === 'all' || area === 'personal';
   const showVen = (area === 'all' || area === 'ventures') && canSeePlace(u, { domain: 'ventures' }, 'money');
-  const [week, t, rev, owed, biz, me, ven] = await Promise.all([
+  const [week, t, rev, owed, biz, me, ven, counts] = await Promise.all([
     agenda(todayIL(), 7), taskGroups(),
     money ? monthRevenue(u) : null, money ? openReceivablesTotal(u) : null,
-    showBiz ? headSpaRevenue(u, range).then(ext => businessSnapshot(u, range, ext)) : [], showMe ? personalSnapshot(u, range) : null,
+    showBiz ? headSpaRevenue(u, range).then(ext => businessSnapshot(u, range, ext)).then(c => withExpenses(u, c, range)) : [],
+    showMe ? personalSnapshot(u, range) : null,
     showVen ? venturesSummary(u).catch(() => null) : null,
+    showMe && canSeePlace(u, { domain: 'personal' }, 'task') ? openCounts() : null,
   ]);
+  const household = counts ? await householdSummary(u, counts['personal:home']) : null;
   const inArea = (i: WorkItem) => area === 'all' || i.domain === area;
   const today = week.days[0];
   const eventsToday = today.events.length;
@@ -99,9 +122,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         )}
       </div>
 
-      {biz.length > 0 && <BusinessSnapshot cards={biz} periodLabel={periodLabel} />}
-      {me && <PersonalSnapshot card={me} periodLabel={periodLabel}
-        events={week.connected ? week.days.reduce((a, d) => a + d.events.length, 0) : null} />}
+      <WorkspaceSummaries personal={me} household={household} businesses={biz} businessWs={BUSINESSES} periodLabel={periodLabel} />
       {ven?.ready && <VenturesSnapshot s={ven} />}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr] [&>*]:min-w-0">

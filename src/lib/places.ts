@@ -20,7 +20,7 @@ export const ENTITIES: { domain: Domain; id: string; label: string; short: strin
   { domain: 'ventures', id: 'real-estate', label: 'נכסים', short: 'נכסים', href: '/ventures/real-estate' },
   { domain: 'ventures', id: 'investments', label: 'השקעות', short: 'השקעות', href: '/ventures/investments' },
   { domain: 'ventures', id: 'legal-and-tasks', label: 'משפטי', short: 'משפטי', href: '/ventures/legal-and-tasks' },
-  { domain: 'ventures', id: 'finance', label: 'פיננסים', short: 'פיננסים', href: '/ventures/finance' },
+  { domain: 'ventures', id: 'finance', label: 'מימון', short: 'מימון', href: '/ventures/finance' },
 ];
 
 // Branches (locations) are configuration: rows of the DB `locations` table. This module keeps a
@@ -146,8 +146,18 @@ const PAGE_LABEL: Record<string, string> = {
   review: 'סקירה שבועית', scorecard: 'מדדים שבועיים', health: 'שלמות נתונים', reports: 'דוחות', documents: 'מסמכים',
   tasks: 'משימות', finance: 'כספים', goals: 'יעדים',
 };
+// Module pages inside a workspace (/personal/money, /household/budget …); see src/lib/workspaces.ts
+const MODULE_LABEL: Record<string, Record<string, string>> = {
+  personal: { tasks: 'משימות', money: 'פיננסים', documents: 'מסמכים', goals: 'יעדים', investments: 'השקעות אישיות', info: 'מידע אישי' },
+  household: {
+    tasks: 'משימות', finance: 'פיננסים משותפים', budget: 'תקציב', fixed: 'הוצאות קבועות', bills: 'חשבונות',
+    documents: 'מסמכים', savings: 'יעדי חיסכון', members: 'חברים',
+  },
+  ventures: { tasks: 'משימות', documents: 'מסמכים', goals: 'יעדים' },
+};
 export const TAB_LABEL: Record<string, string> = {
   overview: 'סקירה', tasks: 'משימות', goals: 'יעדים', clients: 'לקוחות', collections: 'גבייה',
+  finance: 'פיננסים', documents: 'מסמכים', reports: 'דוחות', members: 'חברים',
   home: 'בית', personal: 'אישי', study: 'לימודים',
   sales: 'מכירות', bookings: 'טיפולים והזמנות', customers: 'לקוחות', staff: 'צוות',
 };
@@ -158,7 +168,7 @@ export function crumbs(path: string, tab: string | null): { label: string; href:
   if (parts.length === 0) return [];
   const out: { label: string; href: string | null }[] = [];
   const [a, b, c] = parts;
-  const ar = AREAS.find(x => x.href === `/${a}`);
+  const ar = a === 'household' ? { id: 'household', label: 'הבית שלנו', href: '/household' } : AREAS.find(x => x.href === `/${a}`);
   if (ar) {
     out.push({ label: ar.label, href: ar.href });
     const e = entity(b);
@@ -166,8 +176,8 @@ export function crumbs(path: string, tab: string | null): { label: string; href:
       out.push({ label: e.label, href: e.href });
       const l = location(b, c);
       if (l) out.push({ label: l.label, href: `${e.href}/${l.id}` });
-    } else if (b && PAGE_LABEL[b]) {
-      out.push({ label: ar.id === 'personal' && b === 'goals' ? 'יעדים פיננסיים' : ar.id === 'personal' && b === 'finance' ? 'כספים משותפים' : PAGE_LABEL[b], href: `/${a}/${b}` });
+    } else if (b && (MODULE_LABEL[ar.id]?.[b] ?? PAGE_LABEL[b])) {
+      out.push({ label: MODULE_LABEL[ar.id]?.[b] ?? PAGE_LABEL[b], href: `/${a}/${b}` });
     }
   } else if (PAGE_LABEL[a]) {
     out.push({ label: PAGE_LABEL[a], href: `/${a}` });

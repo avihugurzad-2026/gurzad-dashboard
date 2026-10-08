@@ -1,12 +1,11 @@
-import { LocalNav } from '@/components/shell/local-nav';
-import { ENTITIES } from '@/lib/places';
+import { VENTURES } from '@/lib/workspaces';
+import { WorkspaceBadge, WorkspaceNav } from '@/components/workspace/workspace-ui';
 
-// The Ventures area menu. Each page passes it to <PageHeader tabs> so it sits under the title.
-export const VENTURES_NAV = [
-  { href: '/ventures', label: 'סקירה' },
-  ...ENTITIES.filter(e => e.domain === 'ventures').map(e => ({ href: e.href, label: e.label })),
-];
-
+// The Ventures workspace menu (modules from src/lib/workspaces.ts). Each page passes it to <PageHeader tabs>.
 export function VenturesNav() {
-  return <LocalNav items={VENTURES_NAV} label="תפריט יזמות" />;
+  return <WorkspaceNav ws={VENTURES} />;
+}
+
+export function VenturesBadge() {
+  return <WorkspaceBadge ws={VENTURES} />;
 }
