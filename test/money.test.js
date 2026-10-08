@@ -73,3 +73,15 @@ test('CSV: BOM, CRLF, quoting and formula-injection guard', () => {
   assert.ok(csv.includes(`"'\tt","שלום, עולם"\r\n`));
   assert.ok(csv.endsWith('\r\n'));
 });
+
+test('parseNumber: decimals as people type them, never a silently different value', () => {
+  const ok = { '1,234.50': 1234.5, '.5': 0.5, '12.': 12, '1,5': 1.5, '1,234': 1234, '-12': -12, '12-': -12, '₪ 99': 99, '4.5%': 4.5, '0': 0 };
+  for (const [v, n] of Object.entries(ok)) assert.equal(m.parseNumber(v), n, v);
+  assert.equal(m.parseNumber(''), null);
+  for (const bad of ['abc', '1e5', '1,23.4', '1.2.3', '.', '-']) assert.ok(Number.isNaN(m.parseNumber(bad)), bad);
+  assert.equal(m.parseAmount('1,5'), 1.5);
+  assert.equal(m.parseAmount('.5'), 0.5);
+  assert.equal(m.parseSigned('-1,234.50'), -1234.5);
+  assert.equal(m.parseSigned('0'), 0);
+  assert.ok(Number.isNaN(m.parseSigned('1.234')));
+});

@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useId, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -6,7 +7,7 @@ import { cancelImport, commitImport, importReceiptUrl, saveReceipt, uploadReceip
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonClass } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
-import { Field, compactInputClass, inputClass, selectClass } from '@/components/work/fields';
+import { Field, compactInputClass, inputClass, selectClass, numberInputClass } from '@/components/work/fields';
 import { ils, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type AccOpt, type CatOpt, type WsOpt } from './forms';
@@ -29,7 +30,7 @@ export function ImportUpload({ mode, targets, accountsByWs, defaultWs }: {
   const [state, run, pending] = useActionState<ImportResult | null, FormData>(action, null);
   const accounts = accountsByWs[ws] ?? [];
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Field label="ברירת מחדל: לאן התנועות שייכות" htmlFor={`${uid}-ws`} hint="אפשר לשנות לכל שורה בסקירה">
         <select id={`${uid}-ws`} name="ws" value={ws} onChange={e => setWs(e.target.value)} className={selectClass}>
           {targets.map(w => <option key={w.id} value={w.id}>{wsLabel(w)}</option>)}
@@ -96,7 +97,7 @@ export function StatementReview({ importId, candidates, targets, catsByWs }: {
   const count = Object.values(included).filter(Boolean).length;
   const total = useMemo(() => candidates.filter(c => included[c.id] && c.amount).reduce((a, c) => a + (c.direction === 'income' ? 1 : -1) * (c.amount ?? 0), 0), [candidates, included]);
   return (
-    <form action={run} className="flex flex-col gap-6">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-6">
       <input type="hidden" name="import" value={importId} />
       {GROUPS.map(g => {
         const rows = candidates.filter(c => c.status === g.key);
@@ -138,8 +139,8 @@ function CandRow({ c, targets, catsByWs, on, setOn }: { c: Cand; targets: WsOpt[
         {incomplete ? (
           <div className="flex flex-wrap items-center gap-2">
             <input name={n('merchant')} defaultValue={c.merchant ?? ''} placeholder="בית עסק" aria-label="בית עסק" className={cn(compactInputClass, 'w-40')} />
-            <DateField name={n('date')} defaultValue={c.occurred_on ?? undefined} compact />
-            <input name={n('amt')} defaultValue={c.amount ?? ''} placeholder="סכום" inputMode="decimal" aria-label="סכום" className={cn(compactInputClass, 'w-24')} />
+            <DateField name={n('date')} defaultValue={c.occurred_on ?? undefined} compact aria-label="תאריך" />
+            <input name={n('amt')} defaultValue={c.amount ?? ''} placeholder="סכום" inputMode="decimal" dir="ltr" aria-label="סכום" className={cn(compactInputClass, 'w-24 text-right tabular')} />
           </div>
         ) : (
           <div className="min-w-0 flex-1">
@@ -195,16 +196,16 @@ export function ReceiptReview({ importId, cand, note, targets, catsByWs, matches
   const [match, setMatch] = useState('');
   const top = (catsByWs[ws] ?? []).filter(x => x.kind === 'expense' && !x.parent_id);
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <input type="hidden" name="import" value={importId} />
       <input type="hidden" name="candidate" value={cand.id} />
       {note && <p className="col-span-full rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-ink">{note}</p>}
       {fileHref && <Link href={fileHref} target="_blank" className={cn(buttonClass('ghost', 'sm'), 'col-span-full w-fit')}>פתח את הקובץ</Link>}
       <Field label="ספק" htmlFor={`${uid}-m`}><input id={`${uid}-m`} name="merchant" required maxLength={120} defaultValue={cand.merchant ?? ''} className={inputClass} /></Field>
       <Field label="תאריך" htmlFor={`${uid}-d`}><DateField id={`${uid}-d`} name="occurred_on" defaultValue={cand.occurred_on ?? today} required /></Field>
-      <Field label="סה״כ (₪)" htmlFor={`${uid}-a`}><input id={`${uid}-a`} name="amount" required inputMode="decimal" defaultValue={cand.amount ?? ''} className={inputClass} /></Field>
-      <Field label="מתוכו מע״מ (₪)" htmlFor={`${uid}-v`} hint="רק אם מופיע בקבלה"><input id={`${uid}-v`} name="vat_amount" inputMode="decimal" defaultValue={cand.vat_amount ?? ''} className={inputClass} /></Field>
-      <Field label="מספר מסמך" htmlFor={`${uid}-n`}><input id={`${uid}-n`} name="document_number" maxLength={40} defaultValue={cand.document_number ?? ''} className={inputClass} /></Field>
+      <Field label="סה״כ (₪)" htmlFor={`${uid}-a`}><input id={`${uid}-a`} name="amount" required inputMode="decimal" dir="ltr" defaultValue={cand.amount ?? ''} className={numberInputClass} /></Field>
+      <Field label="מתוכו מע״מ (₪)" htmlFor={`${uid}-v`} hint="רק אם מופיע בקבלה"><input id={`${uid}-v`} name="vat_amount" inputMode="decimal" dir="ltr" defaultValue={cand.vat_amount ?? ''} className={numberInputClass} /></Field>
+      <Field label="מספר מסמך" htmlFor={`${uid}-n`}><input id={`${uid}-n`} name="document_number" maxLength={40} dir="ltr" defaultValue={cand.document_number ?? ''} className={inputClass} /></Field>
       <Field label="שייך ל-" htmlFor={`${uid}-w`}>
         <select id={`${uid}-w`} name="ws" value={ws} onChange={e => setWs(e.target.value)} className={selectClass}>
           {targets.map(w => <option key={w.id} value={w.id}>{wsLabel(w)}</option>)}

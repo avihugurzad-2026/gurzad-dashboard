@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { createContext, useActionState, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -188,7 +189,7 @@ export function EventDialog({ open, onClose, event, editor, defaultDate }: {
             </p>
           )}
 
-          <form action={action} className="flex flex-col gap-5">
+          <form onSubmit={submitWith(action)} className="flex flex-col gap-5">
             <input type="hidden" name="path" value={path} />
             {editing && <input type="hidden" name="id" value={event.id} />}
             <fieldset disabled={readOnly || pending} className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4">

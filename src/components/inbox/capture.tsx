@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useRef } from 'react';
 import { Paperclip, Plus } from 'lucide-react';
 import { addInbox, type ActionResult } from '@/app/actions';
@@ -11,7 +12,7 @@ export function InboxCapture() {
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => { if (state?.ok) form.current?.reset(); }, [state]);
   return (
-    <form ref={form} action={action} className="flex flex-col gap-3">
+    <form ref={form} onSubmit={submitWith(action)} className="flex flex-col gap-3">
       <label htmlFor="inbox-text" className="sr-only">מה להכניס ל-Inbox</label>
       <textarea id="inbox-text" name="text" rows={2} maxLength={4000} placeholder="רעיון, הערה, משימה שעוד לא ברור איפה היא…"
         className={textareaClass} />

@@ -1,4 +1,5 @@
 'use server';
+import { todayIL } from '@/lib/period';
 import { revalidatePath } from 'next/cache';
 import type { PoolClient } from 'pg';
 import { canCreateIn, canDeleteRow, canEditRow, currentUser, type Kind, type PlaceRef, type SessionUser } from '@/server/auth';
@@ -137,7 +138,7 @@ export async function addProperty(_: VenturesResult | null, f: FormData): Promis
     let valueDate = optDate(f, 'value_date', 'תאריך השווי');
     if (value !== null) {
       if (!source || !PROPERTY_SOURCES.includes(source)) throw new Refuse('בחר מקור לשווי: הערכה, שמאות או מחיר רכישה');
-      valueDate = valueDate ?? new Date().toISOString().slice(0, 10);
+      valueDate = valueDate ?? todayIL();
     } else { source = null; valueDate = null; }
     const notes = str(f, 'notes');
     if (tooLong(notes, 2000)) throw new Refuse('ההערות ארוכות מדי');
@@ -201,8 +202,10 @@ export async function addLoan(_: VenturesResult | null, f: FormData): Promise<Ve
     if (!Number.isInteger(term) || term < 1 || term > 600) throw new Refuse('תקופה בחודשים: 1 עד 600');
     const payment = optAmount(f, 'monthly_payment', 'החזר חודשי') ?? ventures.monthlyPayment(principal, rate, term);
     if (payment === null) throw new Refuse('לא ניתן לחשב החזר חודשי');
-    const balance = str(f, 'balance') === null ? principal : optAmount(f, 'balance', 'יתרה');
-    if (balance === null || balance > principal * 1.5) throw new Refuse('יתרה לא תקינה');
+    // 0 is a real balance (a loan paid off)
+    const balanceIn = money.parseSigned(str(f, 'balance'));
+    const balance = balanceIn === null ? principal : balanceIn;
+    if (Number.isNaN(balance) || balance < 0 || balance > principal * 1.5) throw new Refuse('יתרה: מספר 0 ומעלה');
     const balanceDate = optDate(f, 'balance_date', 'תאריך היתרה') ?? start;
     const share = ventures.parsePct(str(f, 'venture_share_pct') ?? '100');
     if (share === null) throw new Refuse('חלק היזמות: 0 עד 100 אחוז');
@@ -377,7 +380,7 @@ export async function addInvestment(_: VenturesResult | null, f: FormData): Prom
     let source = str(f, 'value_source'), valueDate = optDate(f, 'value_date', 'תאריך השווי');
     if (value !== null) {
       if (!source || !INV_SOURCES.includes(source)) throw new Refuse('בחר מקור לשווי');
-      valueDate = valueDate ?? new Date().toISOString().slice(0, 10);
+      valueDate = valueDate ?? todayIL();
     } else { source = null; valueDate = null; }
     const ticker = str(f, 'ticker');
     if (ticker && !/^[A-Za-z0-9.\-:]{1,20}$/.test(ticker)) throw new Refuse('סימול: אותיות לועזיות, ספרות, נקודה או מקף');
@@ -437,7 +440,7 @@ function caseFields(f: FormData) {
   if (tooLong(caseNumber, 60) || tooLong(court, 120) || tooLong(parties, 500) || tooLong(lawyer, 120) || tooLong(notes, 4000)) throw new Refuse('אחד השדות ארוך מדי');
   const openedOn = optDate(f, 'opened_on', 'תאריך פתיחה');
   let closedOn = optDate(f, 'closed_on', 'תאריך סגירה');
-  if (status === 'closed' && !closedOn) closedOn = new Date().toISOString().slice(0, 10);
+  if (status === 'closed' && !closedOn) closedOn = todayIL();
   if (status !== 'closed') closedOn = null;
   if (openedOn && closedOn && closedOn < openedOn) throw new Refuse('תאריך הסגירה לפני הפתיחה');
   return { title, status, caseNumber, court, parties, lawyer, notes, openedOn, closedOn };

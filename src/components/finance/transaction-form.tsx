@@ -1,10 +1,11 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useId, useMemo, useState } from 'react';
 import { Paperclip, Plus } from 'lucide-react';
 import { addTransaction, type FinanceResult } from '@/app/finance-actions';
 import { Button } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
-import { Field, inputClass, selectClass } from '@/components/work/fields';
+import { Field, inputClass, selectClass, numberInputClass } from '@/components/work/fields';
 import { FormDialog } from './dialog';
 import { encodePlace, placeOptions, type Place } from '@/lib/places';
 import {
@@ -50,7 +51,7 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
   const f = (k: string) => `${id}-${k}`;
 
   return (
-    <form action={action} className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <form onSubmit={submitWith(action)} className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <input type="hidden" name="path" value={path} />
       <input type="hidden" name="direction" value={direction} />
       <div role="group" aria-label="סוג תנועה" className="col-span-2 inline-flex w-fit rounded-lg border border-line-strong bg-surface p-0.5 text-sm sm:col-span-4">
@@ -63,7 +64,7 @@ export function TransactionForm({ vatRates, today, path, place, onSaved }: {
       </div>
 
       <Field label="סכום ששולם (₪)" htmlFor={f('amount')}>
-        <input id={f('amount')} name="amount" required inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className={inputClass} />
+        <input id={f('amount')} name="amount" required inputMode="decimal" dir="ltr" value={amount} onChange={e => setAmount(e.target.value)} className={numberInputClass} />
       </Field>
       <Field label="תאריך המסמך" htmlFor={f('date')}>
         <DateField id={f('date')} name="occurred_on" required value={date} onChange={setDate} />

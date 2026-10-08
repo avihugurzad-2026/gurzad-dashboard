@@ -1,9 +1,10 @@
 'use server';
+import { dbDate } from '@/lib/period';
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import type { PoolClient } from 'pg';
 import { currentUser, type SessionUser } from '@/server/auth';
 import { db } from '@/server/db';
@@ -105,7 +106,9 @@ export async function uploadStatement(_: ImportResult | null, f: FormData): Prom
     });
   } catch (e) {
     if (tableMissing(e)) return fail(NOT_READY);
-    throw e;
+    unstable_rethrow(e);
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   redirect(`/finance-import?import=${id}`);
 }
@@ -143,7 +146,9 @@ export async function uploadReceipt(_: ImportResult | null, f: FormData): Promis
     });
   } catch (e) {
     if (tableMissing(e)) return fail(NOT_READY);
-    throw e;
+    unstable_rethrow(e);
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   redirect(`/finance-import?import=${id}`);
 }
@@ -213,7 +218,9 @@ export async function importReceiptUrl(_: ImportResult | null, f: FormData): Pro
     });
   } catch (e) {
     if (tableMissing(e)) return fail(NOT_READY);
-    throw e;
+    unstable_rethrow(e);
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   redirect(`/finance-import?import=${id}`);
 }
@@ -246,7 +253,7 @@ export async function commitImport(_: ImportResult | null, f: FormData): Promise
         const ws = uuid(f, `ws_${k.id}`) ?? k.target_workspace_id;
         const a = ws ? await canWrite(ws) : null;
         if (!a) throw new Refuse('אין לך גישה לאחד האזורים שנבחרו');
-        const date = str(f, `date_${k.id}`) ?? (k.occurred_on ? new Date(k.occurred_on).toISOString().slice(0, 10) : null);
+        const date = str(f, `date_${k.id}`) ?? (k.occurred_on ? dbDate(k.occurred_on) : null);
         if (!isIsoDate(date)) throw new Refuse(`חסר תאריך ב"${k.merchant ?? 'שורה'}"`);
         const amount = str(f, `amt_${k.id}`) ? money.parseAmount(str(f, `amt_${k.id}`)) : k.amount ? Number(k.amount) : null;
         if (!amount) throw new Refuse(`חסר סכום ב"${k.merchant ?? 'שורה'}"`);
@@ -296,7 +303,9 @@ export async function commitImport(_: ImportResult | null, f: FormData): Promise
     if (e instanceof Refuse) return fail(e.message);
     if (tableMissing(e)) return fail(NOT_READY);
     if ((e as { code?: string })?.code === '23514') return fail('אחד הערכים לא תקין');
-    throw e;
+    unstable_rethrow(e);
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
 }
 
@@ -329,8 +338,9 @@ export async function saveReceipt(_: ImportResult | null, f: FormData): Promise<
   const merchant = str(f, 'merchant');
   if (!merchant || merchant.length > 120) return fail('כתוב שם ספק');
   const vatIn = str(f, 'vat_amount');
-  const vat = vatIn ? money.parseAmount(vatIn) : null;
-  if (vatIn && (vat === null || vat > amount)) return fail('מע״מ לא תקין');
+  // 0 is a real answer (an exempt dealer's receipt), so only a negative or too-large VAT is refused
+  const vat = vatIn ? money.parseSigned(vatIn) : null;
+  if (vat !== null && (Number.isNaN(vat) || vat < 0 || vat > amount)) return fail('מע״מ: מספר בין 0 לסכום הקבלה');
   const docNo = str(f, 'document_number');
   if (docNo && docNo.length > 40) return fail('מספר מסמך ארוך מדי');
   const cat = uuid(f, 'category_id');
@@ -364,7 +374,7 @@ export async function saveReceipt(_: ImportResult | null, f: FormData): Promise<
           `INSERT INTO transactions (direction, occurred_on, amount_gross, currency, merchant, counterparty_name, category, category_id, source, import_id, document_id,
              document_number, vat_included, vat_amount, dedupe_key, classification, domain, branch, owner_user_id, scope, created_by)
            VALUES ('expense', $1, $2, 'ILS', $3, $3, $4, $5, 'receipt', $6, $7, $8, $9, $10, $11, 'personal', $12, $13, $14, $15, $14) RETURNING id`,
-          [date, amount, merchant, catRow?.key ?? 'other', catRow?.id ?? null, importId, docId, docNo, vat !== null, vat ?? 0, L.dedupeKey(date, amount, merchant),
+          [date, amount, merchant, catRow?.key ?? 'other', catRow?.id ?? null, importId, docId, docNo, !!vat, vat ?? 0, L.dedupeKey(date, amount, merchant),
             domain, branch, u.id, scope]);
         txId = t.id;
       }
@@ -376,7 +386,9 @@ export async function saveReceipt(_: ImportResult | null, f: FormData): Promise<
   } catch (e) {
     if (e instanceof Refuse) return fail(e.message);
     if (tableMissing(e)) return fail(NOT_READY);
-    throw e;
+    unstable_rethrow(e);
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   revalidatePath('/personal', 'layout');
   revalidatePath('/household', 'layout');

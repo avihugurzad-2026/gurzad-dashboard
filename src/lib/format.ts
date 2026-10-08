@@ -2,11 +2,14 @@
 
 export const NO_DATA = 'אין נתונים עדיין';
 
+// Whole shekels stay whole ("₪1,200"); agorot are shown when there are any ("₪480.75", not "₪481")
 const ilsFmt = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 });
-const numFmt = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 1 });
+const ilsAgorot = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const numFmt = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2 });
 
 export function ils(n: number | null | undefined): string | null {
-  return n === null || n === undefined || Number.isNaN(n) ? null : ilsFmt.format(n);
+  if (n === null || n === undefined || Number.isNaN(n)) return null;
+  return Math.abs(Math.round(n * 100) % 100) === 0 ? ilsFmt.format(n) : ilsAgorot.format(n);
 }
 
 export function num(n: number | null | undefined): string | null {

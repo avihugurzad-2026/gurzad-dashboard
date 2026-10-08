@@ -1,4 +1,5 @@
 'use client';
+import { report } from '@/lib/report';
 import { useTransition } from 'react';
 import { CalendarDays, Circle, CircleCheck, CircleDot, Clock, Trash2, User } from 'lucide-react';
 import { removeTask, setTaskPriority, setTaskStatus } from '@/app/actions';
@@ -21,7 +22,7 @@ export function TaskRow({ item, path, ownerLabel, showContext = true }: {
   const vault = item.source === 'vault';
   const closed = item.status === 'done' || item.status === 'cancelled';
   const Icon = item.status === 'done' ? CircleCheck : item.status === 'in_progress' ? CircleDot : item.status === 'waiting' ? Clock : Circle;
-  const run = (fn: () => Promise<unknown>) => start(async () => { await fn(); });
+  const run = (fn: () => Promise<unknown>) => start(async () => { report(await fn()); });
   const due = item.due_date ? `${shortDate(item.due_date)}${item.due_time ? `, ${item.due_time}` : ''}` : null;
 
   return (
@@ -49,7 +50,7 @@ export function TaskRow({ item, path, ownerLabel, showContext = true }: {
       {!vault && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           <label className="sr-only" htmlFor={`st-${item.id}`}>סטטוס</label>
-          <select id={`st-${item.id}`} value={item.status} disabled={pending} className={cn(rowSelect, 'hidden sm:block')}
+          <select id={`st-${item.id}`} value={item.status} disabled={pending} className={rowSelect}
             onChange={e => run(() => setTaskStatus(item.id, e.target.value, path))}>
             {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>

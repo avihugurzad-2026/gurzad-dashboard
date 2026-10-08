@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useId, useState, useTransition } from 'react';
 import { FilePlus2, Trash2, Upload } from 'lucide-react';
 import { addDocumentVersion, removeDocument, uploadDocument, type DocResult } from '@/app/documents-actions';
@@ -43,7 +44,7 @@ function UploadForm({ places, defaultPlace, subject, path, onSaved }: {
   useEffect(() => { if (state?.ok) onSaved(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   const initial = places.some(p => p.value === defaultPlace) ? defaultPlace! : places[0].value;
   return (
-    <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(action)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <input type="hidden" name="path" value={path} />
       {subject && <><input type="hidden" name="subject_type" value={subject.type} /><input type="hidden" name="subject_id" value={subject.id} /></>}
       <Field label="קובץ (עד 4MB)" htmlFor={f('file')} className="sm:col-span-2">
@@ -98,7 +99,7 @@ function VersionForm({ id, path, onSaved }: { id: string; path: string; onSaved:
   const fid = useId();
   useEffect(() => { if (state?.ok) onSaved(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(action)} className="flex flex-col gap-4">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="path" value={path} />
       <Field label="קובץ (עד 4MB)" htmlFor={`${fid}-file`}>

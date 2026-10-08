@@ -1,4 +1,6 @@
 'use client';
+import { submitWith } from '@/lib/submit';
+import money from '@domain/money';
 import { useActionState, useEffect, useId, useMemo, useState, useTransition } from 'react';
 import { ArrowLeftRight, Pencil, Trash2 } from 'lucide-react';
 import {
@@ -9,7 +11,7 @@ import {
 import { FormDialog } from '@/components/finance/dialog';
 import { Button, buttonClass } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
-import { Field, inputClass, selectClass, textareaClass } from '@/components/work/fields';
+import { Field, inputClass, selectClass, textareaClass, numberInputClass } from '@/components/work/fields';
 import { ils } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { ACCOUNT_LABEL, FREQ_LABEL } from '@/lib/ledger-labels';
@@ -91,7 +93,7 @@ export function TxForm({ ws, cats, accounts, initial, onSaved, today }: {
   const id = (k: string) => `${uid}-${k}`;
   const [direction, setDirection] = useState<'income' | 'expense'>(initial?.direction ?? 'expense');
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ ws, id: initial?.id, direction }} />
       <div role="group" aria-label="סוג" className="col-span-full inline-flex w-fit rounded-lg border border-line-strong bg-surface p-0.5 text-sm">
         {(['expense', 'income'] as const).map(k => (
@@ -102,7 +104,7 @@ export function TxForm({ ws, cats, accounts, initial, onSaved, today }: {
         ))}
       </div>
       <Field label="סכום (₪)" htmlFor={id('amount')}>
-        <input id={id('amount')} name="amount" inputMode="decimal" required defaultValue={initial?.amount ?? ''} className={inputClass} placeholder="0.00" />
+        <input id={id('amount')} name="amount" inputMode="decimal" dir="ltr" required defaultValue={initial?.amount ?? ''} className={numberInputClass} placeholder="0.00" />
       </Field>
       <Field label="תאריך" htmlFor={id('date')}>
         <DateField id={id('date')} name="occurred_on" defaultValue={initial?.occurred_on ?? today} required />
@@ -204,7 +206,7 @@ export function AccountForm({ ws, initial, onSaved }: { ws: string; initial: Acc
   const [kind, setKind] = useState(initial.kind);
   const card = kind === 'credit_card';
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ ws, id: initial.id }} />
       <Field label="סוג" htmlFor={id('kind')}>
         <select id={id('kind')} name="kind" value={kind} onChange={e => setKind(e.target.value)} className={selectClass}>
@@ -221,7 +223,7 @@ export function AccountForm({ ws, initial, onSaved }: { ws: string; initial: Acc
         <input id={id('last4')} name="last4" inputMode="numeric" pattern="\d{4}" maxLength={4} defaultValue={initial.last4 ?? ''} className={inputClass} dir="ltr" />
       </Field>
       <Field label={card ? 'יתרת חיוב נוכחית (₪)' : 'יתרה נוכחית (₪)'} htmlFor={id('bal')} hint="אפשר מינוס">
-        <input id={id('bal')} name="balance" inputMode="decimal" defaultValue={initial.balance ?? ''} className={inputClass} />
+        <input id={id('bal')} name="balance" inputMode="text" dir="ltr" defaultValue={initial.balance ?? ''} className={numberInputClass} />
       </Field>
       <Field label="נכון לתאריך" htmlFor={id('asof')}>
         <DateField id={id('asof')} name="balance_as_of" defaultValue={initial.balance_as_of ?? undefined} />
@@ -229,7 +231,7 @@ export function AccountForm({ ws, initial, onSaved }: { ws: string; initial: Acc
       {card && (
         <>
           <Field label="מסגרת (₪)" htmlFor={id('limit')}>
-            <input id={id('limit')} name="credit_limit" inputMode="decimal" defaultValue={initial.credit_limit ?? ''} className={inputClass} />
+            <input id={id('limit')} name="credit_limit" inputMode="decimal" dir="ltr" defaultValue={initial.credit_limit ?? ''} className={numberInputClass} />
           </Field>
           <Field label="יום חיוב בחודש" htmlFor={id('day')}>
             <input id={id('day')} name="billing_day" type="number" min={1} max={31} defaultValue={initial.billing_day ?? ''} className={inputClass} />
@@ -262,13 +264,13 @@ export function RecurringForm({ ws, cats, accounts, initial, onSaved, today }: {
   const [freq, setFreq] = useState(initial?.frequency ?? 'monthly');
   const top = cats.filter(c => c.kind === 'expense' && !c.parent_id);
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ ws, id: initial?.id }} />
       <Field label="שם" htmlFor={id('name')} hint="למשל: שכירות, ביטוח רכב, מנוי">
         <input id={id('name')} name="name" required maxLength={80} defaultValue={initial?.name ?? ''} className={inputClass} />
       </Field>
       <Field label="סכום (₪)" htmlFor={id('amount')}>
-        <input id={id('amount')} name="amount" inputMode="decimal" required defaultValue={initial?.amount ?? ''} className={inputClass} />
+        <input id={id('amount')} name="amount" inputMode="decimal" dir="ltr" required defaultValue={initial?.amount ?? ''} className={numberInputClass} />
       </Field>
       <Field label="תדירות" htmlFor={id('freq')}>
         <select id={id('freq')} name="frequency" value={freq} onChange={e => setFreq(e.target.value)} className={selectClass}>
@@ -278,6 +280,8 @@ export function RecurringForm({ ws, cats, accounts, initial, onSaved, today }: {
       {freq === 'custom' ? (
         <Field label="כל כמה חודשים" htmlFor={id('int')}>
           <input id={id('int')} name="interval_months" type="number" min={1} max={60} required defaultValue={initial?.interval_months ?? ''} className={inputClass} />
+          {/* the day isn't asked here; keep the stored one rather than resetting it to the start date's day */}
+          {initial?.day_of_month ? <input type="hidden" name="day_of_month" value={initial.day_of_month} /> : null}
         </Field>
       ) : (
         <Field label="יום בחודש" htmlFor={id('day')}>
@@ -331,10 +335,10 @@ function RecordPaymentForm({ ws, id: rid, amount, date, onSaved }: { ws: string;
   const { state, run, pending } = useSave(recordRecurring, onSaved);
   const uid = useId();
   return (
-    <form action={run} className="grid grid-cols-1 gap-4">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4">
       <Hidden v={{ ws, id: rid }} />
       <p className="text-sm text-muted">נרשמת הוצאה קבועה בתנועות, והמועד הבא מתעדכן.</p>
-      <Field label="סכום (₪)" htmlFor={`${uid}-a`}><input id={`${uid}-a`} name="amount" inputMode="decimal" defaultValue={amount} className={inputClass} /></Field>
+      <Field label="סכום (₪)" htmlFor={`${uid}-a`}><input id={`${uid}-a`} name="amount" inputMode="decimal" dir="ltr" defaultValue={amount} className={numberInputClass} /></Field>
       <Field label="תאריך" htmlFor={`${uid}-d`}><DateField id={`${uid}-d`} name="occurred_on" defaultValue={date} /></Field>
       <Footer state={state} pending={pending} label="רשום תשלום" />
     </form>
@@ -351,19 +355,19 @@ export function SavingsForm({ ws, accounts, initial, onSaved }: { ws: string; ac
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ ws, id: initial?.id }} />
       <Field label="שם היעד" htmlFor={id('name')} hint="למשל: קרן חירום, חופשה, רכב">
         <input id={id('name')} name="name" required maxLength={80} defaultValue={initial?.name ?? ''} className={inputClass} />
       </Field>
       <Field label="סכום יעד (₪)" htmlFor={id('target')}>
-        <input id={id('target')} name="target_amount" inputMode="decimal" required defaultValue={initial?.target_amount ?? ''} className={inputClass} />
+        <input id={id('target')} name="target_amount" inputMode="decimal" dir="ltr" required defaultValue={initial?.target_amount ?? ''} className={numberInputClass} />
       </Field>
       <Field label="כבר נחסך (₪)" htmlFor={id('cur')}>
-        <input id={id('cur')} name="current_amount" inputMode="decimal" defaultValue={initial?.current_amount ?? ''} placeholder="0" className={inputClass} />
+        <input id={id('cur')} name="current_amount" inputMode="decimal" dir="ltr" defaultValue={initial?.current_amount ?? ''} placeholder="0" className={numberInputClass} />
       </Field>
       <Field label="הפקדה חודשית מתוכננת (₪)" htmlFor={id('monthly')}>
-        <input id={id('monthly')} name="monthly_contribution" inputMode="decimal" defaultValue={initial?.monthly_contribution ?? ''} className={inputClass} />
+        <input id={id('monthly')} name="monthly_contribution" inputMode="decimal" dir="ltr" defaultValue={initial?.monthly_contribution ?? ''} className={numberInputClass} />
       </Field>
       <Field label="עד תאריך (לא חובה)" htmlFor={id('deadline')}>
         <DateField id={id('deadline')} name="deadline" defaultValue={initial?.deadline ?? undefined} />
@@ -397,9 +401,9 @@ function DepositForm({ ws, id: gid, onSaved }: { ws: string; id: string; onSaved
   const { state, run, pending } = useSave(depositSavings, onSaved);
   const uid = useId();
   return (
-    <form action={run} className="grid gap-4">
+    <form onSubmit={submitWith(run)} className="grid gap-4">
       <Hidden v={{ ws, id: gid }} />
-      <Field label="סכום (₪)" htmlFor={`${uid}-a`} hint="מספר שלילי = משיכה"><input id={`${uid}-a`} name="amount" inputMode="decimal" required className={inputClass} /></Field>
+      <Field label="סכום (₪)" htmlFor={`${uid}-a`} hint="מספר שלילי = משיכה"><input id={`${uid}-a`} name="amount" inputMode="text" dir="ltr" required className={numberInputClass} /></Field>
       <Footer state={state} pending={pending} label="עדכן" />
     </form>
   );
@@ -413,16 +417,16 @@ export function BudgetForm({ ws, month, cats, lines, notes, onSaved }: {
   const uid = useId();
   const top = cats.filter(c => c.kind === 'expense' && !c.parent_id);
   const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(top.map(c => [c.id, lines[c.id] !== undefined ? String(lines[c.id]) : ''])));
-  const total = Object.values(vals).reduce((a, v) => a + (Number(v.replace(/,/g, '')) || 0), 0);
+  const total = Object.values(vals).reduce((a, v) => { const n = money.parseNumber(v); return a + (n !== null && Number.isFinite(n) ? n : 0); }, 0);
   return (
-    <form action={run} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-4">
       <Hidden v={{ ws, month }} />
       {!top.length && <p className="text-sm text-muted">אין עדיין קטגוריות הוצאה. הוסף קטגוריה בלשונית כללי סיווג.</p>}
       <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
         {top.map(c => (
           <label key={c.id} htmlFor={`${uid}-${c.id}`} className="flex items-center justify-between gap-3">
             <span className="text-sm text-ink-2"><bdi>{c.name}</bdi></span>
-            <input id={`${uid}-${c.id}`} name={`b_${c.id}`} inputMode="decimal" value={vals[c.id] ?? ''} placeholder="ללא"
+            <input id={`${uid}-${c.id}`} name={`b_${c.id}`} inputMode="decimal" dir="ltr" value={vals[c.id] ?? ''} placeholder="ללא"
               onChange={e => setVals(v => ({ ...v, [c.id]: e.target.value }))} className={cn(inputClass, 'w-36 text-end tabular')} />
           </label>
         ))}
@@ -452,7 +456,7 @@ export function CategoryForm({ ws, cats, initial, onSaved }: {
   const [kind, setKind] = useState<'income' | 'expense'>(initial?.kind ?? 'expense');
   const parents = cats.filter(c => c.kind === kind && !c.parent_id && c.id !== initial?.id);
   return (
-    <form action={run} className="grid grid-cols-1 gap-4">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4">
       <Hidden v={{ ws, id: initial?.id }} />
       <Field label="שם" htmlFor={`${uid}-n`}><input id={`${uid}-n`} name="name" required maxLength={60} defaultValue={initial?.name ?? ''} className={inputClass} /></Field>
       <Field label="סוג" htmlFor={`${uid}-k`}>
@@ -490,7 +494,7 @@ export function RuleForm({ targets, catsByWs, initial, onSaved }: {
   const cats = catsByWs[target] ?? [];
   const [kind, setKind] = useState<'income' | 'expense'>(() => (cats.find(c => c.id === initial?.category_id)?.kind ?? 'expense'));
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ id: initial?.id }} />
       <Field label="כשבית העסק / התיאור" htmlFor={id('mt')}>
         <div className="flex gap-2">
@@ -554,7 +558,7 @@ export function ContributionForm({ households, accounts, initial, onSaved, today
   const id = (k: string) => `${uid}-${k}`;
   const [rule, setRule] = useState(initial?.rule ?? 'fixed');
   return (
-    <form action={run} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Hidden v={{ id: initial?.id }} />
       <Field label="למשק הבית" htmlFor={id('hh')}>
         <select id={id('hh')} name="household" defaultValue={initial?.household ?? households[0]?.id} className={selectClass} disabled={!!initial?.id}>
@@ -569,11 +573,11 @@ export function ContributionForm({ households, accounts, initial, onSaved, today
       </Field>
       {rule === 'percentage' ? (
         <Field label="אחוז" htmlFor={id('pct')} hint="פרטי: משק הבית רואה רק את הסכום שהועבר">
-          <input id={id('pct')} name="percentage" inputMode="decimal" required defaultValue={initial?.percentage ?? ''} className={inputClass} />
+          <input id={id('pct')} name="percentage" inputMode="decimal" dir="ltr" required defaultValue={initial?.percentage ?? ''} className={numberInputClass} />
         </Field>
       ) : (
         <Field label={rule === 'fixed' ? 'סכום חודשי (₪)' : 'סכום משוער (₪, לא חובה)'} htmlFor={id('amt')}>
-          <input id={id('amt')} name="amount" inputMode="decimal" required={rule === 'fixed'} defaultValue={initial?.amount ?? ''} className={inputClass} />
+          <input id={id('amt')} name="amount" inputMode="decimal" dir="ltr" required={rule === 'fixed'} defaultValue={initial?.amount ?? ''} className={numberInputClass} />
         </Field>
       )}
       <Field label="יום ההעברה בחודש" htmlFor={id('day')}>
@@ -582,6 +586,7 @@ export function ContributionForm({ households, accounts, initial, onSaved, today
       <Field label="תדירות" htmlFor={id('freq')}>
         <select id={id('freq')} name="frequency" defaultValue={initial?.frequency ?? 'monthly'} className={selectClass}>
           <option value="monthly">כל חודש</option><option value="one_time">פעם אחת</option>
+          {initial?.frequency === 'custom' && <option value="custom">מותאם</option>}
         </select>
       </Field>
       <Field label="החל מ-" htmlFor={id('start')}><DateField id={id('start')} name="start_date" defaultValue={initial?.start_date ?? today} /></Field>
@@ -591,6 +596,7 @@ export function ContributionForm({ households, accounts, initial, onSaved, today
         <Field label="סטטוס" htmlFor={id('status')}>
           <select id={id('status')} name="status" defaultValue={initial.status ?? 'active'} className={selectClass}>
             <option value="active">פעיל</option><option value="paused">מושהה</option>
+            {initial.status === 'ended' && <option value="ended">הסתיים</option>}
           </select>
         </Field>
       )}
@@ -615,11 +621,11 @@ function ExecuteForm({ id: cid, suggested, today, rule, onSaved }: { id: string;
   const { state, run, pending } = useSave(executeContribution, onSaved);
   const uid = useId();
   return (
-    <form action={run} className="grid gap-4">
+    <form onSubmit={submitWith(run)} className="grid gap-4">
       <Hidden v={{ id: cid }} />
       <p className="text-sm text-muted">נרשמת העברה יוצאת באזור האישי והכנסה במשק הבית, מקושרות. הכסף לא נספר פעמיים.</p>
       <Field label="סכום (₪)" htmlFor={`${uid}-a`} hint={rule === 'percentage' && !suggested ? 'ריק = מחושב מההכנסות שלך החודש' : undefined}>
-        <input id={`${uid}-a`} name="amount" inputMode="decimal" defaultValue={suggested ?? ''} required={rule !== 'percentage'} className={inputClass} />
+        <input id={`${uid}-a`} name="amount" inputMode="decimal" dir="ltr" defaultValue={suggested ?? ''} required={rule !== 'percentage'} className={numberInputClass} />
       </Field>
       <Field label="תאריך" htmlFor={`${uid}-d`}><DateField id={`${uid}-d`} name="paid_on" defaultValue={today} /></Field>
       <Footer state={state} pending={pending} label="רשום העברה" />

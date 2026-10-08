@@ -1,10 +1,11 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useId } from 'react';
 import { HandCoins, Plus } from 'lucide-react';
 import { addReceivable, recordPayment, type FinanceResult } from '@/app/finance-actions';
 import { Button, buttonClass } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
-import { Field, inputClass, selectClass } from '@/components/work/fields';
+import { Field, inputClass, selectClass, numberInputClass } from '@/components/work/fields';
 
 const fileClass = 'min-w-0 text-sm text-ink-2 file:me-3 file:h-9 file:cursor-pointer file:rounded-lg file:border file:border-solid file:border-line-strong file:bg-surface file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-surface-2';
 import { FormDialog } from './dialog';
@@ -28,14 +29,14 @@ function AddReceivableForm({ path, place, today, onSaved }: { path: string; plac
   const id = useId();
   useEffect(() => { if (state?.ok) onSaved(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <form action={action} className="grid grid-cols-2 gap-4">
+    <form onSubmit={submitWith(action)} className="grid grid-cols-2 gap-4">
       <input type="hidden" name="path" value={path} />
       <input type="hidden" name="place" value={place} />
       <Field label="לקוח" htmlFor={`${id}-c`} className="col-span-2">
         <input id={`${id}-c`} name="client_name" required maxLength={120} className={inputClass} />
       </Field>
       <Field label="סכום כולל מע״מ (₪)" htmlFor={`${id}-a`}>
-        <input id={`${id}-a`} name="amount" required inputMode="decimal" className={inputClass} />
+        <input id={`${id}-a`} name="amount" required inputMode="decimal" dir="ltr" className={numberInputClass} />
       </Field>
       <Field label="ח״פ / ע״מ" htmlFor={`${id}-t`}>
         <input id={`${id}-t`} name="client_tax_id" inputMode="numeric" pattern="\d{5,9}" maxLength={9} dir="ltr" title="ספרות בלבד, 5 עד 9" className={inputClass} />
@@ -78,13 +79,13 @@ function PaymentForm({ id, remaining, path, today, onSaved }: { id: string; rema
   const uid = useId();
   useEffect(() => { if (state?.ok) onSaved(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <form action={action} className="grid grid-cols-2 gap-4">
+    <form onSubmit={submitWith(action)} className="grid grid-cols-2 gap-4">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="path" value={path} />
       <input type="hidden" name="record_income_field" value="1" />
       <p className="col-span-2 text-sm text-muted">נשאר לגבות: <bdi className="amount tabular font-medium text-ink">{ils(remaining)}</bdi></p>
       <Field label="סכום (₪)" htmlFor={`${uid}-a`}>
-        <input id={`${uid}-a`} name="amount" required inputMode="decimal" defaultValue={String(remaining)} className={inputClass} />
+        <input id={`${uid}-a`} name="amount" required inputMode="decimal" dir="ltr" defaultValue={String(remaining)} className={numberInputClass} />
       </Field>
       <Field label="תאריך" htmlFor={`${uid}-d`}>
         <DateField id={`${uid}-d`} name="paid_on" required defaultValue={today} />

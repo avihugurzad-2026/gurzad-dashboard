@@ -1,4 +1,5 @@
 'use server';
+import { unstable_rethrow } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import type { PoolClient } from 'pg';
 import { currentUser, type SessionUser } from '@/server/auth';
@@ -6,7 +7,7 @@ import { db } from '@/server/db';
 import { ledgerAccess, type Access } from '@/server/ledger';
 import { loadWorkspaces, personalWorkspace, type WorkspaceRow } from '@/server/workspaces';
 import { isIsoDate } from '@/lib/finance';
-import { todayIL } from '@/lib/period';
+import { todayIL, dbDate } from '@/lib/period';
 import money from '@domain/money';
 import L from '@domain/ledger';
 
@@ -32,12 +33,7 @@ const bool = (f: FormData, k: string) => ['on', 'true', '1'].includes(String(f.g
 const uuid = (f: FormData, k: string) => { const v = str(f, k); return v && UUID.test(v) ? v : null; };
 const len = (v: string | null, max: number) => !v || v.length <= max;
 // A signed amount (balances may be negative): "-1,234.50" → -1234.5; empty → null; bad → NaN
-function signed(v: string | null): number | null {
-  if (v === null) return null;
-  const s = v.replace(/[,\s₪]/g, '');
-  if (!/^-?\d+(\.\d{1,2})?$/.test(s)) return NaN;
-  return Number(s);
-}
+const signed = (v: string | null): number | null => money.parseSigned(v);
 const int = (v: string | null, min: number, max: number) => {
   if (v === null) return null;
   const n = Number(v);
@@ -114,7 +110,9 @@ async function guarded(fn: () => Promise<LedgerResult>): Promise<LedgerResult> {
     if (tableMissing(e)) return fail(NOT_READY);
     if ((e as { code?: string })?.code === '23505') return fail('כבר קיים פריט כזה');
     if ((e as { code?: string })?.code === '23514') return fail('אחד הערכים לא תקין');
-    throw e;
+    unstable_rethrow(e);
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
 }
 
@@ -207,10 +205,11 @@ export async function saveTransaction(_: LedgerResult | null, f: FormData): Prom
       }
       const row = await ownRow(c, 'transactions', id, a.w.id);
       if (!row) throw new Refuse('התנועה לא נמצאה');
-      if (row.source === 'contribution') throw new Refuse('העברה לבית משתנה מתוך מסך ה-Contribution');
+      if (row.source === 'contribution') throw new Refuse('העברה לבית משתנה מתוך לשונית ההעברות');
       if (a.w.kind === 'household' && row.owner_user_id !== u.id && !['owner', 'admin'].includes(a.role)) throw new Refuse('רק מי שרשם את התנועה או מנהל יכולים לערוך');
       const cat = await categoryIn(c, a.w.id, t.category_id, t.direction);
       const sub = await categoryIn(c, a.w.id, t.subcategory_id, t.direction);
+      if (sub && cat && sub.parent_id !== cat.id) throw new Refuse('תת-קטגוריה לא שייכת לקטגוריה');
       await accountIn(c, a.w.id, t.account_id);
       await c.query(
         `UPDATE transactions SET direction = $2, occurred_on = $3, amount_gross = $4, currency = $5, merchant = $6, counterparty_name = $6, description = $7,
@@ -296,8 +295,8 @@ export async function saveAccount(_: LedgerResult | null, f: FormData): Promise<
   if (Number.isNaN(opening) || Number.isNaN(balance)) return fail('יתרה חייבת להיות מספר');
   const asOf = str(f, 'balance_as_of');
   if (asOf && !isIsoDate(asOf)) return fail('תאריך יתרה לא תקין');
-  const limit = str(f, 'credit_limit') ? money.parseAmount(str(f, 'credit_limit')) : null;
-  if (str(f, 'credit_limit') && limit === null) return fail('מסגרת אשראי לא תקינה');
+  const limit = signed(str(f, 'credit_limit'));
+  if (limit !== null && (Number.isNaN(limit) || limit < 0)) return fail('מסגרת אשראי: מספר 0 ומעלה');
   const billing = int(str(f, 'billing_day'), 1, 31);
   if (Number.isNaN(billing)) return fail('יום חיוב בין 1 ל-31');
   const notes = str(f, 'notes');
@@ -308,8 +307,8 @@ export async function saveAccount(_: LedgerResult | null, f: FormData): Promise<
     const out = await inTx(async c => {
       if (id) {
         if (!(await ownRow(c, 'financial_accounts', id, a.w.id))) throw new Refuse('החשבון לא נמצא');
-        await c.query(`UPDATE financial_accounts SET kind = $2, name = $3, institution = $4, last4 = $5, currency = $6, opening_balance = $7, balance = $8,
-          balance_as_of = $9, credit_limit = $10, billing_day = $11, notes = $12, updated_at = now() WHERE id = $1`, [id, ...vals]);
+        await c.query(`UPDATE financial_accounts SET kind = $2, name = $3, institution = $4, last4 = $5, currency = $6, opening_balance = CASE WHEN $13 THEN $7 ELSE opening_balance END, balance = $8,
+          balance_as_of = $9, credit_limit = $10, billing_day = $11, notes = $12, updated_at = now() WHERE id = $1`, [id, ...vals, f.has('opening_balance')]);
         await log(c, u, 'account', id, 'update', { ws: a.w.id });
         return id;
       }
@@ -356,6 +355,10 @@ export async function saveCategory(_: LedgerResult | null, f: FormData): Promise
         const p = await categoryIn(c, a.w.id, parent, kind);
         if (p?.parent_id) throw new Refuse('אפשר רק שתי רמות: קטגוריה ותת-קטגוריה');
         if (id && id === parent) throw new Refuse('קטגוריה לא יכולה להיות תת-קטגוריה של עצמה');
+        if (id) {
+          const { rows: kids } = await c.query(`SELECT 1 FROM transaction_categories WHERE parent_id = $1 AND deleted_at IS NULL LIMIT 1`, [id]);
+          if (kids.length) throw new Refuse('לקטגוריה הזו יש תת-קטגוריות, אז היא לא יכולה להיות תת-קטגוריה בעצמה');
+        }
       }
       if (id) {
         if (!(await ownRow(c, 'transaction_categories', id, a.w.id))) throw new Refuse('הקטגוריה לא נמצאה');
@@ -391,9 +394,9 @@ export async function saveBudget(_: LedgerResult | null, f: FormData): Promise<L
     if (!k.startsWith('b_') || typeof v !== 'string' || v.trim() === '') continue;
     const cid = k.slice(2);
     if (!UUID.test(cid)) return fail('קטגוריה לא תקינה');
-    const s = v.replace(/[,\s₪]/g, '');
-    if (!/^\d+(\.\d{1,2})?$/.test(s)) return fail('סכומי תקציב: מספרים בלבד');
-    lines.push([cid, Number(s)]);
+    const n = money.parseSigned(v);
+    if (n === null || Number.isNaN(n) || n < 0) return fail('סכומי תקציב: מספר 0 ומעלה, עד 2 ספרות אחרי הנקודה');
+    lines.push([cid, n]);
   }
   const notes = str(f, 'notes');
   if (!len(notes, 1000)) return fail('ההערה ארוכה מדי');
@@ -510,14 +513,14 @@ export async function recordRecurring(_: LedgerResult | null, f: FormData): Prom
     await inTx(async c => {
       const r = await ownRow(c, 'recurring_expenses', id, a.w.id);
       if (!r) throw new Refuse('ההוצאה הקבועה לא נמצאה');
-      const due = r.next_due ? new Date(r.next_due).toISOString().slice(0, 10) : on;
+      const due = r.next_due ? dbDate(r.next_due) : on;
       const txId = await insertTx(c, u, a.w, {
         direction: 'expense', occurred_on: on, amount: amount ?? Number(r.amount), currency: r.currency, merchant: r.merchant ?? r.name, description: r.name,
         category_id: r.category_id, subcategory_id: null, account_id: r.account_id, fixed_or_variable: 'fixed',
         frequency: r.frequency === 'one_time' ? 'one_time' : r.frequency === 'yearly' ? 'yearly' : r.frequency === 'custom' ? 'custom' : 'monthly',
         notes: null, source: 'recurring', recurring_expense_id: id,
       });
-      const next = L.advanceDue({ frequency: r.frequency, interval_months: r.interval_months, day_of_month: r.day_of_month, end_date: r.end_date ? new Date(r.end_date).toISOString().slice(0, 10) : null }, due);
+      const next = L.advanceDue({ frequency: r.frequency, interval_months: r.interval_months, day_of_month: r.day_of_month, end_date: r.end_date ? dbDate(r.end_date) : null }, due);
       await c.query(`UPDATE recurring_expenses SET next_due = $2, status = CASE WHEN $2::date IS NULL THEN 'ended' ELSE status END, updated_at = now() WHERE id = $1`, [id, next]);
       await log(c, u, 'recurring', id, 'paid', { ws: a.w.id, tx: txId });
     });
@@ -612,8 +615,9 @@ export async function saveContribution(_: LedgerResult | null, f: FormData): Pro
   if (rule === 'fixed' && amount === null) return fail('כתוב סכום חודשי');
   if (amountIn && amount === null) return fail('סכום לא תקין');
   const pctIn = str(f, 'percentage');
-  const pct = pctIn ? Number(pctIn) : null;
+  const pct = pctIn ? money.parseNumber(pctIn) : null;
   if (rule === 'percentage' && (pct === null || !(pct > 0 && pct <= 100))) return fail('אחוז בין 0 ל-100');
+  if (pct !== null && !Number.isFinite(pct)) return fail('אחוז לא תקין');
   const frequency = str(f, 'frequency') ?? 'monthly';
   if (!['monthly', 'one_time', 'custom'].includes(frequency)) return fail('תדירות לא תקינה');
   const day = int(str(f, 'day_of_month'), 1, 28) ?? 1;

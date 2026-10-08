@@ -27,10 +27,15 @@ export function DecisionsForm({ period }: { period: string }) {
       .filter(r => r.text.trim() || r.owner.trim() || r.due_week)
       // the week input gives "2026-W41" already
       .map(r => ({ text: r.text.trim(), owner: r.owner.trim(), due_week: r.due_week }));
-    const res = await fetch('/api/v1/review', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decisions, notes: notes.trim() || null }),
-    });
+    let res: Response;
+    try {
+      res = await fetch('/api/v1/review', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisions, notes: notes.trim() || null }),
+      });
+    } catch {
+      setBusy(false); setErrors(['אין חיבור. נסה שוב']); return;
+    }
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
@@ -50,6 +55,7 @@ export function DecisionsForm({ period }: { period: string }) {
           <input value={r.owner} onChange={e => update(i, { owner: e.target.value })} placeholder="בעלים"
             aria-label={`בעלים להחלטה ${i + 1}`} className={inputClass} />
           <input type="week" value={r.due_week} onChange={e => update(i, { due_week: e.target.value })}
+            placeholder="2026-W41" pattern="\d{4}-W\d{2}" title="שנה ושבוע, למשל 2026-W41" dir="ltr"
             aria-label={`שבוע יעד להחלטה ${i + 1}`} className={inputClass} />
           {rows.length > 1 && (
             <Button type="button" variant="ghost" size="icon" aria-label="הסרת ההחלטה"

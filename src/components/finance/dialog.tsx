@@ -13,8 +13,27 @@ export function FormDialog({ trigger, title, triggerClass, children, wide = true
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      // With a mouse, start in the first field rather than on the close button. Not on touch screens,
+      // where that would pop the keyboard over the form.
+      if (window.matchMedia('(pointer: fine)').matches)
+        d.querySelector<HTMLElement>('input:not([type=hidden]):not([aria-hidden]), select, textarea')?.focus();
+    }
     if (!open && d.open) d.close();
+  }, [open]);
+  // A save error appears under the button; on a phone that is below the fold of a long form,
+  // so bring it into view when it shows up
+  useEffect(() => {
+    const d = ref.current;
+    if (!d || !open) return;
+    const seen = new WeakSet<Element>();
+    const obs = new MutationObserver(() => {
+      const alert = d.querySelector('[role=alert]');
+      if (alert && !seen.has(alert)) { seen.add(alert); alert.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    });
+    obs.observe(d, { childList: true, subtree: true, characterData: true });
+    return () => obs.disconnect();
   }, [open]);
   return (
     <>

@@ -24,6 +24,13 @@ export function todayIL(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now);
 }
 
+// A DATE column as node-postgres returns it (a Date at local midnight) back to YYYY-MM-DD. Reading
+// it with toISOString() shifts it a day back on a server east of UTC.
+export function dbDate(d: Date | string): string {
+  if (typeof d === 'string') return d.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const utc = (s: string) => new Date(`${s}T00:00:00Z`);
 

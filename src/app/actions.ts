@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { canCreateIn, canDeleteRow, canEditRow, currentUser, type Kind, type SessionUser } from '@/server/auth';
 import { createHash } from 'node:crypto';
 import { db } from '@/server/db';
+import money from '@domain/money';
 import { CATEGORIES, decodePlace } from '@/lib/places';
 import { fingerprint } from '@/lib/fingerprint';
 import { createEventForTask, removeEventForTask } from '@/server/calendar';
@@ -11,7 +12,7 @@ import { createEventForTask, removeEventForTask } from '@/server/calendar';
 // Every action resolves the signed-in user, checks their role for the place and the row,
 // validates its input, and soft-deletes.
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ActionResult = { ok: true; warning?: string } | { ok: false; error: string };
 
 const DOMAINS = new Set(['business', 'personal', 'ventures']);
 const STATUS = new Set(['todo', 'in_progress', 'waiting', 'done', 'cancelled']);
@@ -133,10 +134,8 @@ export async function addTask(_: ActionResult | null, f: FormData): Promise<Acti
   if (str(f, 'show_in_calendar') === 'on' && due && time) {
     const r = await createEventForTask(u, { id, title, due_date: due, due_time: time, domain: p.domain, branch: p.branch, location: p.location, scope })
       .catch(() => ({ ok: false as const, error: 'calendar' }));
-    if (!r.ok) {
-      done(str(f, 'path'));
-      return { ok: false, error: 'המשימה נשמרה, אבל לא נוספה ליומן (בדוק את חיבור היומן בהגדרות)' };
-    }
+    // Saved: report ok (so the form closes and nobody types it again), with a warning about the calendar
+    if (!r.ok) return { ...done(str(f, 'path')), warning: 'המשימה נשמרה, אבל לא נוספה ליומן (בדוק את חיבור היומן בהגדרות)' } as ActionResult;
   }
   return done(str(f, 'path'));
 }
@@ -245,7 +244,8 @@ export async function removeInbox(id: string): Promise<ActionResult> {
 }
 
 // ── Goals ─────────────────────────────────────────────────────────────────────
-const num = (v: string | null) => (v === null ? null : Number(v.replace(/,/g, '')));
+// Typed numbers; anything beyond numeric(14,2) is refused here rather than failing in the database
+const num = (v: string | null) => { const n = money.parseNumber(v); return n !== null && Math.abs(n) >= 1e12 ? NaN : n; };
 
 // Spec 2.6 types; a goal without one gets the obvious type for its place
 function defaultGoalType(p: { domain: string; branch: string | null; location: string | null }, unit: string): string {

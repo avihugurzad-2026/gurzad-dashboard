@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils';
 
 // A date input in the Israeli format (dd/mm/yyyy), whatever the browser's language. The form still
 // posts ISO (YYYY-MM-DD) under `name`, exactly like <input type="date"> did, so server actions are
-// unchanged. The calendar button opens the browser's own picker.
+// unchanged. The calendar button opens the browser's own picker. Phone keypads in "decimal" mode have
+// ".", so 08.10.2026 can be typed there; "numeric" keypads have no separator at all.
 
 const toText = (iso: string | null | undefined) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
@@ -58,8 +59,8 @@ export function DateField({ name, id, value, defaultValue, onChange, required, m
 
   return (
     <div className={cn('relative', className)}>
-      <input ref={textRef} id={id} type="text" inputMode="numeric" autoComplete="off" dir="ltr" placeholder="dd/mm/yyyy"
-        value={text} onChange={e => onText(e.target.value)} onBlur={() => { if (iso) setText(toText(iso)); }}
+      <input ref={textRef} id={id} type="text" inputMode="decimal" autoComplete="off" dir="ltr" placeholder="dd/mm/yyyy"
+        value={text} onChange={e => onText(e.target.value)} onBlur={() => { if (iso) { setText(toText(iso)); textRef.current?.setCustomValidity(''); } }}
         required={required} disabled={disabled} {...aria}
         className={cn(compact ? compactInputClass : inputClass, 'pl-10 text-right tabular')} />
       {name && <input type="hidden" name={name} value={iso} />}

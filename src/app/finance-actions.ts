@@ -7,6 +7,7 @@ import { db } from '@/server/db';
 import { decodePlace } from '@/lib/places';
 import { CLASSIFICATIONS, DOCUMENT_TYPES, PAYMENT_METHODS, isCategory, isIsoDate, type Direction } from '@/lib/finance';
 import money from '@domain/money';
+import { ils } from '@/lib/format';
 
 // Writes for finance (2.3) and collections (2.4). Each action: session → permission → validate every
 // field → write (in one DB transaction where several rows change) → activity_log → revalidate.
@@ -128,7 +129,7 @@ export async function addTransaction(_: FinanceResult | null, f: FormData): Prom
     for (const [k, v] of f.entries()) {
       if (!k.startsWith('share_') || typeof v !== 'string' || v.trim() === '') continue;
       const id = k.slice(6);
-      const pct = Number(v);
+      const pct = money.parseNumber(v) ?? NaN;
       if (!/^[a-z][a-z0-9-]{1,30}$/.test(id) || !Number.isFinite(pct)) return fail('חלוקה לא תקינה');
       splits.push({ user_id: id, share_pct: pct });
     }
@@ -272,7 +273,7 @@ export async function recordPayment(_: FinanceResult | null, f: FormData): Promi
       if (!r || !canEditRow(u, 'money', r)) throw new Refuse('לא נמצא או שאין הרשאה');
       const next = money.applyPayment(r.amount, r.amount_paid, amount);
       if (next.error === 'already_paid') throw new Refuse('החוב כבר שולם במלואו');
-      if (next.error === 'too_much') throw new Refuse(`הסכום גדול מהיתרה (${money.round2(r.amount - r.amount_paid)} ₪)`);
+      if (next.error === 'too_much') throw new Refuse(`הסכום גדול מהיתרה (${ils(money.round2(r.amount - r.amount_paid))})`);
       if (next.error) throw new Refuse('סכום לא תקין');
       let txId: string | null = null;
       if (recordIncome) {

@@ -1,4 +1,6 @@
 'use client';
+import { report } from '@/lib/report';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useMemo, useState, useTransition } from 'react';
 import { FileText, Sparkles, Trash2 } from 'lucide-react';
 import { classifyInbox, removeInbox, type ActionResult } from '@/app/actions';
@@ -62,12 +64,12 @@ export function InboxRow({ item }: { item: InboxItem }) {
         <div className="flex shrink-0 items-center gap-1.5">
           <Button size="sm" variant={open ? 'ghost' : 'secondary'} onClick={() => setOpen(o => !o)} aria-expanded={open}>{open ? 'סגור' : 'שייך'}</Button>
           <button type="button" aria-label="מחק פריט" disabled={removing}
-            onClick={() => { if (confirm('למחוק את הפריט?')) startRemove(async () => { await removeInbox(item.id); }); }}
+            onClick={() => { if (confirm('למחוק את הפריט?')) startRemove(async () => { report(await removeInbox(item.id)); }); }}
             className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}><Trash2 aria-hidden /></button>
         </div>
       </div>
       {open && (
-        <form action={action} className="flex flex-col gap-4 rounded-lg border border-line bg-surface-2/40 p-4">
+        <form onSubmit={submitWith(action)} className="flex flex-col gap-4 rounded-lg border border-line bg-surface-2/40 p-4">
           <input type="hidden" name="id" value={item.id} />
           {where && <input type="hidden" name="place" value={where} />}
           <fieldset>

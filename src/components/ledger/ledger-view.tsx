@@ -89,7 +89,7 @@ export function LedgerActions({ c }: { c: LedgerCtx }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
-        <Link href="/household/finance?tab=contributions" className={buttonClass('primary', 'sm')}><Wallet aria-hidden />Contribution</Link>
+        <Link href="/household/finance?tab=contributions" className={buttonClass('primary', 'sm')}><Wallet aria-hidden />העברה לבית</Link>
         <TxDialog {...common} trigger={<><ArrowUpRight aria-hidden />הוצאה משותפת</>} title="הוצאה משותפת" initial={{ direction: 'expense', occurred_on: c.today }} triggerClass={buttonClass('primary', 'sm')} />
         <Link href={`/household/budget?month=${c.month}`} className={sm}><Plus aria-hidden />תקציב</Link>
         <RecurringDialog {...common} trigger={<><Repeat aria-hidden />הוצאה קבועה</>} title="הוצאה קבועה משותפת" triggerClass={sm} />
@@ -603,10 +603,10 @@ export async function MyContributions({ c }: { c: LedgerCtx }) {
   const free = c.households.filter(h => !plans.some(p => p.workspace_id === h.id));
   const add = free.length > 0 && (
     <ContributionDialog households={free} accounts={c.accounts} today={c.today} trigger={<><Plus aria-hidden />הגדר העברה למשק הבית</>}
-      title="Contribution to Household" triggerClass={buttonClass(plans.length ? 'ghost' : 'secondary', 'sm')} />
+      title="העברות למשק הבית" triggerClass={buttonClass(plans.length ? 'ghost' : 'secondary', 'sm')} />
   );
   return (
-    <Section title="Contribution to Household" action={plans.length ? add : null}>
+    <Section title="העברות למשק הבית" action={plans.length ? add : null}>
       {plans.length === 0 ? (
         <Card><Empty compact icon={<Wallet />} title="לא הוגדרה העברה למשק הבית">קבע כמה אתה מעביר כל חודש. משק הבית רואה רק את הסכום, התאריך והסטטוס, לא את ההכנסה שלך.</Empty>
           <div className="flex justify-center pb-6">{add}</div></Card>
@@ -637,7 +637,7 @@ export async function MyContributions({ c }: { c: LedgerCtx }) {
                 <div className="flex flex-wrap items-center gap-1 border-t border-line pt-3">
                   {p.status === 'active' && <ExecuteContributionDialog id={p.id} household={p.household} suggested={suggested} today={c.today} rule={p.rule} />}
                   <ContributionDialog households={[{ id: p.workspace_id, name: p.household, kind: 'household' }]} accounts={c.accounts} today={c.today}
-                    initial={{ ...p, household: p.workspace_id, amount: p.fixed_amount }} trigger="Edit contribution" title="עריכת ההעברה" triggerClass={buttonClass('ghost', 'sm')} />
+                    initial={{ ...p, household: p.workspace_id, amount: p.fixed_amount }} trigger="עריכת ההעברה" title="עריכת ההעברה" triggerClass={buttonClass('ghost', 'sm')} />
                   <EndContributionButton id={p.id} />
                 </div>
               </Card>
@@ -657,7 +657,7 @@ export async function HouseholdContributionsCard({ c, compact }: { c: LedgerCtx;
   const mine = h.plans.find(p => p.user_id === c.u.id && p.status !== 'ended');
   const add = c.a.canWrite && !mine && (
     <ContributionDialog households={[{ id: c.ws, name: c.a.w.name, kind: 'household' }]} accounts={[]} today={c.today}
-      trigger={<><Plus aria-hidden />Contribution</>} title="ההעברה שלי למשק הבית" triggerClass={buttonClass('secondary', 'sm')} />
+      trigger={<><Plus aria-hidden />העברה לבית</>} title="ההעברה שלי למשק הבית" triggerClass={buttonClass('secondary', 'sm')} />
   );
   const m = h.month;
   const payments = h.payments.filter(p => `${p.period}-01` === period);

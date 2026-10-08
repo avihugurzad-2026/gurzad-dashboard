@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { ils } from '@/lib/format';
+import money from '@domain/money';
 import { inputClass } from '@/components/work/fields';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 export function ContributionPlanner({ members }: { members: { id: string; name: string }[] }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const amount = (id: string) => {
-    const n = Number((values[id] ?? '').replace(/[^\d.]/g, ''));
-    return values[id] && Number.isFinite(n) && n > 0 ? n : null;
+    return money.parseAmount(values[id] ?? '');
   };
   const filled = members.map(m => amount(m.id)).filter((n): n is number => n !== null);
   const total = filled.length ? filled.reduce((a, b) => a + b, 0) : null;
@@ -38,7 +38,7 @@ export function ContributionPlanner({ members }: { members: { id: string; name: 
                 </span>
               </label>
               <div className="relative sm:w-56">
-                <input id={`contrib-${m.id}`} inputMode="numeric" dir="ltr" placeholder="0" autoComplete="off"
+                <input id={`contrib-${m.id}`} inputMode="decimal" dir="ltr" placeholder="0" autoComplete="off"
                   value={values[m.id] ?? ''} onChange={e => setValues(v => ({ ...v, [m.id]: e.target.value }))}
                   className={`${inputClass} pl-9 text-right tabular`} />
                 <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-sm text-muted" aria-hidden>₪</span>

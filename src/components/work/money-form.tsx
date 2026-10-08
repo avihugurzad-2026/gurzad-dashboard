@@ -1,11 +1,12 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { addMoney, type ActionResult } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { DateField } from '@/components/ui/date-field';
-import { Field, inputClass, selectClass } from './fields';
+import { Field, inputClass, selectClass, numberInputClass } from './fields';
 
 const DEFAULT_CATEGORIES = {
   expense: ['שכירות / משכנתא', 'סופר', 'חשבונות', 'רכב ודלק', 'ילדים', 'בריאות', 'לימודים', 'בילויים', 'ביגוד', 'מנויים', 'אחר'],
@@ -22,7 +23,7 @@ export function MoneyForm({ path, today, categories, owners }: {
   const options = [...new Set([...DEFAULT_CATEGORIES[kind], ...categories])];
 
   return (
-    <form ref={form} action={action} className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-2/40 p-4 sm:grid-cols-6">
+    <form ref={form} onSubmit={submitWith(action)} className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-2/40 p-4 sm:grid-cols-6">
       <input type="hidden" name="path" value={path} />
       <input type="hidden" name="kind" value={kind} />
       <div role="group" aria-label="סוג" className="col-span-2 inline-flex rounded-lg border border-line-strong p-0.5 text-sm sm:col-span-6 sm:w-fit">
@@ -34,7 +35,7 @@ export function MoneyForm({ path, today, categories, owners }: {
         ))}
       </div>
       <Field label="סכום (₪)" htmlFor="m-amount">
-        <input id="m-amount" name="amount" required inputMode="decimal" className={inputClass} />
+        <input id="m-amount" name="amount" required inputMode="decimal" dir="ltr" className={numberInputClass} />
       </Field>
       <Field label="קטגוריה" htmlFor="m-cat" className="sm:col-span-2">
         <input id="m-cat" name="category" required list="m-cats" maxLength={60} placeholder="בחר או כתוב" className={inputClass} />

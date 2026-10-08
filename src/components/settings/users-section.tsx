@@ -1,4 +1,6 @@
 'use client';
+import { report } from '@/lib/report';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useId, useState, useTransition } from 'react';
 import { Copy, Mail, Send, X } from 'lucide-react';
 import { cancelInvitation, inviteUser, removeAccess, type InviteResult } from '@/app/user-actions';
@@ -79,7 +81,7 @@ function InviteItem({ i }: { i: InviteRow }) {
       <Badge>{ROLE_LABEL[i.role]} · <bdi dir="rtl">{i.label}</bdi></Badge>
       <span className="text-xs text-muted">בתוקף עד {stamp(i.expires_at)}</span>
       <span className="flex-1" />
-      <Button size="sm" variant="ghost" disabled={busy} onClick={() => start(async () => { await cancelInvitation(i.id); })}>בטל</Button>
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => start(async () => { report(await cancelInvitation(i.id)); })}>בטל</Button>
     </li>
   );
 }
@@ -97,7 +99,7 @@ function InviteForm({ roles, places, pending }: { roles: { value: Role; label: s
         <p className="font-medium text-ink">ההזמנה מוכנה. שלח את הקישור ל-<bdi dir="ltr">{state.email}</bdi>:</p>
         <input readOnly value={state.link} dir="ltr" onFocus={e => e.currentTarget.select()} className={inputClass} aria-label="קישור ההזמנה" />
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" type="button" onClick={async () => { await navigator.clipboard.writeText(state.link); setCopied(true); }}>
+          <Button size="sm" type="button" onClick={async () => { try { await navigator.clipboard.writeText(state.link); setCopied(true); } catch { alert('לא ניתן להעתיק. סמן את הקישור והעתק ידנית.'); } }}>
             <Copy aria-hidden />{copied ? 'הועתק' : 'העתק קישור'}
           </Button>
           <a href={mail} className={buttonClass('secondary', 'sm')}><Mail aria-hidden />שלח במייל</a>
@@ -107,7 +109,7 @@ function InviteForm({ roles, places, pending }: { roles: { value: Role; label: s
     );
   }
   return (
-    <form action={action} className="flex flex-col gap-4 rounded-xl border border-line bg-surface-2/40 p-4 sm:p-5">
+    <form onSubmit={submitWith(action)} className="flex flex-col gap-4 rounded-xl border border-line bg-surface-2/40 p-4 sm:p-5">
       <h3 className="text-card font-semibold text-ink">הזמן משתמש</h3>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className={cn(labelClass, 'flex flex-col gap-1.5')} htmlFor={`${id}-e`}>אימייל
@@ -118,9 +120,9 @@ function InviteForm({ roles, places, pending }: { roles: { value: Role; label: s
         </label>
         {pending.length > 0 && (
           <label className={cn(labelClass, 'flex flex-col gap-1.5')}>משתמש קיים שעוד לא נכנס
-            <select name="user_id" defaultValue={pending[0].id} className={selectClass}>
-              {pending.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <select name="user_id" defaultValue="" className={selectClass}>
               <option value="">משתמש חדש</option>
+              {pending.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
         )}

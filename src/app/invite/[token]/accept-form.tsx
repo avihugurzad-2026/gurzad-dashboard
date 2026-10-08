@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState } from 'react';
 import { LogIn } from 'lucide-react';
 import { acceptInvite } from '@/app/user-actions';
@@ -14,7 +15,7 @@ export function AcceptForm({ token, email, name, role, place, needsCurrent, minP
   return (
     <Card>
       <CardContent className="pt-5 sm:pt-6">
-        <form action={action} className="flex flex-col gap-4 text-sm">
+        <form onSubmit={submitWith(action)} className="flex flex-col gap-4 text-sm">
           <input type="hidden" name="token" value={token} />
           <div className="flex flex-col gap-1">
           <p className="text-body text-ink">הוזמנת כ<strong className="font-semibold">{role}</strong> ל<strong className="font-semibold"><bdi dir="rtl">{place}</bdi></strong>.</p>

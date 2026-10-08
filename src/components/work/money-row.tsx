@@ -1,4 +1,5 @@
 'use client';
+import { report } from '@/lib/report';
 import { useTransition } from 'react';
 import { Trash2 } from 'lucide-react';
 import { removeMoney } from '@/app/actions';
@@ -23,7 +24,7 @@ export function MoneyRow({ entry, path, ownerName }: { entry: MoneyEntry; path: 
       </td>
       <td className="w-10 text-end">
         <button type="button" disabled={pending} aria-label="מחק רשומה"
-          onClick={() => { if (confirm('למחוק את הרשומה?')) start(async () => { await removeMoney(entry.id, path); }); }}
+          onClick={() => { if (confirm('למחוק את הרשומה?')) start(async () => { report(await removeMoney(entry.id, path)); }); }}
           className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}><Trash2 aria-hidden /></button>
       </td>
     </tr>

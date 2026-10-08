@@ -10,6 +10,8 @@ export const selectClass = `h-10 ${control} pe-8`;
 export const textareaClass = `min-h-24 py-2.5 ${control}`;
 // A compact control for toolbars and table rows (same look, 32px)
 export const compactInputClass = `h-8 ${control} px-2.5`;
+// Numbers are typed left-to-right (so "-12" doesn't show as "12-") but stay aligned to the form's edge
+export const numberInputClass = `${inputClass} text-right tabular`;
 
 export const labelClass = 'text-sm font-medium text-ink-2';
 

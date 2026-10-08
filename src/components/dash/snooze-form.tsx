@@ -15,9 +15,14 @@ export function SnoozeForm({ id }: { id: number }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
-    const res = await fetch(`/api/v1/alerts/${id}/snooze`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ until }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`/api/v1/alerts/${id}/snooze`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ until }),
+      });
+    } catch {
+      setBusy(false); setError('אין חיבור. נסה שוב'); return;
+    }
     setBusy(false);
     if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? 'הדחייה נכשלה'); return; }
     setOpen(false);

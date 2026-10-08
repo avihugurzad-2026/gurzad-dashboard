@@ -5,6 +5,8 @@ declare const money: {
   round2(n: number): number;
   toNum(v: unknown): number | null;
   vatSplit(gross: unknown, rate: number | null, included: boolean): { gross: number; vat: number; net: number } | null;
+  parseNumber(v: unknown): number | null;
+  parseSigned(v: unknown): number | null;
   parseAmount(v: unknown): number | null;
   validTaxId(v: unknown): boolean;
   validSplits(splits: { user_id: string; share_pct: number }[]): boolean;

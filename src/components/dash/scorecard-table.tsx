@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TriangleAlert } from 'lucide-react';
 import { ils } from '@/lib/format';
+import money from '@domain/money';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { compactInputClass } from '@/components/work/fields';
@@ -97,10 +98,12 @@ function GoalForm({ measure }: { measure: Measure }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const n = money.parseNumber(goal);
+    if (n === null || !Number.isFinite(n)) { setError('יעד: מספר, למשל 12.5'); return; }
     setBusy(true); setError(null);
     const res = await fetch(`/api/v1/scorecard/${encodeURIComponent(measure.key)}/goal`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weekly_goal: Number(goal), quarterly_planning: quarterly }),
+      body: JSON.stringify({ weekly_goal: n, quarterly_planning: quarterly }),
     });
     setBusy(false);
     if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? 'השמירה נכשלה'); return; }
@@ -112,7 +115,7 @@ function GoalForm({ measure }: { measure: Measure }) {
     <form onSubmit={submit} className="mt-2 flex flex-col items-start gap-1.5">
       <div className="flex items-center gap-1.5">
         <label className="sr-only" htmlFor={`goal-${measure.key}`}>יעד שבועי</label>
-        <input id={`goal-${measure.key}`} type="number" step="any" required value={goal} onChange={e => setGoal(e.target.value)}
+        <input id={`goal-${measure.key}`} inputMode="decimal" dir="ltr" autoComplete="off" required value={goal} onChange={e => setGoal(e.target.value)}
           placeholder={measure.weekly_goal === null ? 'קבע יעד' : 'יעד חדש'}
           className={cn(compactInputClass, 'w-24')} />
         <Button size="sm" type="submit" disabled={busy || goal === ''}>שמור</Button>

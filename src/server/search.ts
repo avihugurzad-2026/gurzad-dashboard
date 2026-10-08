@@ -1,3 +1,4 @@
+import { ils } from '@/lib/format';
 import 'server-only';
 import { db } from './db';
 import { canSeePlace, params, visibleSql, type Kind, type SessionUser } from './auth';
@@ -209,7 +210,7 @@ async function transactions(ctx: Ctx): Promise<SearchResult[]> {
     ORDER BY occurred_on DESC LIMIT ${ctx.limit}` : null,
   r => {
     const p = placeOf(r);
-    const amount = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(r.amount);
+    const amount = ils(Number(r.amount)) ?? '';
     return { type: 'transaction', id: r.id, title: r.description || r.counterparty_name,
       subtitle: `${r.direction === 'income' ? 'הכנסה' : 'הוצאה'} ${amount} · ${r.d}${r.description && r.counterparty_name ? ` · ${r.counterparty_name}` : ''}`,
       href: `/finance?p=custom&from=${r.d}&to=${r.d}`, crumbs: crumbOf(p) };

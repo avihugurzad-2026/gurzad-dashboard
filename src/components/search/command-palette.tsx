@@ -130,7 +130,7 @@ export function CommandPalette({ placeholder = 'חיפוש משימות, לקו�
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => (options.length ? (a - 1 + options.length) % options.length : 0)); }
     else if (e.key === 'Home' && options.length) { e.preventDefault(); setActive(0); }
     else if (e.key === 'End' && options.length) { e.preventDefault(); setActive(options.length - 1); }
-    else if (e.key === 'Enter') { e.preventDefault(); go(options[active]); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (!loading) go(options[active]); }   // not a result of the previous query
     else if (e.key === 'Escape') { e.preventDefault(); close(); }
     else if (e.key === 'Tab') e.preventDefault();   // focus stays in the dialog
   };

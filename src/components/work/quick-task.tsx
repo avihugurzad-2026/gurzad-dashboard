@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Inbox, Plus } from 'lucide-react';
@@ -50,6 +51,7 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
   useEffect(() => { setWhere(encodePlace(context)); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!state?.ok) return;
+    if (state.warning) alert(state.warning);
     form.current?.reset(); setOpen(false); setWhen('none'); setTime(''); setAssignee(me ?? '');
     title.current?.focus(); onSaved?.();
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -57,10 +59,11 @@ export function QuickTask({ place, path, autoFocus, onSaved, className }: {
   const dueDate = when === 'today' ? ilDate(0) : when === 'tomorrow' ? ilDate(1) : undefined;
 
   return (
-    <form ref={form} action={action} className={cn('flex flex-col gap-3', className)}
+    <form ref={form} className={cn('flex flex-col gap-3', className)}
       onSubmit={e => {
         const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        if (!open && submitter?.value !== 'inbox') { e.preventDefault(); setOpen(true); }
+        if (!open && submitter?.value !== 'inbox') { e.preventDefault(); setOpen(true); return; }
+        submitWith(action)(e);
       }}>
       <input type="hidden" name="path" value={path ?? pathname} />
       <input type="hidden" name="place" value={where} />

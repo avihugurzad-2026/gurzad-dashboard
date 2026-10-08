@@ -113,7 +113,8 @@ export async function uploadDocument(_: DocResult | null, f: FormData): Promise<
   } catch (e) {
     if ((e as Error).message === 'bad-place') return fail('שיוך לא תקין');
     if (tableMissing(e)) return NOT_READY;
-    throw e;
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   return finish(str(f, 'path'));
 }
@@ -147,7 +148,8 @@ export async function addDocumentVersion(_: DocResult | null, f: FormData): Prom
     if (r) return r;
   } catch (e) {
     if (tableMissing(e)) return NOT_READY;
-    throw e;
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   return finish(str(f, 'path'));
 }
@@ -167,7 +169,8 @@ export async function removeDocument(id: string, path: string | null = null): Pr
     if (r) return r;
   } catch (e) {
     if (tableMissing(e)) return NOT_READY;
-    throw e;
+    console.error(e);
+    return fail('לא נשמר, נסה שוב');
   }
   return finish(path);
 }

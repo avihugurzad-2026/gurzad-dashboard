@@ -1,4 +1,5 @@
 'use client';
+import { submitWith } from '@/lib/submit';
 import { useActionState, useEffect, useId, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Archive, Copy, Mail, Pencil, Plus, Send, UserMinus, X } from 'lucide-react';
@@ -51,7 +52,7 @@ export function CreateWorkspaceForm({ kind, onDone, follow = false }: { kind: 'h
   const id = useId();
   const t = KIND_TEXT[kind];
   return (
-    <form action={run} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-4">
       <input type="hidden" name="kind" value={kind} />
       <Field label={t.label} htmlFor={id}>
         <input id={id} name="name" required minLength={2} maxLength={60} placeholder={t.placeholder} className={inputClass} autoComplete="off" />
@@ -94,7 +95,7 @@ function RenameForm({ ws, name, location, onDone }: { ws: string; name: string; 
   const { state, run, busy } = useWs(location ? renameBranch : renameWorkspaceAction, { onDone });
   const id = useId();
   return (
-    <form action={run} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-4">
       <Hidden fields={location ? { ws, location } : { ws }} />
       <Field label="שם חדש" htmlFor={id}>
         <input id={id} name="name" required minLength={2} maxLength={60} defaultValue={name} className={inputClass} autoComplete="off" />
@@ -122,7 +123,7 @@ function ConfirmForm({ body, confirm, action, fields, follow, onDone, close }: {
 }) {
   const { state, run, busy } = useWs(action, { onDone, follow });
   return (
-    <form action={run} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-4">
       <Hidden fields={fields} />
       <div className="text-body text-ink-2">{body}</div>
       <ErrorLine state={state} />
@@ -176,7 +177,7 @@ function AutoSelect({ action, fields, name, value, options, label }: {
   const { state, run, busy } = useWs(action);
   const form = useRef<HTMLFormElement>(null);
   return (
-    <form ref={form} action={run} className="flex flex-col items-end gap-1">
+    <form ref={form} onSubmit={submitWith(run)} className="flex flex-col items-end gap-1">
       <Hidden fields={fields} />
       <select name={name} defaultValue={value} aria-label={label} disabled={busy} className={`${compactInputClass} w-auto pe-7`}
         onChange={() => form.current?.requestSubmit()}>
@@ -213,7 +214,7 @@ function AddBranchForm({ ws, onDone }: { ws: string; onDone: () => void }) {
   const { state, run, busy } = useWs(addBranch, { onDone });
   const id = useId();
   return (
-    <form action={run} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-4">
       <input type="hidden" name="ws" value={ws} />
       <Field label="שם הסניף" htmlFor={`${id}-n`}>
         <input id={`${id}-n`} name="name" required minLength={2} maxLength={60} placeholder="למשל: שם העיר או השכונה" className={inputClass} autoComplete="off" />
@@ -260,7 +261,7 @@ function InviteInner({ place, roles, kind, wsName, again }: { place: string; rol
     );
   }
   return (
-    <form action={run} className="flex flex-col gap-4">
+    <form onSubmit={submitWith(run)} className="flex flex-col gap-4">
       <input type="hidden" name="place" value={place} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Field label="אימייל" htmlFor={`${id}-e`}>

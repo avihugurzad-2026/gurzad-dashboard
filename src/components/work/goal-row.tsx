@@ -1,7 +1,9 @@
 'use client';
+import { report } from '@/lib/report';
 import { useState, useTransition } from 'react';
 import { Check, X } from 'lucide-react';
 import { setGoalStatus, updateGoalCurrent } from '@/app/actions';
+import money from '@domain/money';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonClass } from '@/components/ui/button';
 import { compactInputClass } from '@/components/work/fields';
@@ -17,6 +19,7 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
   const [pending, start] = useTransition();
   const [edit, setEdit] = useState(false);
   const [val, setVal] = useState(goal.current === null ? '' : String(goal.current));
+  const [err, setErr] = useState<string | null>(null);
   const pct = goal.target && goal.current !== null ? Math.max(0, Math.min(100, (goal.current / goal.target) * 100)) : null;
   const done = goal.status === 'done';
 
@@ -38,13 +41,13 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {done ? <Badge tone="good">הושג</Badge> : (
-            <button type="button" disabled={pending} onClick={() => start(async () => { await setGoalStatus(goal.id, 'done', path); })}
+            <button type="button" disabled={pending} onClick={() => start(async () => { report(await setGoalStatus(goal.id, 'done', path)); })}
               className={buttonClass('ghost', 'sm')} aria-label="סמן כהושג">
               <Check aria-hidden />הושג
             </button>
           )}
           <button type="button" disabled={pending} aria-label="הסר יעד"
-            onClick={() => { if (confirm('להסיר את היעד?')) start(async () => { await setGoalStatus(goal.id, 'dropped', path); }); }}
+            onClick={() => { if (confirm('להסיר את היעד?')) start(async () => { report(await setGoalStatus(goal.id, 'dropped', path)); }); }}
             className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}><X aria-hidden /></button>
         </div>
       </div>
@@ -56,13 +59,20 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
           {edit ? (
             <form className="flex items-center gap-1.5" onSubmit={e => {
               e.preventDefault();
-              const v = val.trim() === '' ? null : Number(val.replace(/,/g, ''));
-              start(async () => { await updateGoalCurrent(goal.id, v, path); setEdit(false); });
+              const v = money.parseNumber(val);
+              if (v !== null && !Number.isFinite(v)) { setErr('מספר לא תקין, למשל 1250.5'); return; }
+              start(async () => {
+                const r = await updateGoalCurrent(goal.id, v, path);
+                if (r && !r.ok) { setErr(r.error ?? 'השמירה נכשלה'); return; }
+                setErr(null); setEdit(false);
+              });
             }}>
               <label className="sr-only" htmlFor={`cur-${goal.id}`}>מצב היום</label>
               <input id={`cur-${goal.id}`} autoFocus inputMode="decimal" value={val} onChange={e => setVal(e.target.value)}
+                dir="ltr" aria-invalid={err ? true : undefined} aria-describedby={err ? `cur-err-${goal.id}` : undefined}
                 className={cn(compactInputClass, 'w-28 tabular')} />
-              <Button type="submit" variant="primary" size="sm">שמור</Button>
+              <Button type="submit" variant="primary" size="sm" disabled={pending}>שמור</Button>
+              {err && <span id={`cur-err-${goal.id}`} role="alert" className="text-xs text-critical-ink">{err}</span>}
             </form>
           ) : (
             <button type="button" onClick={() => setEdit(true)} className="shrink-0 rounded-md text-sm text-ink-2 hover:text-ink hover:underline">

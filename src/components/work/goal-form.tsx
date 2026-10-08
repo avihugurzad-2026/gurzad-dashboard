@@ -1,12 +1,13 @@
 'use client';
-import { useActionState, useEffect, useRef } from 'react';
+import { submitWith } from '@/lib/submit';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { addGoal, type ActionResult } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/shell/session-context';
 import { GOAL_TYPES, defaultGoalTypeFor } from '@/lib/goals';
 import { DateField } from '@/components/ui/date-field';
-import { Field, PlaceInputs, inputClass, selectClass } from './fields';
+import { Field, PlaceInputs, inputClass, selectClass, numberInputClass } from './fields';
 
 export function GoalForm({ domain, branch, location, path, defaultUnit = 'ils', owners }: {
   domain: string; branch?: string | null; location?: string | null; path: string;
@@ -16,11 +17,13 @@ export function GoalForm({ domain, branch, location, path, defaultUnit = 'ils', 
   const people = owners && session && session.people.length > 1 ? session.people : null;
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(addGoal, null);
   const form = useRef<HTMLFormElement>(null);
-  useEffect(() => { if (state?.ok) form.current?.reset(); }, [state]);
+  // the due date is a controlled field that form.reset() doesn't reach: remount it after each save
+  const [saved, setSaved] = useState(0);
+  useEffect(() => { if (state?.ok) { form.current?.reset(); setSaved(n => n + 1); } }, [state]);
   const id = `g-${domain}-${branch ?? ''}-${location ?? ''}`;
 
   return (
-    <div className="@container"><form ref={form} action={action} className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-2/40 p-4 @2xl:grid-cols-6">
+    <div className="@container"><form ref={form} onSubmit={submitWith(action)} className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface-2/40 p-4 @2xl:grid-cols-6">
       <PlaceInputs domain={domain} branch={branch} location={location} path={path} />
       <Field label="יעד" htmlFor={`${id}-t`} className="col-span-2 @2xl:col-span-3">
         <input id={`${id}-t`} name="title" required maxLength={300} placeholder="למשל: הכנסה חודשית 150,000 ₪" className={inputClass} />
@@ -31,13 +34,13 @@ export function GoalForm({ domain, branch, location, path, defaultUnit = 'ils', 
         </select>
       </Field>
       <Field label="יעד מספרי" htmlFor={`${id}-n`}>
-        <input id={`${id}-n`} name="target" inputMode="decimal" className={inputClass} />
+        <input id={`${id}-n`} name="target" inputMode="decimal" dir="ltr" className={numberInputClass} />
       </Field>
       <Field label="עד תאריך" htmlFor={`${id}-d`}>
-        <DateField id={`${id}-d`} name="due" />
+        <DateField key={saved} id={`${id}-d`} name="due" />
       </Field>
       <Field label="מצב היום (לא חובה)" htmlFor={`${id}-c`}>
-        <input id={`${id}-c`} name="current" inputMode="decimal" className={inputClass} />
+        <input id={`${id}-c`} name="current" inputMode="decimal" dir="ltr" className={numberInputClass} />
       </Field>
       <Field label="סוג" htmlFor={`${id}-k`}>
         <select id={`${id}-k`} name="goal_type" defaultValue={defaultGoalTypeFor({ domain, branch, location }, defaultUnit)} className={selectClass}>
