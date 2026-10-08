@@ -87,7 +87,9 @@ export async function acceptInvite(_: Result | null, f: FormData): Promise<Resul
   const r = await acceptInvitation(token, { name, password, current_password: current });
   if (!r.ok) return r;
   (await cookies()).set(COOKIE, signSession(r.userId), {
-    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/', maxAge: SESSION_HOURS * 3600,
+    // Keep invite-created sessions compatible with the Google OAuth return
+    // flow as well as normal password-login sessions.
+    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: SESSION_HOURS * 3600,
   });
   redirect('/');
 }

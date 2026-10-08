@@ -34,7 +34,11 @@ export async function POST(req: Request) {
   (await cookies()).set(COOKIE, signSession(userId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // false on localhost so Safari accepts it
-    sameSite: 'strict',
+    // OAuth redirects return from accounts.google.com. `strict` omits this
+    // session cookie on that top-level navigation, which makes the callback
+    // look logged out. Lax still excludes cross-site subrequests and unsafe
+    // cross-site form posts while allowing the OAuth return.
+    sameSite: 'lax',
     path: '/',
     maxAge: SESSION_HOURS * 3600,
   });
