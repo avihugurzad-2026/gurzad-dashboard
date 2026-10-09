@@ -62,7 +62,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <Card>
             <CardHeader><CardTitle>משימות ליום הזה</CardTitle></CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <QuickTask path={link(date)} defaultDate={isToday ? undefined : date} />
+              <QuickTask path={link(date)} defaultDate={date} />
               {day.tasks.length === 0 ? <p className="text-sm text-muted">אין משימות עם התאריך הזה.</p> : (
                 <ul className="flex flex-col divide-y divide-[color:var(--border)]">
                   {day.tasks.map(t => <TaskRow key={`${t.source}-${t.id}`} item={t} path="/today" />)}

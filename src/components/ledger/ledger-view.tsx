@@ -18,7 +18,7 @@ import { Section } from '@/components/ui/card';
 import { Empty } from '@/components/ui/empty';
 import { Money } from '@/components/ui/money';
 import { compactInputClass } from '@/components/work/fields';
-import { ils, shortDate } from '@/lib/format';
+import { ils, shortDate, amountIn } from '@/lib/format';
 import { todayIL } from '@/lib/period';
 import { cn } from '@/lib/utils';
 import L from '@domain/ledger';
@@ -121,7 +121,7 @@ export function MonthNav({ c, path }: { c: LedgerCtx; path: string }) {
 // ── Overview ──────────────────────────────────────────────────────────────────
 export async function OverviewSection({ c }: { c: LedgerCtx }) {
   const [s, rec, sav, budget] = await Promise.all([
-    monthSummary(c.ws, c.month), listRecurring(c.ws), listSavings(c.ws, c.today), budgetFor(c.ws, c.month),
+    monthSummary(c.ws, c.month, c.u.id), listRecurring(c.ws), listSavings(c.ws, c.today), budgetFor(c.ws, c.month, c.u.id),
   ]);
   if (s === null) return <Empty icon={<Wallet />} title="טבלאות הפיננסים עוד לא נוצרו במסד">צריך להריץ את המיגרציה של שלב הפיננסים.</Empty>;
   const nothing = s.income === null && s.expense === null && s.transfersOut === null && s.transfersIn === null;
@@ -148,6 +148,12 @@ export async function OverviewSection({ c }: { c: LedgerCtx }) {
               : <KpiCard label="קבועות החודש" value={ils(rec.monthlyTotal)} reason="אין הוצאות קבועות" />}
             <KpiCard label="נטו" value={ils(s.net)} />
           </div>
+          {s.foreign.length > 0 && (
+            <p className="text-sm text-muted">
+              לא נכללו בסכומים (מטבע זר, בלי סכום חיוב בשקלים):{' '}
+              {s.foreign.map((x, i) => <span key={x.currency}>{i > 0 && ' · '}<bdi dir="ltr" className="tabular">{amountIn(x.total, x.currency)}</bdi> ({x.n} תנועות)</span>)}
+            </p>
+          )}
           <div className="grid gap-6 lg:grid-cols-2">
             <Section title="הוצאות לפי קטגוריה">
               <Card className="p-5"><BarList items={s.byCategory.map(x => ({ key: x.category_id ?? 'none', label: x.name, value: x.total }))} /></Card>
@@ -223,7 +229,7 @@ export async function TransactionsSection({ c, sp, path }: { c: LedgerCtx; sp: R
     category: one('cat') && UUID.test(one('cat')!) ? one('cat') : null, q: one('q')?.slice(0, 80) ?? null,
   };
   filter.to = new Date(Date.parse(`${filter.to}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
-  const { ready, items, more } = await listTransactions(c.ws, filter);
+  const { ready, items, more } = await listTransactions(c.ws, filter, c.u.id);
   if (!ready) return <Empty title="טבלאות הפיננסים עוד לא נוצרו במסד" />;
   const [pathname, query] = path.split('?');
   const keep = new URLSearchParams(query ?? '');
@@ -279,7 +285,10 @@ export async function TransactionsSection({ c, sp, path }: { c: LedgerCtx; sp: R
                       <td className="text-sm">{t.category ? <bdi>{t.category}{t.subcategory ? ` · ${t.subcategory}` : ''}</bdi> : <span className="text-muted">ללא</span>}</td>
                       <td className="text-sm">{t.account ? <bdi>{t.account}</bdi> : <span className="text-muted">—</span>}</td>
                       {c.kind === 'household' && <td className="text-sm"><bdi>{t.owner_name ?? '—'}</bdi></td>}
-                      <td className={cn('num font-medium', sign > 0 ? 'text-good-ink' : 'text-ink')}><Money value={sign * t.amount} /></td>
+                      <td className={cn('num font-medium', sign > 0 ? 'text-good-ink' : 'text-ink')}>
+                        {!t.currency || t.currency === 'ILS' ? <Money value={sign * t.amount} />
+                          : <bdi dir="ltr" className="tabular">{amountIn(sign * t.amount, t.currency)}</bdi>}
+                      </td>
                       <td>
                         {c.a.canWrite && (t.owner_user_id === c.u.id || ['owner', 'admin'].includes(c.a.role)) && (
                           <TxRowActions ws={c.ws} cats={c.cats} accounts={c.accounts} today={c.today} moveTo={t.owner_user_id === c.u.id ? c.moveTo : []} locked={t.locked}
@@ -304,7 +313,7 @@ const SOURCE_LABEL: Record<string, string> = { statement: 'מדוח', receipt: '
 
 // ── Budget ────────────────────────────────────────────────────────────────────
 export async function BudgetSection({ c }: { c: LedgerCtx }) {
-  const b = await budgetFor(c.ws, c.month);
+  const b = await budgetFor(c.ws, c.month, c.u.id);
   if (!b.ready) return <Empty title="טבלאות הפיננסים עוד לא נוצרו במסד" />;
   const lines = b.view ? Object.fromEntries(b.view.rows.map(r => [r.category_id, r.budget])) : {};
   const names = new Map(c.cats.map(x => [x.id, x.name]));

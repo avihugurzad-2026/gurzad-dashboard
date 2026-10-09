@@ -94,7 +94,7 @@ export function TxForm({ ws, cats, accounts, initial, onSaved, today }: {
   const [direction, setDirection] = useState<'income' | 'expense'>(initial?.direction ?? 'expense');
   return (
     <form onSubmit={submitWith(run)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Hidden v={{ ws, id: initial?.id, direction }} />
+      <Hidden v={{ ws, id: initial?.id, direction, currency: initial?.currency ?? 'ILS' }} />{/* an edit keeps the row's currency */}
       <div role="group" aria-label="סוג" className="col-span-full inline-flex w-fit rounded-lg border border-line-strong bg-surface p-0.5 text-sm">
         {(['expense', 'income'] as const).map(k => (
           <button key={k} type="button" onClick={() => setDirection(k)} aria-pressed={direction === k}
@@ -103,7 +103,7 @@ export function TxForm({ ws, cats, accounts, initial, onSaved, today }: {
           </button>
         ))}
       </div>
-      <Field label="סכום (₪)" htmlFor={id('amount')}>
+      <Field label={`סכום (${!initial?.currency || initial.currency === 'ILS' ? '₪' : initial.currency})`} htmlFor={id('amount')}>
         <input id={id('amount')} name="amount" inputMode="decimal" dir="ltr" required defaultValue={initial?.amount ?? ''} className={numberInputClass} placeholder="0.00" />
       </Field>
       <Field label="תאריך" htmlFor={id('date')}>

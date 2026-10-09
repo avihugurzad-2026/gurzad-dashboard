@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonClass } from '@/components/ui/button';
 import { DateField } from '@/components/ui/date-field';
 import { Field, compactInputClass, inputClass, selectClass, numberInputClass } from '@/components/work/fields';
-import { ils, shortDate } from '@/lib/format';
+import { ils, shortDate, amountIn } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type AccOpt, type CatOpt, type WsOpt } from './forms';
 import { FREQ_LABEL } from '@/lib/ledger-labels';
@@ -77,7 +77,7 @@ export function ImportUpload({ mode, targets, accountsByWs, defaultWs }: {
 export type Cand = {
   id: string; occurred_on: string | null; merchant: string | null; description: string | null; amount: number | null; direction: 'income' | 'expense' | null;
   target_workspace_id: string | null; category_id: string | null; subcategory_id: string | null; fixed_or_variable: string | null; frequency: string | null;
-  status: string; first_time: boolean; rule_id: string | null; external_id: string | null;
+  status: string; first_time: boolean; rule_id: string | null; currency?: string | null; external_id: string | null;
 };
 const GROUPS = [
   { key: 'auto', label: 'סווג אוטומטית', tone: 'good' as const },
@@ -95,7 +95,7 @@ export function StatementReview({ importId, candidates, targets, catsByWs, expen
   const [included, setIncluded] = useState<Record<string, boolean>>(() => Object.fromEntries(candidates.map(c => [c.id, c.status === 'auto' || c.status === 'review'])));
   useEffect(() => { if (state?.ok) router.refresh(); }, [state, router]);
   const count = Object.values(included).filter(Boolean).length;
-  const total = useMemo(() => candidates.filter(c => included[c.id] && c.amount).reduce((a, c) => a + (expenseOnly ? -1 : c.direction === 'income' ? 1 : -1) * (c.amount ?? 0), 0), [candidates, included, expenseOnly]);
+  const total = useMemo(() => candidates.filter(c => included[c.id] && c.amount && (!c.currency || c.currency === 'ILS')).reduce((a, c) => a + (expenseOnly ? -1 : c.direction === 'income' ? 1 : -1) * (c.amount ?? 0), 0), [candidates, included, expenseOnly]);
   return (
     <form onSubmit={submitWith(run)} className="flex flex-col gap-6">
       <input type="hidden" name="import" value={importId} />
@@ -115,7 +115,7 @@ export function StatementReview({ importId, candidates, targets, catsByWs, expen
       })}
       <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-line bg-surface px-4 py-3 sm:mx-0 sm:rounded-xl sm:border">
         <Button type="submit" variant="primary" disabled={pending}>{pending ? 'שומר…' : count ? `ייבא ${count} תנועות` : 'סיים וסמן כלא רלוונטי'}</Button>
-        <span className="text-sm text-muted">נטו: <bdi className="tabular">{ils(total) ?? '—'}</bdi></span>
+        <span className="text-sm text-muted">נטו בשקלים: <bdi className="tabular">{ils(total) ?? '—'}</bdi>{candidates.some(c => included[c.id] && c.currency && c.currency !== 'ILS') && ' · שורות במטבע זר נשמרות במטבע שלהן ולא נספרות בסכומי השקלים'}</span>
         <Button variant="ghost" disabled={cancelling} onClick={() => { if (confirm('לבטל את הייבוא? שום דבר לא יישמר.')) startCancel(async () => { const r = await cancelImport(importId); if (!r.ok) alert(r.error); else router.refresh(); }); }}>ביטול הייבוא</Button>
         <Err s={state} />
       </div>
@@ -149,7 +149,7 @@ function CandRow({ c, targets, catsByWs, expenseOnly, on, setOn }: { c: Cand; ta
             <p className="text-xs text-muted">{c.occurred_on ? shortDate(c.occurred_on) : ''}{c.description && c.description !== c.merchant ? <> · <bdi>{c.description}</bdi></> : null}</p>
           </div>
         )}
-        <span className={cn('ms-auto font-semibold tabular', dir === 'income' ? 'text-good-ink' : 'text-ink')}><bdi>{ils((dir === 'income' ? 1 : -1) * (c.amount ?? 0)) ?? ''}</bdi></span>
+        <span className={cn('ms-auto font-semibold tabular', dir === 'income' ? 'text-good-ink' : 'text-ink')}><bdi dir="ltr">{amountIn((dir === 'income' ? 1 : -1) * (c.amount ?? 0), c.currency) ?? ''}</bdi></span>
       </div>
       <div className="flex flex-wrap items-center gap-2 ps-7 text-sm">
         <Button type="button" variant="ghost" size="sm" onClick={() => setOn(!on)}>{on ? 'לא רלוונטי' : 'החזר לסקירה'}</Button>

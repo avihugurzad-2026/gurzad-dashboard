@@ -182,6 +182,19 @@ export function canCreateIn(u: SessionUser, p: PlaceRef, kind: Kind): boolean {
   return u.memberships.some(m => roles.includes(m.role) && covers(m, p));
 }
 
+// May this user manage a place's shared work (hand tasks over, change who does them)? Not employees or viewers.
+export function canManageIn(u: SessionUser, p: PlaceRef, kind: Kind): boolean {
+  if (p.domain === 'personal') return false;
+  if (u.isOwner && p.domain !== 'household') return true;
+  return u.memberships.some(m => WRITE[kind].includes(m.role) && covers(m, p));
+}
+
+// Another user's access, for checks like "may this task be handed to them?" (active users only)
+export async function userCanSee(id: string, p: PlaceRef, kind: Kind = 'task'): Promise<boolean> {
+  const other = await loadUser(id).catch(() => null);
+  return Boolean(other && canSeePlace(other, p, kind));
+}
+
 // May this user change an existing row? (its place, owner and scope)
 export function canEditRow(
   u: SessionUser, kind: Kind,

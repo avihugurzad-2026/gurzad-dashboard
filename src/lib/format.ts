@@ -12,6 +12,13 @@ export function ils(n: number | null | undefined): string | null {
   return Math.abs(Math.round(n * 100) % 100) === 0 ? ilsFmt.format(n) : ilsAgorot.format(n);
 }
 
+// An amount in its own currency: ₪ as usual, anything else with its code (never shown as shekels)
+export function amountIn(n: number | null | undefined, currency?: string | null): string | null {
+  if (!currency || currency === 'ILS') return ils(n);
+  if (n === null || n === undefined || Number.isNaN(n)) return null;
+  try { return new Intl.NumberFormat('he-IL', { style: 'currency', currency }).format(n); } catch { return `${numFmt.format(n)} ${currency}`; }
+}
+
 export function num(n: number | null | undefined): string | null {
   return n === null || n === undefined || Number.isNaN(n) ? null : numFmt.format(n);
 }

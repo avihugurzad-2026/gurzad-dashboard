@@ -1,16 +1,18 @@
 'use client';
 import { report } from '@/lib/report';
-import { useState, useTransition } from 'react';
-import { Check, X } from 'lucide-react';
-import { setGoalStatus, updateGoalCurrent } from '@/app/actions';
+import { submitWith } from '@/lib/submit';
+import { useActionState, useEffect, useState, useTransition } from 'react';
+import { Check, Pencil, RotateCcw, X } from 'lucide-react';
+import { setGoalStatus, updateGoal, updateGoalCurrent, type ActionResult } from '@/app/actions';
+import { DateField } from '@/components/ui/date-field';
 import money from '@domain/money';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonClass } from '@/components/ui/button';
-import { compactInputClass } from '@/components/work/fields';
+import { compactInputClass, inputClass, labelClass, numberInputClass, selectClass } from '@/components/work/fields';
 import { ils, num, shortDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Goal } from '@/server/entries';
-import { goalTypeLabel } from '@/lib/goals';
+import { GOAL_TYPES, goalTypeLabel } from '@/lib/goals';
 
 const fmt = (unit: Goal['unit'], v: number | null) =>
   v === null ? null : unit === 'ils' ? ils(v) : unit === 'pct' ? `${num(v)}%` : num(v);
@@ -22,6 +24,8 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
   const [err, setErr] = useState<string | null>(null);
   const pct = goal.target && goal.current !== null ? Math.max(0, Math.min(100, (goal.current / goal.target) * 100)) : null;
   const done = goal.status === 'done';
+  const dropped = goal.status === 'dropped';
+  const [editing, setEditing] = useState(false);
 
   return (
     <li className={cn('flex flex-col gap-3 py-4', pending && 'opacity-60')}>
@@ -40,17 +44,29 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
           {goal.notes && <p className="text-sm text-ink-2"><bdi>{goal.notes}</bdi></p>}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {done ? <Badge tone="good">הושג</Badge> : (
+          {done && <Badge tone="good">הושג</Badge>}
+          {dropped && <Badge>הוסר</Badge>}
+          {done || dropped ? (
+            <button type="button" disabled={pending} onClick={() => start(async () => { report(await setGoalStatus(goal.id, 'active', path)); })}
+              className={buttonClass('ghost', 'sm')} aria-label="החזר לפעיל">
+              <RotateCcw aria-hidden />חזרה לפעיל
+            </button>
+          ) : (
             <button type="button" disabled={pending} onClick={() => start(async () => { report(await setGoalStatus(goal.id, 'done', path)); })}
               className={buttonClass('ghost', 'sm')} aria-label="סמן כהושג">
               <Check aria-hidden />הושג
             </button>
           )}
-          <button type="button" disabled={pending} aria-label="הסר יעד"
-            onClick={() => { if (confirm('להסיר את היעד?')) start(async () => { report(await setGoalStatus(goal.id, 'dropped', path)); }); }}
-            className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}><X aria-hidden /></button>
+          <button type="button" disabled={pending} aria-label="ערוך יעד" aria-expanded={editing} onClick={() => setEditing(e => !e)}
+            className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-ink')}><Pencil aria-hidden /></button>
+          {!dropped && (
+            <button type="button" disabled={pending} aria-label="הסר יעד"
+              onClick={() => { if (confirm('להסיר את היעד? אפשר להחזיר אותו מ"יעדים שהוסרו".')) start(async () => { report(await setGoalStatus(goal.id, 'dropped', path)); }); }}
+              className={buttonClass('ghost', 'icon', 'size-8 text-muted hover:text-critical-ink')}><X aria-hidden /></button>
+          )}
         </div>
       </div>
+      {editing && <GoalEdit goal={goal} path={path} onDone={() => setEditing(false)} />}
       {goal.target !== null && (
         <div className="flex items-center gap-3">
           <div className="h-2 flex-1 rounded-full bg-[color:var(--grid)]" aria-hidden>
@@ -82,5 +98,44 @@ export function GoalRow({ goal, path, context }: { goal: Goal; path: string; con
         </div>
       )}
     </li>
+  );
+}
+
+// Edit a goal's details in place (progress is updated from the bar)
+function GoalEdit({ goal, path, onDone }: { goal: Goal; path: string; onDone: () => void }) {
+  const [state, action, pending] = useActionState<ActionResult | null, FormData>(updateGoal, null);
+  useEffect(() => { if (state?.ok) onDone(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <form onSubmit={submitWith(action)} className="grid grid-cols-2 gap-x-3 gap-y-4 rounded-lg border border-line bg-surface-2/40 p-3 sm:grid-cols-4">
+      <input type="hidden" name="id" value={goal.id} />
+      <input type="hidden" name="path" value={path} />
+      <label className={cn(labelClass, 'col-span-2 flex flex-col gap-1.5 sm:col-span-4')}>יעד
+        <input name="title" required maxLength={300} defaultValue={goal.title} className={inputClass} />
+      </label>
+      <label className={cn(labelClass, 'flex flex-col gap-1.5')}>יחידה
+        <select name="unit" defaultValue={goal.unit} className={selectClass}>
+          <option value="ils">₪</option><option value="count">מספר</option><option value="pct">%</option>
+        </select>
+      </label>
+      <label className={cn(labelClass, 'flex flex-col gap-1.5')}>יעד מספרי
+        <input name="target" inputMode="decimal" dir="ltr" defaultValue={goal.target ?? ''} className={numberInputClass} />
+      </label>
+      <label className={cn(labelClass, 'flex flex-col gap-1.5')}>עד תאריך
+        <DateField name="due" defaultValue={goal.due ?? undefined} aria-label="עד תאריך" />
+      </label>
+      <label className={cn(labelClass, 'flex flex-col gap-1.5')}>סוג
+        <select name="goal_type" defaultValue={goal.goal_type ?? undefined} className={selectClass}>
+          {GOAL_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </label>
+      <label className={cn(labelClass, 'col-span-2 flex flex-col gap-1.5 sm:col-span-4')}>הערות
+        <input name="notes" maxLength={1000} defaultValue={goal.notes ?? ''} className={inputClass} />
+      </label>
+      <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-4">
+        {state && !state.ok && <p role="alert" className="me-auto text-sm text-critical-ink">{state.error}</p>}
+        <Button variant="ghost" size="sm" onClick={onDone}>ביטול</Button>
+        <Button type="submit" variant="primary" size="sm" disabled={pending}>שמור</Button>
+      </div>
+    </form>
   );
 }

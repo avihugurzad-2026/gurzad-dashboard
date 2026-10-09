@@ -10,16 +10,20 @@ test('household is an accepted task domain', () => {
   assert.match(read('src/app/actions.ts'), /DOMAINS = new Set\(\['business', 'personal', 'household', 'ventures'\]\)/);
 });
 
-test('cancelled tasks cannot be completed by the quick-toggle', () => {
+test('cancelled tasks cannot be completed by the quick-toggle (it reopens them instead)', () => {
   const row = read('src/components/work/task-row.tsx');
-  assert.match(row, /disabled=\{vault \|\| pending \|\| item\.status === 'cancelled'\}/);
-  assert.match(row, /item\.status === 'cancelled' \? 'משימה מבוטלת/);
+  assert.match(row, /const closed = item\.status === 'done' \|\| item\.status === 'cancelled'/);
+  assert.match(row, /setTaskStatus\(item\.id, closed \? 'todo' : 'done', path\)/);
+  assert.doesNotMatch(row, /item\.status === 'done' \? 'todo' : 'done'/);
 });
 
 test('personal task and goal creation reject a forged owner or shared scope', () => {
   const actions = read('src/app/actions.ts');
-  assert.match(actions, /p\.domain === 'personal' && \(\(assigned && assigned !== u\.id\) \|\| str\(f, 'scope'\) === 'shared'\)/);
-  assert.match(actions, /p\.domain === 'personal' && \(owner !== u\.id \|\| str\(f, 'scope'\) === 'shared'\)/);
+  // shared scope is refused in Personal for both tasks and goals
+  assert.equal((actions.match(/p\.domain === 'personal' && str\(f, 'scope'\) === 'shared'\) return NO_ACCESS/g) ?? []).length, 2);
+  // a task can't be handed to someone else in Personal; a goal can't be owned by someone else there
+  assert.match(actions, /if \(p\.domain === 'personal'\) return 'משימה אישית נשארת שלך/);
+  assert.match(actions, /if \(p\.domain === 'personal'\) return \{ ok: false, error: 'יעד אישי נשאר שלך/);
 });
 
 test('privacy hides the monetary string semantically instead of blurring it', () => {
@@ -29,5 +33,5 @@ test('privacy hides the monetary string semantically instead of blurring it', ()
 });
 
 test('today quick-add retains the selected date', () => {
-  assert.match(read('src/app/(app)/today/page.tsx'), /defaultDate=\{isToday \? undefined : date\}/);
+  assert.match(read('src/app/(app)/today/page.tsx'), /<QuickTask path=\{link\(date\)\} defaultDate=\{date\} \/>/);
 });

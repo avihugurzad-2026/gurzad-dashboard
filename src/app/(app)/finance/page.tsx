@@ -4,7 +4,7 @@ import { requireUser } from '@/server/auth';
 import { financeSummary, vatMonthly, vatRateRows, type FinanceSummary } from '@/server/finance';
 import { CLASSIFICATIONS, DIRECTIONS, PAYMENT_METHODS, PERIODS, labelOf, resolvePeriod, type Classification, type Direction } from '@/lib/finance';
 import { decodePlace, encodePlace, placeOptions } from '@/lib/places';
-import { ils, shortDate } from '@/lib/format';
+import { ils, shortDate, amountIn } from '@/lib/format';
 import { todayIL } from '@/lib/period';
 import { KpiCard } from '@/components/dash/kpi-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -225,7 +225,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
                             {t.file_id && <a href={`/api/v1/files/${t.file_id}`} className="ms-1 inline-flex align-middle text-accent-ink hover:text-ink" aria-label="הורד מסמך"><FileText className="size-4" aria-hidden /></a>}
                           </td>
                           <td className={cn('num font-medium', t.direction === 'income' ? 'text-good-ink' : 'text-ink')}>
-                            <bdi>{t.direction === 'income' ? '+' : '−'}</bdi><Money value={t.amount_gross} />
+                            <bdi>{t.direction === 'income' ? '+' : '−'}</bdi>{t.currency === 'ILS' ? <Money value={t.amount_gross} /> : <bdi dir="ltr" className="tabular">{amountIn(t.amount_gross, t.currency)}</bdi>}
                           </td>
                           <td className="num text-muted">{t.vat_included ? <Money value={t.vat_amount} /> : 'ללא'}</td>
                           <td className="w-10 text-end">

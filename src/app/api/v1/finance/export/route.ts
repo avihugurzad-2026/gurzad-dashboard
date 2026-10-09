@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     ({ rows } = await db().query(
       `SELECT ${TX_SELECT}, to_char(t.created_at AT TIME ZONE 'Asia/Jerusalem', 'YYYY-MM-DD HH24:MI') AS created_il
        FROM transactions t LEFT JOIN files f ON f.id = t.file_id
-       WHERE t.deleted_at IS NULL AND t.occurred_on BETWEEN $1::date AND $2::date
+       WHERE t.deleted_at IS NULL AND t.occurred_on BETWEEN $1::date AND $2::date AND t.direction IN ('income', 'expense')
          AND ${visibleSql(u, 'money', 't', q.p)} AND ${placeSql(place, 't', q.p)}
        ORDER BY t.occurred_on, t.created_at`, q.values));
   } catch (e) {
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 
   const header = ['id', 'תאריך', 'כיוון', 'סכום ברוטו', 'כולל מע״מ', 'שיעור מע״מ', 'סכום מע״מ', 'סכום ללא מע״מ',
     'קטגוריה', 'קוד קטגוריה', 'תיאור', 'סוג מסמך', 'מספר מסמך', 'צד שני', 'ח״פ/ע״מ', 'אמצעי תשלום', 'תאריך תשלום',
-    'סיווג', 'אזור', 'עסק', 'סניף', 'קובץ', 'חוב מקושר', 'בעלים', 'הרשאה', 'נוצר ע״י', 'נוצר', 'חלוקה'];
+    'סיווג', 'אזור', 'עסק', 'סניף', 'קובץ', 'חוב מקושר', 'בעלים', 'הרשאה', 'נוצר ע״י', 'נוצר', 'חלוקה', 'מטבע'];
   const out = rows.map((r: any) => [ // eslint-disable-line @typescript-eslint/no-explicit-any
     r.id, r.occurred_on, r.direction === 'income' ? 'הכנסה' : 'הוצאה', r.amount_gross.toFixed(2), r.vat_included ? 'כן' : 'לא',
     r.vat_rate === null ? '' : String(r.vat_rate), r.vat_amount.toFixed(2), money.round2(r.amount_gross - r.vat_amount).toFixed(2),
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     r.document_number, r.counterparty_name, r.counterparty_tax_id, r.payment_method ? labelOf(PAYMENT_METHODS, r.payment_method) : '',
     r.payment_date, labelOf(CLASSIFICATIONS, r.classification), r.domain, r.branch, r.location, r.file_name, r.receivable_id,
     r.owner_user_id, r.scope, r.created_by, r.created_il,
-    (r.splits as { user_id: string; share_pct: number }[]).map(s => `${s.user_id}:${s.share_pct}%`).join('; '),
+    (r.splits as { user_id: string; share_pct: number }[]).map(s => `${s.user_id}:${s.share_pct}%`).join('; '), r.currency,
   ]);
 
   return new NextResponse(money.toCsv(header, out), {

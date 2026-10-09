@@ -14,7 +14,9 @@ export function GoalForm({ domain, branch, location, path, defaultUnit = 'ils', 
   defaultUnit?: 'ils' | 'count' | 'pct'; owners?: boolean;
 }) {
   const session = useSession();
-  const people = owners && session && session.people.length > 1 ? session.people : null;
+  // Personal goals stay with their creator; household goals are always the household's
+  const people = owners && domain !== 'personal' && session && session.people.length > 1 ? session.people : null;
+  const canShare = domain !== 'personal' && domain !== 'household' && session && session.people.length > 1;
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(addGoal, null);
   const form = useRef<HTMLFormElement>(null);
   // the due date is a controlled field that form.reset() doesn't reach: remount it after each save
@@ -57,7 +59,7 @@ export function GoalForm({ domain, branch, location, path, defaultUnit = 'ils', 
       <Field label="הערות (לא חובה)" htmlFor={`${id}-x`} className="col-span-2 @2xl:col-span-3">
         <input id={`${id}-x`} name="notes" maxLength={1000} className={inputClass} />
       </Field>
-      {session && session.people.length > 1 && (
+      {canShare && (
         <label className="col-span-2 flex items-center gap-2 self-end pb-2.5 text-sm text-ink-2">
           <input type="checkbox" name="scope" value="shared" className="size-4" />משותף
         </label>

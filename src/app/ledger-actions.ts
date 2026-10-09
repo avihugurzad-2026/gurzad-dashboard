@@ -84,6 +84,24 @@ const placeOf = (w: WorkspaceRow) => w.kind === 'personal'
   ? { domain: 'personal', branch: null as string | null, scope: 'user' }
   : { domain: w.domain, branch: w.branch, scope: 'shared' };
 
+// A row that another record depends on is changed from that record, so both stay in step:
+// a loan repayment from the loan (its balance), a collection payment from the receivable.
+async function linkedRefusal(c: PoolClient, row: Record<string, unknown>): Promise<string | null> {
+  if (row.subject_type === 'liability') return 'זה החזר הלוואה. מבטלים או משנים אותו מדף הנכס, כדי שגם יתרת ההלוואה תתעדכן';
+  if (row.receivable_id) {
+    const { rows } = await c.query(`SELECT 1 FROM receivables WHERE id = $1 AND deleted_at IS NULL`, [row.receivable_id]);
+    if (rows.length) return 'התנועה נרשמה מתשלום של חוב בגבייה. משנים אותה מדף הגבייה';
+  }
+  return null;
+}
+
+// VAT follows a changed amount at the row's own rate (never a hard-coded one); a row without VAT stays without
+function scaledVat(row: Record<string, unknown>, amount: number): number {
+  const vat = Number(row.vat_amount ?? 0), gross = Number(row.amount_gross ?? 0);
+  if (!vat || !gross) return 0;
+  return money.round2(vat * amount / gross);
+}
+
 async function ownRow(c: PoolClient, table: string, id: string, ws: string) {
   const { rows } = await c.query(`SELECT * FROM ${table} WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL`, [id, ws]);
   return rows[0] ?? null;
@@ -207,6 +225,8 @@ export async function saveTransaction(_: LedgerResult | null, f: FormData): Prom
       if (!row) throw new Refuse('התנועה לא נמצאה');
       if (row.source === 'contribution') throw new Refuse('העברה לבית משתנה מתוך לשונית ההעברות');
       if (a.w.kind === 'household' && row.owner_user_id !== u.id && !['owner', 'admin'].includes(a.role)) throw new Refuse('רק מי שרשם את התנועה או מנהל יכולים לערוך');
+      const linked = await linkedRefusal(c, row);
+      if (linked && (Number(row.amount_gross) !== t.amount || row.direction !== t.direction || row.currency !== t.currency)) throw new Refuse(linked);
       const cat = await categoryIn(c, a.w.id, t.category_id, t.direction);
       const sub = await categoryIn(c, a.w.id, t.subcategory_id, t.direction);
       if (sub && cat && sub.parent_id !== cat.id) throw new Refuse('תת-קטגוריה לא שייכת לקטגוריה');
@@ -214,9 +234,10 @@ export async function saveTransaction(_: LedgerResult | null, f: FormData): Prom
       await c.query(
         `UPDATE transactions SET direction = $2, occurred_on = $3, amount_gross = $4, currency = $5, merchant = $6, counterparty_name = $6, description = $7,
            notes = $8, category = $9, category_id = $10, subcategory_id = $11, account_id = $12, fixed_or_variable = $13, frequency = $14,
-           dedupe_key = $15, updated_at = now() WHERE id = $1`,
+           dedupe_key = $15, vat_amount = $16, updated_at = now() WHERE id = $1`,
         [id, t.direction, t.occurred_on, t.amount, t.currency, t.merchant, t.description, t.notes, cat?.key ?? 'other', cat?.id ?? null, sub?.id ?? null,
-          t.account_id, t.fixed_or_variable, t.frequency, L.dedupeKey(t.occurred_on, t.amount, t.merchant ?? t.description ?? '')]);
+          t.account_id, t.fixed_or_variable, t.frequency, L.dedupeKey(t.occurred_on, t.amount, t.merchant ?? t.description ?? ''),
+          scaledVat(row, t.amount)]);
       if (bool(f, 'remember')) await rememberRule(c, u, a.w.id, t.merchant, t);
       await log(c, u, 'transaction', id, 'update', { ws: a.w.id });
       return id;
@@ -262,6 +283,7 @@ export async function deleteTransaction(id: string, ws: string): Promise<LedgerR
       const row = await ownRow(c, 'transactions', id, a.w.id);
       if (!row) throw new Refuse('התנועה לא נמצאה');
       if (a.w.kind === 'household' && row.owner_user_id !== u.id && !['owner', 'admin'].includes(a.role)) throw new Refuse('רק מי שרשם את התנועה או מנהל יכולים למחוק');
+      if (row.source !== 'contribution') { const linked = await linkedRefusal(c, row); if (linked) throw new Refuse(linked); }
       if (row.source === 'contribution') {
         await cancelPaymentFor(c, u, id);
       } else {

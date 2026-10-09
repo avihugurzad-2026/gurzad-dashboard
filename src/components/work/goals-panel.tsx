@@ -9,7 +9,9 @@ import { NotReady } from './not-ready';
 export async function GoalsPanel({ place, path, title = 'יעדים', defaultUnit, withOwner = false }: {
   place: Place; path: string; title?: string; defaultUnit?: 'ils' | 'count' | 'pct'; withOwner?: boolean;
 }) {
-  const { ready, goals } = await goalsFor(place);
+  const { ready, goals: all } = await goalsFor(place, { withDropped: true });
+  const goals = all.filter(g => g.status !== 'dropped');
+  const dropped = all.filter(g => g.status === 'dropped');
   return (
     <Card>
       <CardHeader>
@@ -25,6 +27,14 @@ export async function GoalsPanel({ place, path, title = 'יעדים', defaultUni
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {goals.map(g => <GoalRow key={g.id} goal={g} path={path} />)}
           </ul>
+        )}
+        {dropped.length > 0 && (
+          <details className="rounded-lg border border-line px-3 py-2">
+            <summary className="cursor-pointer text-sm text-ink-2">יעדים שהוסרו ({dropped.length})</summary>
+            <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+              {dropped.map(g => <GoalRow key={g.id} goal={g} path={path} />)}
+            </ul>
+          </details>
         )}
       </CardContent>
     </Card>

@@ -94,9 +94,16 @@ export async function createInvitation(u: SessionUser, input: { email: string; n
   Promise<{ ok: true; token: string; id: string } | { ok: false; error: string }> {
   if (!canGrant(u, input.role, input.place)) return { ok: false, error: 'אין לך הרשאה לתת את התפקיד הזה במקום הזה' };
   if (input.place.domain === null && input.role !== 'admin') return { ok: false, error: 'צריך לבחור לאן הגישה' };
+  // Binding a link to an existing account that has no password yet lets whoever accepts it set
+  // that account's password and inherit its rows. Only account-level admins may do that, by id or
+  // by that account's email. (An account that already signs in must prove its current password.)
   if (input.user_id) {
+    if (!u.isAdmin) return { ok: false, error: 'רק מנהל מערכת יכול להזמין משתמש קיים' };
     const { rows } = await db().query(`SELECT 1 FROM users WHERE id = $1 AND id <> $2`, [input.user_id, OWNER_ID]);
     if (!rows.length) return { ok: false, error: 'משתמש לא קיים' };
+  } else if (!u.isAdmin) {
+    const { rows } = await db().query(`SELECT 1 FROM users WHERE lower(email) = lower($1) AND password_hash IS NULL`, [input.email]);
+    if (rows.length) return { ok: false, error: 'האימייל שייך למשתמש קיים שעוד לא נכנס. רק מנהל מערכת יכול להזמין אותו.' };
   }
   const token = randomBytes(32).toString('base64url');
   const { rows } = await db().query(
@@ -150,6 +157,14 @@ export async function acceptInvitation(token: string, input: { name: string; pas
           return { ok: false, error: 'הסיסמה הנוכחית שגויה' };
         }
       } else {
+        // Activating an account that never signed in: only from a link an account admin made
+        // (also covers links made before this check existed)
+        const { rows: by } = await client.query(
+          `SELECT 1 FROM invitations i
+           WHERE i.id = $1 AND (i.invited_by = $2 OR EXISTS (SELECT 1 FROM workspace_members m
+             WHERE m.user_id = i.invited_by AND m.domain IS NULL AND m.role IN ('owner', 'admin') AND m.revoked_at IS NULL))`,
+          [inv.id, OWNER_ID]);
+        if (!by.length) { await client.query('ROLLBACK'); return { ok: false, error: 'הקישור הזה לא יכול להפעיל חשבון קיים. בקש קישור ממנהל המערכת.' }; }
         if (input.password.length < MIN_PASSWORD) { await client.query('ROLLBACK'); return { ok: false, error: `סיסמה של לפחות ${MIN_PASSWORD} תווים` }; }
         await client.query(
           `UPDATE users SET name = $2, email = $3, password_hash = $4, active = true WHERE id = $1`,

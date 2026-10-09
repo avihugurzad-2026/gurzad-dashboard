@@ -350,6 +350,9 @@ export async function saveReceipt(_: ImportResult | null, f: FormData): Promise<
     await inTx(async c => {
       const { rows: [imp] } = await c.query(`SELECT id, status, file_id FROM statement_imports WHERE id = $1 AND owner_user_id = $2 AND source IN ('receipt', 'gmail') FOR UPDATE`, [importId, u.id]);
       if (!imp || imp.status !== 'review') throw new Refuse('הקבלה כבר טופלה');
+      // The receipt's own currency (parsed from it), never assumed to be shekels
+      const { rows: [cand] } = await c.query(`SELECT currency FROM import_candidates WHERE id = $1 AND import_id = $2`, [candId, importId]);
+      const receiptCurrency: string = /^[A-Z]{3}$/.test(cand?.currency ?? '') ? cand.currency : 'ILS';
       const domain = a.w.kind === 'personal' ? 'personal' : a.w.domain, branch = a.w.kind === 'personal' ? null : a.w.branch;
       const scope = a.w.kind === 'personal' ? 'user' : 'shared';
       let docId: string | null = null;
@@ -375,9 +378,9 @@ export async function saveReceipt(_: ImportResult | null, f: FormData): Promise<
         const { rows: [t] } = await c.query(
           `INSERT INTO transactions (direction, occurred_on, amount_gross, currency, merchant, counterparty_name, category, category_id, source, import_id, document_id,
              document_number, vat_included, vat_amount, dedupe_key, classification, domain, branch, owner_user_id, scope, created_by)
-           VALUES ('expense', $1, $2, 'ILS', $3, $3, $4, $5, 'receipt', $6, $7, $8, $9, $10, $11, 'personal', $12, $13, $14, $15, $14) RETURNING id`,
+           VALUES ('expense', $1, $2, $16, $3, $3, $4, $5, 'receipt', $6, $7, $8, $9, $10, $11, 'personal', $12, $13, $14, $15, $14) RETURNING id`,
           [date, amount, merchant, catRow?.key ?? 'other', catRow?.id ?? null, importId, docId, docNo, !!vat, vat ?? 0, L.dedupeKey(date, amount, merchant),
-            domain, branch, u.id, scope]);
+            domain, branch, u.id, scope, receiptCurrency]);
         txId = t.id;
       }
       await c.query(`UPDATE import_candidates SET status = 'imported', imported_transaction_id = $2, matched_transaction_id = $3, target_workspace_id = $4 WHERE id = $1 AND import_id = $5`,

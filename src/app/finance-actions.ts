@@ -144,6 +144,8 @@ export async function addTransaction(_: FinanceResult | null, f: FormData): Prom
       const p = await readPlace(c, str(f, 'place'));
       if (typeof p === 'string') throw new Refuse(p);
       if (!canCreateIn(u, p, 'money')) throw new Refuse('אין לך הרשאה להוסיף תנועות כאן');
+      // The household book is visible to every member: a private row can't be filed there
+      if (p.domain === 'household' && scope !== 'shared') throw new Refuse('תנועה של משק הבית גלויה לכל חברי הבית. לתנועה פרטית, שייך אותה ל"אישי".');
       if (splits.length) {
         const { rows } = await c.query(`SELECT id FROM users WHERE id = ANY($1::text[])`, [splits.map(s => s.user_id)]);
         if (rows.length !== splits.length) throw new Refuse('משתמש לא מוכר בחלוקה');
@@ -188,6 +190,7 @@ export async function removeTransaction(id: string, path: string): Promise<Finan
     await inTx(async c => {
       const { rows } = await c.query(
         `SELECT t.domain, t.branch, t.location, t.owner_user_id, t.scope, to_jsonb(t) ->> 'subject_type' AS subject_type,
+                to_jsonb(t) ->> 'source' AS source, to_jsonb(t) ->> 'linked_transaction_id' AS linked,
                 EXISTS (SELECT 1 FROM receivables r WHERE r.id = t.receivable_id AND r.deleted_at IS NULL) AS from_open_receivable
          FROM transactions t WHERE t.id = $1 AND t.deleted_at IS NULL FOR UPDATE OF t`, [id]);
       const row = rows[0];
@@ -196,6 +199,8 @@ export async function removeTransaction(id: string, path: string): Promise<Finan
       if (row.from_open_receivable) throw new Refuse('התנועה נרשמה מתשלום של חוב בגבייה ולכן לא נמחקת מכאן');
       // A loan repayment is undone from the loan, so the balance is restored with it
       if (row.subject_type === 'liability') throw new Refuse('זה החזר הלוואה. מבטלים אותו מדף הנכס, כדי שגם יתרת ההלוואה תתעדכן');
+      // A transfer to the household has two sides (and a payment record): cancelled together, from the household's transfers tab
+      if (row.source === 'contribution' || row.linked) throw new Refuse('זו העברה למשק הבית. מבטלים אותה מלשונית ההעברות במשק הבית, כדי ששני הצדדים יתבטלו יחד');
       await c.query(`UPDATE transactions SET deleted_at = now(), updated_at = now() WHERE id = $1`, [id]);
       await log(c, u, 'transaction', id, 'delete');
     });

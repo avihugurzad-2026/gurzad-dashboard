@@ -70,7 +70,7 @@ async function householdSummaries(u: SessionUser, mine: WorkspaceRow[], currentI
     const access = await ledgerAccess(u, w.id);
     const [members, sum, c] = await Promise.all([
       workspaceMembers(w, u),
-      access ? monthSummary(w.id, month).catch(() => null) : null,
+      access ? monthSummary(w.id, month, u.id).catch(() => null) : null,
       access ? householdContributions(w.id, `${month}-01`, today).catch(() => null) : null,
     ]);
     const t = counts[`household/${w.branch}`];
@@ -86,7 +86,7 @@ async function householdSummaries(u: SessionUser, mine: WorkspaceRow[], currentI
 async function personalSummary(u: SessionUser, mine: WorkspaceRow[], card: Awaited<ReturnType<typeof personalSnapshot>>): Promise<PersonalSummary | null> {
   if (!card) return null;
   const w = mine.find(x => x.kind === 'personal' && x.owner_user_id === u.id) ?? null;
-  const sum = w && (await ledgerAccess(u, w.id)) ? await monthSummary(w.id, todayIL().slice(0, 7)).catch(() => null) : null;
+  const sum = w && (await ledgerAccess(u, w.id)) ? await monthSummary(w.id, todayIL().slice(0, 7), u.id).catch(() => null) : null;
   return { ...card, ws: w ? toWorkspace(w) : null, income: sum?.income ?? null, expense: sum?.expense ?? null, net: sum?.net ?? null };
 }
 

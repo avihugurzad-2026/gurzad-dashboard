@@ -25,6 +25,12 @@ export async function ledgerAccess(u: SessionUser, wsId: string | null | undefin
   return { w, role, canWrite: ['owner', 'admin', 'manager', 'member'].includes(role) };
 }
 
+// Who sees a ledger row: shared rows, and "only me" rows of their owner. (A household book can hold an
+// "only me" row someone filed there before; it stays private to them.)
+const seenBy = (alias: string, param: string) => `(${alias}scope = 'shared' OR ${alias}owner_user_id = ${param})`;
+// Totals add up shekels only: a row in another currency is listed with its currency and counted apart
+const ILS = (alias = '') => `coalesce(${alias}currency, 'ILS') = 'ILS'`;
+
 // ── Lookups ───────────────────────────────────────────────────────────────────
 export type Account = {
   id: string; kind: string; name: string; institution: string | null; last4: string | null; currency: string;
@@ -74,10 +80,10 @@ export type LedgerTx = {
 
 export type TxFilter = { from: string; to: string; direction?: string | null; account?: string | null; category?: string | null; q?: string | null; limit?: number };
 
-export async function listTransactions(wsId: string, f: TxFilter): Promise<{ ready: boolean; items: LedgerTx[]; more: boolean }> {
-  const vals: unknown[] = [wsId, f.from, f.to];
+export async function listTransactions(wsId: string, f: TxFilter, viewer: string): Promise<{ ready: boolean; items: LedgerTx[]; more: boolean }> {
+  const vals: unknown[] = [wsId, f.from, f.to, viewer];
   const p = (v: unknown) => { vals.push(v); return `$${vals.length}`; };
-  const where = ['t.workspace_id = $1', 't.deleted_at IS NULL', 't.occurred_on BETWEEN $2::date AND $3::date'];
+  const where = ['t.workspace_id = $1', 't.deleted_at IS NULL', 't.occurred_on BETWEEN $2::date AND $3::date', seenBy('t.', '$4')];
   if (f.direction === 'income' || f.direction === 'expense' || f.direction === 'transfer') where.push(`t.direction = ${p(f.direction)}`);
   if (f.account) where.push(`t.account_id = ${p(f.account)}::uuid`);
   if (f.category) where.push(`(t.category_id = ${p(f.category)}::uuid OR t.subcategory_id = $${vals.length}::uuid)`);
@@ -113,12 +119,13 @@ export type MonthSummary = {
   fixed: number | null; variable: number | null;
   byCategory: { category_id: string | null; name: string; total: number }[];
   months: { month: string; income: number | null; expense: number | null }[];
+  foreign: { currency: string; n: number; total: number }[];   // rows in other currencies, not in the totals above
 };
-export async function monthSummary(wsId: string, month: string): Promise<MonthSummary | null> {
+export async function monthSummary(wsId: string, month: string, viewer: string): Promise<MonthSummary | null> {
   const start = `${month}-01`;
   const end = L.addMonths(start, 1);
   try {
-    const [{ rows: [t] }, { rows: cats }, { rows: months }] = await Promise.all([
+    const [{ rows: [t] }, { rows: cats }, { rows: months }, { rows: foreign }] = await Promise.all([
       db().query(
         `SELECT SUM(amount_gross) FILTER (WHERE direction = 'income')::float AS income,
                 SUM(amount_gross) FILTER (WHERE direction = 'expense')::float AS expense,
@@ -127,36 +134,42 @@ export async function monthSummary(wsId: string, month: string): Promise<MonthSu
                 SUM(amount_gross) FILTER (WHERE direction = 'expense' AND fixed_or_variable = 'fixed')::float AS fixed,
                 SUM(amount_gross) FILTER (WHERE direction = 'expense' AND coalesce(fixed_or_variable, 'variable') = 'variable')::float AS variable,
                 COUNT(*)::int AS n
-         FROM transactions WHERE workspace_id = $1 AND deleted_at IS NULL AND occurred_on >= $2::date AND occurred_on < $3::date`, [wsId, start, end]),
+         FROM transactions WHERE workspace_id = $1 AND deleted_at IS NULL AND occurred_on >= $2::date AND occurred_on < $3::date
+           AND ${seenBy('', '$4')} AND ${ILS()}`, [wsId, start, end, viewer]),
       db().query(
         `SELECT t.category_id, coalesce(c.name, 'ללא קטגוריה') AS name, SUM(t.amount_gross)::float AS total
          FROM transactions t LEFT JOIN transaction_categories c ON c.id = t.category_id
          WHERE t.workspace_id = $1 AND t.deleted_at IS NULL AND t.direction = 'expense' AND t.occurred_on >= $2::date AND t.occurred_on < $3::date
-         GROUP BY 1, 2 ORDER BY 3 DESC`, [wsId, start, end]),
+           AND ${seenBy('t.', '$4')} AND ${ILS('t.')}
+         GROUP BY 1, 2 ORDER BY 3 DESC`, [wsId, start, end, viewer]),
       db().query(
         `SELECT to_char(date_trunc('month', occurred_on), 'YYYY-MM') AS month,
                 SUM(amount_gross) FILTER (WHERE direction = 'income')::float AS income,
                 SUM(amount_gross) FILTER (WHERE direction = 'expense')::float AS expense
          FROM transactions WHERE workspace_id = $1 AND deleted_at IS NULL
-           AND occurred_on >= ($2::date - interval '5 months') AND occurred_on < $3::date
-         GROUP BY 1 ORDER BY 1`, [wsId, start, end]),
+           AND occurred_on >= ($2::date - interval '5 months') AND occurred_on < $3::date AND ${seenBy('', '$4')} AND ${ILS()}
+         GROUP BY 1 ORDER BY 1`, [wsId, start, end, viewer]),
+      db().query(
+        `SELECT currency, COUNT(*)::int AS n, SUM(amount_gross)::float AS total FROM transactions
+         WHERE workspace_id = $1 AND deleted_at IS NULL AND occurred_on >= $2::date AND occurred_on < $3::date
+           AND ${seenBy('', '$4')} AND NOT ${ILS()} GROUP BY 1 ORDER BY 1`, [wsId, start, end, viewer]),
     ]);
-    if (!t.n && !months.length) return emptySummary();
+    if (!t.n && !months.length && !foreign.length) return emptySummary();
     const net = t.income !== null || t.expense !== null || t.tout !== null || t.tin !== null
       ? r2((t.income ?? 0) + (t.tin ?? 0) - (t.expense ?? 0) - (t.tout ?? 0)) : null;
     return {
       income: t.income, expense: t.expense, transfersOut: t.tout, transfersIn: t.tin, net,
-      fixed: t.fixed, variable: t.variable, byCategory: cats, months,
+      fixed: t.fixed, variable: t.variable, byCategory: cats, months, foreign,
     };
   } catch (e) {
     if (missing(e)) return null;
     throw e;
   }
 }
-const emptySummary = (): MonthSummary => ({ income: null, expense: null, transfersOut: null, transfersIn: null, net: null, fixed: null, variable: null, byCategory: [], months: [] });
+const emptySummary = (): MonthSummary => ({ income: null, expense: null, transfersOut: null, transfersIn: null, net: null, fixed: null, variable: null, byCategory: [], months: [], foreign: [] });
 
 // ── Budget ────────────────────────────────────────────────────────────────────
-export async function budgetFor(wsId: string, month: string) {
+export async function budgetFor(wsId: string, month: string, viewer: string) {
   const start = `${month}-01`;
   try {
     const { rows: [b] } = await db().query(`SELECT id, notes FROM budgets WHERE workspace_id = $1 AND month = $2::date AND deleted_at IS NULL`, [wsId, start]);
@@ -164,11 +177,11 @@ export async function budgetFor(wsId: string, month: string) {
       `SELECT coalesce(c.parent_id, t.category_id)::text AS category_id, SUM(t.amount_gross)::float AS total
        FROM transactions t LEFT JOIN transaction_categories c ON c.id = t.category_id
        WHERE t.workspace_id = $1 AND t.deleted_at IS NULL AND t.direction = 'expense' AND t.category_id IS NOT NULL
-         AND t.occurred_on >= $2::date AND t.occurred_on < ($2::date + interval '1 month') GROUP BY 1`, [wsId, start]);
+         AND t.occurred_on >= $2::date AND t.occurred_on < ($2::date + interval '1 month') AND ${seenBy('t.', '$3')} AND ${ILS('t.')} GROUP BY 1`, [wsId, start, viewer]);
     const actuals = Object.fromEntries(actualRows.map(r => [r.category_id, r.total]));
     const { rows: [unc] } = await db().query(
       `SELECT SUM(amount_gross)::float AS total FROM transactions WHERE workspace_id = $1 AND deleted_at IS NULL AND direction = 'expense'
-         AND category_id IS NULL AND occurred_on >= $2::date AND occurred_on < ($2::date + interval '1 month')`, [wsId, start]);
+         AND category_id IS NULL AND occurred_on >= $2::date AND occurred_on < ($2::date + interval '1 month') AND ${seenBy('', '$3')} AND ${ILS()}`, [wsId, start, viewer]);
     if (!b) return { ready: true, budget: null, view: null, actuals, uncategorized: unc.total as number | null };
     const { rows: lines } = await db().query(
       `SELECT bc.category_id::text, c.name, bc.amount::float AS budget FROM budget_categories bc
