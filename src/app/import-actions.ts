@@ -257,7 +257,9 @@ export async function commitImport(_: ImportResult | null, f: FormData): Promise
         if (!isIsoDate(date)) throw new Refuse(`חסר תאריך ב"${k.merchant ?? 'שורה'}"`);
         const amount = str(f, `amt_${k.id}`) ? money.parseAmount(str(f, `amt_${k.id}`)) : k.amount ? Number(k.amount) : null;
         if (!amount) throw new Refuse(`חסר סכום ב"${k.merchant ?? 'שורה'}"`);
-        const dir = str(f, `dir_${k.id}`) ?? k.direction;
+        // Gmail candidates are receipt/invoice discoveries. They can only become
+        // expenses; do not trust a forged client-side direction for this flow.
+        const dir = imp.source === 'gmail' ? 'expense' : (str(f, `dir_${k.id}`) ?? k.direction);
         if (dir !== 'income' && dir !== 'expense') throw new Refuse(`בחר הכנסה או הוצאה ב"${k.merchant ?? 'שורה'}"`);
         const merchant = (str(f, `merchant_${k.id}`) ?? k.merchant)?.slice(0, 120) ?? null;
         const cat = uuid(f, `cat_${k.id}`), sub = uuid(f, `sub_${k.id}`);

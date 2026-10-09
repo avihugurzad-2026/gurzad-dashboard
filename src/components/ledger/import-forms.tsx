@@ -77,7 +77,7 @@ export function ImportUpload({ mode, targets, accountsByWs, defaultWs }: {
 export type Cand = {
   id: string; occurred_on: string | null; merchant: string | null; description: string | null; amount: number | null; direction: 'income' | 'expense' | null;
   target_workspace_id: string | null; category_id: string | null; subcategory_id: string | null; fixed_or_variable: string | null; frequency: string | null;
-  status: string; first_time: boolean; rule_id: string | null;
+  status: string; first_time: boolean; rule_id: string | null; external_id: string | null;
 };
 const GROUPS = [
   { key: 'auto', label: 'סווג אוטומטית', tone: 'good' as const },
@@ -86,8 +86,8 @@ const GROUPS = [
   { key: 'duplicate', label: 'כנראה כפול', tone: 'neutral' as const },
 ];
 
-export function StatementReview({ importId, candidates, targets, catsByWs }: {
-  importId: string; candidates: Cand[]; targets: WsOpt[]; catsByWs: Record<string, CatOpt[]>;
+export function StatementReview({ importId, candidates, targets, catsByWs, expenseOnly = false }: {
+  importId: string; candidates: Cand[]; targets: WsOpt[]; catsByWs: Record<string, CatOpt[]>; expenseOnly?: boolean;
 }) {
   const router = useRouter();
   const [state, run, pending] = useActionState<ImportResult | null, FormData>(commitImport, null);
@@ -95,7 +95,7 @@ export function StatementReview({ importId, candidates, targets, catsByWs }: {
   const [included, setIncluded] = useState<Record<string, boolean>>(() => Object.fromEntries(candidates.map(c => [c.id, c.status === 'auto' || c.status === 'review'])));
   useEffect(() => { if (state?.ok) router.refresh(); }, [state, router]);
   const count = Object.values(included).filter(Boolean).length;
-  const total = useMemo(() => candidates.filter(c => included[c.id] && c.amount).reduce((a, c) => a + (c.direction === 'income' ? 1 : -1) * (c.amount ?? 0), 0), [candidates, included]);
+  const total = useMemo(() => candidates.filter(c => included[c.id] && c.amount).reduce((a, c) => a + (expenseOnly ? -1 : c.direction === 'income' ? 1 : -1) * (c.amount ?? 0), 0), [candidates, included, expenseOnly]);
   return (
     <form onSubmit={submitWith(run)} className="flex flex-col gap-6">
       <input type="hidden" name="import" value={importId} />
@@ -108,13 +108,13 @@ export function StatementReview({ importId, candidates, targets, catsByWs }: {
             {g.key === 'duplicate' && <p className="-mt-1 text-sm text-muted">נראות כמו תנועות שכבר שמורות (אותו סכום, ±3 ימים). לא מסומנות לייבוא.</p>}
             {g.key === 'unrecognized' && <p className="-mt-1 text-sm text-muted">חסר בהן תאריך, סכום או סוג. השלם ידנית או השאר לא מסומן.</p>}
             <ul className="flex flex-col divide-y divide-[color:var(--border)] rounded-xl border border-line bg-surface">
-              {rows.map(c => <CandRow key={c.id} c={c} targets={targets} catsByWs={catsByWs} on={!!included[c.id]} setOn={v => setIncluded(s => ({ ...s, [c.id]: v }))} />)}
+              {rows.map(c => <CandRow key={c.id} c={c} targets={targets} catsByWs={catsByWs} expenseOnly={expenseOnly} on={!!included[c.id]} setOn={v => setIncluded(s => ({ ...s, [c.id]: v }))} />)}
             </ul>
           </section>
         );
       })}
       <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-line bg-surface px-4 py-3 sm:mx-0 sm:rounded-xl sm:border">
-        <Button type="submit" variant="primary" disabled={pending || !count}>{pending ? 'שומר…' : `ייבא ${count} תנועות`}</Button>
+        <Button type="submit" variant="primary" disabled={pending}>{pending ? 'שומר…' : count ? `ייבא ${count} תנועות` : 'סיים וסמן כלא רלוונטי'}</Button>
         <span className="text-sm text-muted">נטו: <bdi className="tabular">{ils(total) ?? '—'}</bdi></span>
         <Button variant="ghost" disabled={cancelling} onClick={() => { if (confirm('לבטל את הייבוא? שום דבר לא יישמר.')) startCancel(async () => { const r = await cancelImport(importId); if (!r.ok) alert(r.error); else router.refresh(); }); }}>ביטול הייבוא</Button>
         <Err s={state} />
@@ -123,14 +123,15 @@ export function StatementReview({ importId, candidates, targets, catsByWs }: {
   );
 }
 
-function CandRow({ c, targets, catsByWs, on, setOn }: { c: Cand; targets: WsOpt[]; catsByWs: Record<string, CatOpt[]>; on: boolean; setOn: (v: boolean) => void }) {
+function CandRow({ c, targets, catsByWs, expenseOnly, on, setOn }: { c: Cand; targets: WsOpt[]; catsByWs: Record<string, CatOpt[]>; expenseOnly: boolean; on: boolean; setOn: (v: boolean) => void }) {
   const [ws, setWs] = useState(c.target_workspace_id ?? targets[0]?.id ?? '');
-  const [dir, setDir] = useState<'income' | 'expense'>(c.direction ?? 'expense');
+  const [dir, setDir] = useState<'income' | 'expense'>(expenseOnly ? 'expense' : c.direction ?? 'expense');
   const cats = catsByWs[ws] ?? [];
   const [cat, setCat] = useState(c.category_id && cats.some(x => x.id === c.category_id) ? c.category_id : '');
   const top = cats.filter(x => x.kind === dir && !x.parent_id);
   const subs = cats.filter(x => x.parent_id && x.parent_id === cat);
-  const incomplete = !c.occurred_on || !c.amount || !c.direction;
+  const incomplete = !c.occurred_on || !c.amount || (!expenseOnly && !c.direction);
+  const gmailId = c.external_id?.startsWith('gmail:') ? c.external_id.slice('gmail:'.length) : null;
   const n = (k: string) => `${k}_${c.id}`;
   return (
     <li className={cn('flex flex-col gap-2 px-4 py-3', !on && 'opacity-60')}>
@@ -150,14 +151,20 @@ function CandRow({ c, targets, catsByWs, on, setOn }: { c: Cand; targets: WsOpt[
         )}
         <span className={cn('ms-auto font-semibold tabular', dir === 'income' ? 'text-good-ink' : 'text-ink')}><bdi>{ils((dir === 'income' ? 1 : -1) * (c.amount ?? 0)) ?? ''}</bdi></span>
       </div>
+      <div className="flex flex-wrap items-center gap-2 ps-7 text-sm">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOn(!on)}>{on ? 'לא רלוונטי' : 'החזר לסקירה'}</Button>
+        {gmailId && <Link href={`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(gmailId)}`} target="_blank" rel="noreferrer" className={buttonClass('ghost', 'sm')}>פתח ב-Gmail</Link>}
+      </div>
       {on && (
         <div className="flex flex-wrap items-center gap-2 ps-7">
           <select name={n('ws')} value={ws} onChange={e => { setWs(e.target.value); setCat(''); }} aria-label="אזור" className={cn(compactInputClass, 'w-auto pe-8')}>
             {targets.map(w => <option key={w.id} value={w.id}>{wsLabel(w)}</option>)}
           </select>
-          <select name={n('dir')} value={dir} onChange={e => { setDir(e.target.value as 'income' | 'expense'); setCat(''); }} aria-label="סוג" className={cn(compactInputClass, 'w-auto pe-8')}>
-            <option value="expense">הוצאה</option><option value="income">הכנסה</option>
-          </select>
+          {expenseOnly ? <input type="hidden" name={n('dir')} value="expense" /> : (
+            <select name={n('dir')} value={dir} onChange={e => { setDir(e.target.value as 'income' | 'expense'); setCat(''); }} aria-label="סוג" className={cn(compactInputClass, 'w-auto pe-8')}>
+              <option value="expense">הוצאה</option><option value="income">הכנסה</option>
+            </select>
+          )}
           <select name={n('cat')} value={cat} onChange={e => setCat(e.target.value)} aria-label="קטגוריה" className={cn(compactInputClass, 'w-auto pe-8')}>
             <option value="">קטגוריה…</option>{top.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select>

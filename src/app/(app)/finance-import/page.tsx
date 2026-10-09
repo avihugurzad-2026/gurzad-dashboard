@@ -32,11 +32,13 @@ const STATUS: Record<string, { label: string; tone: 'good' | 'warning' | 'neutra
 };
 const SOURCE: Record<string, string> = { statement: 'דוח', receipt: 'קבלה', gmail: 'Gmail' };
 
-// Personal + households I can write to: where imported rows may go
+// Every money workspace I can write to: each Gmail document is assigned only in review.
 async function targetsFor(u: Awaited<ReturnType<typeof requireUser>>) {
   const [mine, personal] = await Promise.all([myWorkspaces(u), personalWorkspace(u)]);
   const out: WsOpt[] = personal ? [{ id: personal.id, name: 'אישי', kind: 'personal' }] : [];
-  for (const w of mine.filter(x => x.kind === 'household')) if ((await ledgerAccess(u, w.id))?.canWrite) out.push({ id: w.id, name: w.name, kind: 'household' });
+  for (const w of mine.filter(x => x.kind === 'household' || x.kind === 'business')) {
+    if ((await ledgerAccess(u, w.id))?.canWrite) out.push({ id: w.id, name: w.name, kind: w.kind === 'business' ? 'business' : 'household' });
+  }
   return out;
 }
 const catOpts = async (ws: string): Promise<CatOpt[]> => (await listCategories(ws)).map(c => ({ id: c.id, kind: c.kind, name: c.name, parent_id: c.parent_id }));
@@ -91,7 +93,7 @@ export default async function FinanceImportPage({ searchParams }: { searchParams
           {imp.error && <><br /><span className="text-warning-ink">{imp.error}</span></>}
         </p>
         {open.length
-          ? <StatementReview importId={imp.id} candidates={open} targets={targets} catsByWs={catsByWs} />
+          ? <StatementReview importId={imp.id} candidates={open} targets={targets} catsByWs={catsByWs} expenseOnly={imp.source === 'gmail'} />
           : <Card><Empty title="אין שורות לייבא" /></Card>}
       </div>
     );

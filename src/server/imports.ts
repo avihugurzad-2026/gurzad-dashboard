@@ -76,6 +76,7 @@ export type Candidate = {
   currency: string; direction: 'income' | 'expense' | null; vat_amount: number | null; document_number: string | null; target_workspace_id: string | null;
   category_id: string | null; subcategory_id: string | null; fixed_or_variable: string | null; frequency: string | null; rule_id: string | null;
   status: string; duplicate_of: string | null; matched_transaction_id: string | null; imported_transaction_id: string | null; first_time: boolean;
+  external_id: string | null;
 };
 
 const missing = (e: any) => e?.code === '42P01' || e?.code === '42703';
@@ -89,7 +90,7 @@ export async function getImport(u: SessionUser, id: string): Promise<{ imp: Impo
     const { rows } = await db().query(
       `SELECT c.id, to_char(c.occurred_on, 'YYYY-MM-DD') AS occurred_on, c.merchant, c.merchant_normalized, c.description, c.amount::float, c.currency, c.direction,
               c.vat_amount::float, c.document_number, c.target_workspace_id, c.category_id, c.subcategory_id, c.fixed_or_variable, c.frequency, c.rule_id,
-              c.status, c.duplicate_of, c.matched_transaction_id, c.imported_transaction_id,
+              c.status, c.duplicate_of, c.matched_transaction_id, c.imported_transaction_id, c.external_id,
               (c.rule_id IS NULL AND c.merchant_normalized IS NOT NULL AND NOT EXISTS (
                  SELECT 1 FROM transactions t WHERE t.owner_user_id = $2 AND t.deleted_at IS NULL AND lower(t.merchant) LIKE '%' || c.merchant_normalized || '%')) AS first_time
        FROM import_candidates c WHERE c.import_id = $1 ORDER BY c.sort NULLS LAST, c.created_at`, [id, u.id]);

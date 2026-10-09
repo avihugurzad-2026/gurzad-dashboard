@@ -37,12 +37,12 @@ export type GmailError = 'not_configured' | 'not_connected' | 'no_scope' | 'reco
 
 const LOOKBACK_DAYS = 90;
 const OVERLAP_DAYS = 2;
-const MAX_LIST = 300;          // ids only: cheap
-const MAX_MESSAGES = 50;       // fetched and parsed per run
+const MAX_LIST = 600;          // ids only: cheap
+const MAX_MESSAGES = 100;      // fetched and parsed per run; remainder is resumable on the next run
 const MAX_PDF_BYTES = 4 * 1024 * 1024;
 const MAX_PDFS_PER_MESSAGE = 3;
-const CONCURRENCY = 4;
-const DEADLINE_MS = 40_000;    // stay inside a serverless request; the rest waits for the next run
+const CONCURRENCY = 8;
+const DEADLINE_MS = 50_000;    // stay inside a serverless request; the rest waits for the next run
 const DAY_MS = 86_400_000;
 
 const missingTable = (e: unknown) => ['42P01', '42703'].includes((e as { code?: string })?.code ?? '');

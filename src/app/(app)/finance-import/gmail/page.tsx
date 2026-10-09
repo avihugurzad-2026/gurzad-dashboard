@@ -102,7 +102,7 @@ export default async function GmailImportPage({ searchParams }: { searchParams: 
               <dt className="text-muted">סנכרון אחרון</dt>
               <dd className="text-ink">{st.lastSync ? stamp(st.lastSync) : 'עוד לא סונכרן'}</dd>
             </dl>
-            <p className="text-sm text-muted">כל סנכרון קורא עד 50 הודעות חדשות מ-90 הימים האחרונים. הודעה שכבר נסרקה לא תיובא פעמיים.</p>
+            <p className="text-sm text-muted">כל סנכרון קורא עד 100 הודעות חדשות מ-90 הימים האחרונים. הודעה שכבר נסרקה לא תיובא פעמיים.</p>
             <GmailControls alsoCalendar={st.hasCalendarScope} />
           </CardContent>
         </Card>

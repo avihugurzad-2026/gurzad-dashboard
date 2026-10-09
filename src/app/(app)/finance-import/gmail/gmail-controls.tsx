@@ -26,6 +26,7 @@ export function GmailControls({ alsoCalendar }: { alsoCalendar: boolean }) {
       if (!r.ok) setError(r.error);
     });
   };
+  const reviewable = result?.ok ? result.added - result.rejected : 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -40,12 +41,12 @@ export function GmailControls({ alsoCalendar }: { alsoCalendar: boolean }) {
       {result?.ok && (
         <div role="status" className="flex flex-wrap items-center gap-3 text-sm text-ink-2">
           <span>
-            {result.added === 0 ? 'לא נמצאו חשבוניות או קבלות חדשות.' : result.added === 1 ? 'נמצא פריט חדש אחד לסקירה.' : `נמצאו ${result.added} פריטים חדשים לסקירה.`}
+            {reviewable === 0 ? 'לא נמצאו חשבוניות או קבלות חדשות לסקירה.' : reviewable === 1 ? 'נמצא פריט חדש אחד לסקירה.' : `נמצאו ${reviewable} פריטים חדשים לסקירה.`}
             {result.rejected > 0 && ` ${result.rejected} הודעות לא רלוונטיות סוננו.`}
             {result.failed > 0 && ` ${result.failed} הודעות לא נקראו.`}
             {result.more && ' יש עוד הודעות: סנכרן שוב בעוד כמה דקות.'}
           </span>
-          {result.added > 0 && (
+          {reviewable > 0 && (
             <Link href={`/finance-import?import=${result.importId}`} className={buttonClass('secondary', 'sm')}>לסקירה</Link>
           )}
         </div>

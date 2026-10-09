@@ -21,7 +21,7 @@ import { ACCOUNT_LABEL, FREQ_LABEL } from '@/lib/ledger-labels';
 
 export type CatOpt = { id: string; kind: 'income' | 'expense'; name: string; parent_id: string | null };
 export type AccOpt = { id: string; name: string; kind: string; last4?: string | null };
-export type WsOpt = { id: string; name: string; kind: 'personal' | 'household' };
+export type WsOpt = { id: string; name: string; kind: 'personal' | 'household' | 'business' };
 type Action = (s: LedgerResult | null, f: FormData) => Promise<LedgerResult>;
 
 
