@@ -71,3 +71,33 @@
 | קבצי `overview.md` | `type: branch` — נדלגים, לא entities |
 | DB connection | pg Pool ישיר; עוקף RLS (service-level access) |
 | CSS | קובץ משותף `styles.css`; אפס inline styles בHTML |
+
+---
+
+## שלב 0+ (DASHBOARD-SPEC-v2) — 2026-10-07
+
+- `lib/` חדש: `vault.js` (פרסור ואימות), `kpi.js` (MRR, חובות, aging, מע"מ, הקצאה, ריכוז), `params.js`, `snapshots.js`. בדיקות ב-`test/` (`npm test`, ‏node:test).
+- migrations (שמות תואמים להיסטוריה ב-Supabase, כולן הורצו): `20261007132734` מפתח ראשי ל-`entity_history`, `20261007134338` טבלאות `kpi_snapshots` ו-`alerts` עם RLS, `20261007134349` ספי v2 (הערכה).
+- סנכרון: סוגי ישות `cash-account`, `fixed-commitment` (וסוגי BUILD-SPEC §5); snapshot שבועי ב-`--apply`; `--dry` עובד בלי DB ומציג סכומים לפי סוג; `allocation_required` רק לחשבוניות מס; בלי סף קבוע בקוד.
+- שרת ודפים: בלי מע"מ/סף קבועים בקוד (`missing_params`); בלי נתונים = `null` ו"אין נתונים עדיין", לא 0.
+- `business.html`, `dashboard.html` הועברו ל-`legacy/` (לא מוגשים).
+- תבניות לוואלט: `docs/vault-templates/`.
+- ממתין: `npm run sync:apply` (על המק); `npm audit` ו-gitleaks על המק.
+
+## שלב 1א (DASHBOARD-SPEC-v2) — התראות מתמידות + שלמות נתונים — 2026-10-07
+
+- `lib/alerts.js`: כללים (הקצאה חסרה בחשבונית, חוב באיחור לפי `due_date` — כתום עד `overdue_red_days`, אדום מעבר; הבטחת תשלום שעברה; מועד הודעה ב-retainer תוך 60 יום; משימה באיחור) + reconcile: חדש → insert, קיים → `last_seen`, נעלם → `resolved_at`. snooze נשמר ולא נדרס.
+- רץ בכל `sync --apply` (שלב 6 בסקריפט); `--dry` מציג כמה התראות יחושבו.
+- API: `GET /api/alerts`, `POST /api/alerts/:id/snooze` (כתיבה ל-Supabase בלבד), `GET /api/integrity`. הכול מאחורי cookie.
+- בית: הפאנל נקרא מ-`alerts`, עד 7 + "ועוד N", "פתוח X ימים", דחייה עם תאריך, "נתון ישן" מחושב מ-`stale_days`.
+- `/health`: התראות פתוחות ונדחות, למה "אין נתונים", גיל סנכרון לענף, ריצות אחרונות, פרמטרים חסרים והערכות.
+- היום הנתונים לא מייצרים התראות (אין `due_date`, אין חשבוניות, משימות לא באיחור) — מצב "הכול תקין" אמיתי.
+
+## שלב 1.5 (DASHBOARD-SPEC-v2) — סקירה שבועית, Scorecard, תחזית 13 שבועות — 2026-10-07
+
+- `lib/forecast.js`: תחזית 13 שבועות (כניסות לפי `due_date`/`promise_to_pay_date`, retainers עם `billing_day`, יציאות מ-`fixed-commitment` ו-`loan`), מזומן תפעולי/מוגבל/רזרבה בנפרד, שבוע שפל, רצפה = `cash_floor_months` × הוצאות קבועות חודשיות, שבועות הוצאה בבנק, 3 תרחישים. בלי תאריך = לא נכנס לתחזית ומופיע ב"נתונים חלקיים".
+- `lib/scorecard.js`: 13 שבועות מ-`kpi_snapshots`, סטטוס לפי כיוון, הצעת Issue אחרי שבועיים חורגים, נעילת יעד 13 שבועות (שינוי רק עם `quarterly_planning`; יעד ראשון מותר).
+- `lib/review.js`: החלטה = טקסט + בעלים + שבוע (אחרת 400), ייצוא markdown בפורמט Tasks-plugin להעתקה לוואלט (Issues → tasks דרך הוואלט, לא כתיבה ישירה ל-`tasks`).
+- migration `20261007140000_review_scorecard_forecast`: `scorecard_measures` (7 מדדים, יעדי 0 נעולים; השאר ריקים עד שתקבע), `weekly_reviews`, `cash_forecast_snapshots`, RLS. הורץ ב-Supabase.
+- סנכרון: snapshots נוספים (ריכוז, הקצאה חסרה, חוב >30, מזומן נגיש — כל אחד רק כשיש נתון) ושמירת תחזית שבועית כשיש `cash-account`.
+- API: `/api/forecast`, `/api/scorecard`, `PUT /api/scorecard/:key/goal`, `GET/POST /api/review`, `/api/review/:id/export`. דפים: `/review`, `/scorecard`. בבית: קישורים, "נסקר לאחרונה", התראה כתומה אחרי `review_stale_days`.

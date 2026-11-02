@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>סקירה שבועית — דשבורד בעלים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="g-nav">
+  <nav class="g-nav__breadcrumb" aria-label="ניווט">
+    <a href="/index.html">בית</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="current">סקירה שבועית <bdi id="period"></bdi></span>
+  </nav>
+  <div class="g-nav__spacer"></div>
+  <div class="g-nav__actions">
+    <button class="btn-ghost" id="toggleAmounts" onclick="toggleAmounts()">הסתר סכומים</button>
+    <button class="btn-ghost" onclick="logout()">יציאה</button>
+  </div>
+</nav>
+
+<main class="page-wrap" id="main" style="display:none">
+
+  <p class="sc-meta" id="lastReview"></p>
+
+  <!-- 1. Cash and trough week -->
+  <section class="section">
+    <h2 class="section-title">1. מזומן ושבוע שפל</h2>
+    <div class="kpi-row" id="cashKpis"></div>
+    <div id="partialNote"></div>
+    <div id="cashChart"></div>
+    <div id="scenarios"></div>
+    <details>
+      <summary class="sc-meta">טבלת 13 שבועות</summary>
+      <div id="cashTable"></div>
+    </details>
+  </section>
+
+  <!-- 2. Scorecard -->
+  <section class="section">
+    <h2 class="section-title">2. Scorecard</h2>
+    <div id="scorecard"></div>
+  </section>
+
+  <!-- 3. Needs attention -->
+  <section class="section">
+    <h2 class="section-title">3. דורש תשומת לב</h2>
+    <ul class="integrity-list" id="attention"></ul>
+  </section>
+
+  <!-- 4. 30/90 days -->
+  <section class="section">
+    <h2 class="section-title">4. 30 ו-90 הימים הקרובים</h2>
+    <ul class="integrity-list" id="horizon"></ul>
+  </section>
+
+  <!-- 5. Decisions -->
+  <section class="section">
+    <h2 class="section-title">5. החלטות</h2>
+    <p class="sc-meta">כל החלטה חייבת טקסט, בעלים ושבוע. ההחלטות נשמרות בדשבורד ומיוצאות לקובץ להעתקה ידנית לוואלט.</p>
+    <form id="reviewForm">
+      <div id="decisions"></div>
+      <button class="btn-secondary" type="button" id="addDecision">+ החלטה</button>
+      <div class="form-group">
+        <label class="form-label" for="notes">הערות</label>
+        <textarea class="form-input" id="notes" rows="3" dir="auto"></textarea>
+      </div>
+      <div class="form-errors" id="formErrors" role="alert"></div>
+      <button class="btn-primary" type="submit">שמור סקירה</button>
+    </form>
+    <div id="saved"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">החלטות אחרונות</h2>
+    <ul class="integrity-list" id="recentDecisions"></ul>
+  </section>
+</main>
+
+<script src="/js/scorecard-table.js"></script>
+<script>
+const ILS = n => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
+const NO_DATA = 'אין נתונים עדיין';
+const esc = scEsc;
+let amountsHidden = false;
+
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  document.getElementById('toggleAmounts').textContent = amountsHidden ? 'הצג סכומים' : 'הסתר סכומים';
+}
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/login.html';
+}
+const money = v => v === null || v === undefined ? `<span class="kpi-value--empty">${NO_DATA}</span>` : `<bdi class="amount">${ILS(v)}</bdi>`;
+const fmtDay = d => new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+const kpiCard = (label, valueHtml, cls = '') =>
+  `<div class="kpi-card ${cls}"><span class="kpi-card__label">${label}</span><span class="kpi-card__value">${valueHtml}</span></div>`;
+
+function renderCash(fc) {
+  const b = fc.base;
+  document.getElementById('cashKpis').innerHTML =
+    kpiCard('מזומן נגיש', money(b.cash.operating)) +
+    kpiCard('מזומן מוגבל (לא נספר)', money(b.cash.restricted)) +
+    kpiCard('שבועות הוצאה בבנק', b.weeks_of_spend === null ? `<span class="kpi-value--empty">${NO_DATA}</span>` : b.weeks_of_spend) +
+    kpiCard('שבוע שפל', b.trough ? `${money(b.trough.amount)}<div class="sc-meta">שבוע ${fmtDay(b.trough.week)}${b.floor !== null ? ` · רצפה <bdi class="amount">${ILS(b.floor)}</bdi>` : ''}</div>` : `<span class="kpi-value--empty">${NO_DATA}</span>`,
+      b.below_floor ? 'kpi-card--danger' : '');
+
+  document.getElementById('partialNote').innerHTML = b.partial
+    ? `<div class="partial-note">⚠︎ <strong>נתונים חלקיים.</strong> חסר:<ul>${b.missing.map(m => `<li>${esc(m.text)}${m.amount ? ` (<bdi class="amount">${ILS(m.amount)}</bdi>)` : ''}</li>`).join('')}</ul></div>` : '';
+
+  // Chart: closing cash per week when there is an opening balance, otherwise net flow. Starts at zero.
+  const hasClosing = b.weeks[0].closing !== null;
+  const vals = b.weeks.map(w => hasClosing ? w.closing : w.in - w.out);
+  const hasFlow = vals.some(v => v !== 0);
+  const chartEl = document.getElementById('cashChart');
+  if (!hasClosing && !hasFlow) { chartEl.innerHTML = ''; }
+  else {
+    const W = 640, H = 220, padT = 16, padB = 28, padX = 8;
+    const all = [...vals, 0, ...(hasClosing && b.floor !== null ? [b.floor] : [])];
+    const max = Math.max(...all), min = Math.min(...all);
+    const y = v => padT + (max - v) / ((max - min) || 1) * (H - padT - padB);
+    const bw = (W - 2 * padX) / vals.length;
+    const bars = vals.map((v, i) => {
+      const x = padX + i * bw + 2, top = Math.min(y(v), y(0)), h = Math.max(1, Math.abs(y(v) - y(0)));
+      const tip = `שבוע ${fmtDay(b.weeks[i].start)}: ${amountsHidden ? '•••' : ILS(v)}`;
+      return `<g><rect class="fc-hit" x="${x - 2}" y="${padT}" width="${bw}" height="${H - padT - padB}" tabindex="0"><title>${esc(tip)}</title></rect>
+        <rect class="fc-bar ${v < 0 ? 'fc-bar--neg' : ''}" x="${x}" y="${top}" width="${bw - 4}" height="${h}" rx="4"><title>${esc(tip)}</title></rect></g>`;
+    }).join('');
+    const labels = b.weeks.map((w, i) => i % 2 === 0
+      ? `<text class="fc-label" x="${padX + i * bw + bw / 2}" y="${H - 8}" text-anchor="middle">${fmtDay(w.start)}</text>` : '').join('');
+    const floor = hasClosing && b.floor !== null
+      ? `<line class="fc-floor" x1="${padX}" x2="${W - padX}" y1="${y(b.floor)}" y2="${y(b.floor)}"><title>רצפת מזומן</title></line>` : '';
+    chartEl.innerHTML = `<p class="sc-meta">${hasClosing ? 'יתרת סגירה צפויה לכל שבוע' : 'תזרים נטו לכל שבוע (אין יתרת פתיחה)'}${floor ? ' · קו מקווקו = רצפה' : ''}</p>
+      <svg class="fc-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="תחזית מזומן ל-13 שבועות" direction="ltr">
+        <line class="fc-axis" x1="${padX}" x2="${W - padX}" y1="${y(0)}" y2="${y(0)}"/>${bars}${floor}${labels}</svg>`;
+  }
+
+  const names = { base: 'בסיס', late_collection: 'גבייה מאוחרת ב-30 יום', lose_top_client: 'אובדן הלקוח הגדול' };
+  document.getElementById('scenarios').innerHTML = `<ul class="integrity-list">${Object.entries(fc).map(([k, s]) =>
+    `<li class="integrity-row ${s.below_floor ? 'integrity-row--bad' : ''}"><span>${names[k]}</span><span class="integrity-row__meta">${
+      s.trough ? `שפל ${money(s.trough.amount)} בשבוע ${fmtDay(s.trough.week)}${s.below_floor ? ' · מתחת לרצפה' : ''}` : NO_DATA}</span></li>`).join('')}</ul>`;
+
+  document.getElementById('cashTable').innerHTML = `<div class="sc-scroll"><table class="sc-table">
+    <thead><tr><th>שבוע</th><th>כניסות</th><th>יציאות</th><th>יתרת סגירה</th></tr></thead>
+    <tbody>${b.weeks.map(w => `<tr><td>${fmtDay(w.start)}</td><td><bdi class="amount">${ILS(w.in)}</bdi></td><td><bdi class="amount">${ILS(w.out)}</bdi></td><td>${w.closing === null ? '–' : `<bdi class="amount">${ILS(w.closing)}</bdi>`}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function decisionRow() {
+  const div = document.createElement('div');
+  div.className = 'decision-row';
+  div.innerHTML = `
+    <input class="form-input" name="text" placeholder="החלטה" dir="auto" aria-label="החלטה">
+    <input class="form-input" name="owner" placeholder="בעלים" value="אביהו" dir="auto" aria-label="בעלים">
+    <input class="form-input" name="due_week" type="week" aria-label="שבוע יעד">`;
+  document.getElementById('decisions').appendChild(div);
+}
+
+async function init() {
+  const res = await fetch('/api/review', { credentials: 'include' });
+  if (res.status === 401) { location.href = '/login.html'; return; }
+  if (!res.ok) { document.body.innerHTML = '<p class="error-page-msg">שגיאה בטעינת הנתונים</p>'; return; }
+  const d = await res.json();
+
+  document.getElementById('period').textContent = d.period;
+  document.getElementById('lastReview').textContent = d.last_review
+    ? `נסקר לאחרונה: ${new Date(d.last_review.reviewed_at).toLocaleDateString('he-IL')} (${d.last_review.period})` : 'עוד לא נשמרה סקירה שבועית';
+
+  renderCash(d.forecast);
+  renderScorecardTable(document.getElementById('scorecard'), d.scorecard);
+
+  document.getElementById('attention').innerHTML = d.attention.length
+    ? d.attention.map(a => `<li class="integrity-row ${a.severity === 'red' ? 'integrity-row--bad' : 'integrity-row--warn'}"><span>${a.severity === 'red' ? '🔴' : '🟠'} ${esc(a.title)}${a.counterparty ? ` · ${esc(a.counterparty)}` : ''}</span><span class="integrity-row__meta">${a.suggested_action ? esc(a.suggested_action) : ''}</span></li>`).join('')
+    : '<li class="empty-state">אין התראות פתוחות</li>';
+
+  const kindIcon = { task: '📌', notice: '📅', payment: '💳' };
+  document.getElementById('horizon').innerHTML = d.horizon_90.length
+    ? d.horizon_90.map((h, i) => `<li class="integrity-row ${i < d.horizon_30.length ? 'integrity-row--warn' : ''}"><span>${kindIcon[h.kind] || ''} ${esc(h.title)}${h.amount != null ? ` · <bdi class="amount">${ILS(h.amount)}</bdi>` : ''}</span><span class="integrity-row__meta">${fmtDay(h.date)}${i < d.horizon_30.length ? ' · ב-30 יום' : ''}</span></li>`).join('')
+    : '<li class="empty-state">אין מועדים ב-90 הימים הקרובים</li>';
+
+  document.getElementById('recentDecisions').innerHTML = d.recent_decisions.length
+    ? d.recent_decisions.map(x => `<li class="integrity-row"><span>${esc(x.text)}</span><span class="integrity-row__meta">${esc(x.owner)} · ${esc(x.due_week)}</span></li>`).join('')
+    : '<li class="empty-state">אין החלטות קודמות</li>';
+
+  document.getElementById('main').style.display = '';
+}
+
+document.getElementById('addDecision').addEventListener('click', decisionRow);
+document.getElementById('reviewForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const decisions = [...document.querySelectorAll('.decision-row')]
+    .map(r => ({ text: r.querySelector('[name=text]').value, owner: r.querySelector('[name=owner]').value, due_week: r.querySelector('[name=due_week]').value }))
+    .filter(x => x.text.trim() || x.due_week); // fully empty rows are ignored
+  const res = await fetch('/api/review', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decisions, notes: document.getElementById('notes').value }),
+  });
+  const out = await res.json();
+  if (!res.ok) { document.getElementById('formErrors').innerHTML = `${esc(out.error)}<ul>${(out.errors || []).map(e => `<li>${esc(e)}</li>`).join('')}</ul>`; return; }
+  document.getElementById('formErrors').innerHTML = '';
+  document.getElementById('reviewForm').style.display = 'none';
+  document.getElementById('saved').innerHTML = `<p class="form-ok">✓ הסקירה נשמרה</p>
+    <a class="btn-secondary" href="/api/review/${out.id}/export">הורד החלטות כ-markdown לוואלט</a>`;
+});
+
+decisionRow();
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Scorecard — דשבורד בעלים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<nav class="g-nav">
+  <nav class="g-nav__breadcrumb" aria-label="ניווט">
+    <a href="/index.html">בית</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="current">Scorecard</span>
+  </nav>
+  <div class="g-nav__spacer"></div>
+  <div class="g-nav__actions">
+    <button class="btn-ghost" id="toggleAmounts" onclick="toggleAmounts()">הסתר סכומים</button>
+    <button class="btn-ghost" onclick="logout()">יציאה</button>
+  </div>
+</nav>
+
+<main class="page-wrap" id="main" style="display:none">
+  <section class="section">
+    <h2 class="section-title">Scorecard שבועי · 13 שבועות</h2>
+    <p class="sc-meta">יעד שנקבע ננעל ל-13 שבועות. שינוי לפני כן רק בסימון "תכנון רבעוני". שבוע בלי נתון מסומן "–" ולא 0.</p>
+    <div class="form-errors" id="errors" role="alert"></div>
+    <div id="scorecard"></div>
+  </section>
+</main>
+
+<script src="/js/scorecard-table.js"></script>
+<script>
+let amountsHidden = false;
+function toggleAmounts() {
+  amountsHidden = !amountsHidden;
+  document.body.classList.toggle('amounts-hidden', amountsHidden);
+  document.getElementById('toggleAmounts').textContent = amountsHidden ? 'הצג סכומים' : 'הסתר סכומים';
+}
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/login.html';
+}
+
+async function init() {
+  const res = await fetch('/api/scorecard', { credentials: 'include' });
+  if (res.status === 401) { location.href = '/login.html'; return; }
+  if (!res.ok) { document.body.innerHTML = '<p class="error-page-msg">שגיאה בטעינת הנתונים</p>'; return; }
+  const el = document.getElementById('scorecard');
+  renderScorecardTable(el, await res.json(), { editable: true });
+  el.querySelectorAll('.sc-goal-form').forEach(f => f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const r = await fetch(`/api/scorecard/${encodeURIComponent(f.dataset.key)}/goal`, {
+      method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekly_goal: Number(f.goal.value), quarterly_planning: !!f.quarterly?.checked }),
+    });
+    const out = await r.json();
+    document.getElementById('errors').textContent = r.ok ? '' : out.error;
+    if (r.ok) init();
+  }));
+  document.getElementById('main').style.display = '';
+}
+init();
+</script>
+</body>
+</html>
