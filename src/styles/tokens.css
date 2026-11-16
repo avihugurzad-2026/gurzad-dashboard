@@ -1,0 +1,123 @@
+/* Gurzad v3 — design tokens. Palette swap = edit this file only.
+   Source: docs/v3/DESIGN-SYSTEM.md */
+:root {
+  /* Base palette (avihu) */
+  --forest-900: #0F3D2E;
+  --forest-700: #166534;
+  --sage-500: #4C956C;
+  --mint-300: #A8D5BA;
+  --mint-100: #E6F2EA;
+  --paper-50: #F9FCF8;
+
+  /* Derived */
+  --teal-forest: #2F6F5E;
+  --amber-600: #B45309;
+  --amber-bg: #FDF3E1;
+  --red-600: #B42318;
+  --red-bg: #FDECEA;
+
+  /* Semantic */
+  --bg: var(--paper-50);
+  --surface: #FFFFFF;
+  --surface-2: #F2F7F1;
+  --surface-3: var(--mint-100);
+  --line: #DCE8DF;
+  --line-strong: #C3D8C9;
+  --ink: var(--forest-900);
+  --ink-2: #3D5A4E;
+  --ink-3: #5F786C;
+  --accent: var(--forest-900);
+  --on-accent: #FFFFFF;
+  --link: var(--forest-700);
+  --focus: var(--forest-700);
+  --pos: var(--forest-700);
+  --pos-bg: var(--mint-100);
+  --warn: var(--amber-600);
+  --warn-bg: var(--amber-bg);
+  --neg: var(--red-600);
+  --neg-bg: var(--red-bg);
+  --chart-1: var(--forest-900);
+  --chart-2: var(--sage-500);
+  --chart-3: var(--mint-300);
+  --hatch: var(--mint-300);
+
+  /* Area tones */
+  --tone-home: var(--sage-500);
+  --tone-business: var(--forest-700);
+  --tone-invest: var(--teal-forest);
+
+  /* Hero gradient */
+  --hero-grad:
+    radial-gradient(120% 90% at 85% 10%, rgb(168 213 186 / .95) 0%, transparent 55%),
+    radial-gradient(90% 80% at 10% 100%, rgb(22 101 52 / .95) 0%, transparent 60%),
+    linear-gradient(160deg, #4C956C 0%, #166534 55%, #0F3D2E 100%);
+  --hero-ink: #F9FCF8;
+
+  /* Type */
+  --font: "Google Sans", "Heebo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-dot: "Doto", "Google Sans", monospace;
+  --fs-display: 40px;
+  --fs-hero: 56px;
+  --fs-title: 22px;
+  --fs-num: 28px;
+  --fs-body: 15px;
+  --fs-label: 13px;
+  --fs-meta: 12px;
+
+  /* Space */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+  --gutter: 16px;
+
+  /* Radius */
+  --r-sm: 10px; --r-md: 16px; --r-lg: 24px; --r-xl: 32px; --r-pill: 999px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgb(15 61 46 / .06);
+  --shadow-pop: 0 12px 32px -8px rgb(15 61 46 / .22), 0 2px 6px rgb(15 61 46 / .06);
+
+  /* Motion */
+  --t-fast: 140ms;
+  --t-base: 220ms;
+  --t-slow: 380ms;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+
+  /* Layout */
+  --topbar-h: 72px;
+  --rail-w: 76px;
+  --tabbar-h: 68px;
+  --max-w: 1360px;
+
+  color-scheme: light;
+}
+
+@media (min-width: 768px) { :root { --gutter: 24px; } }
+@media (max-width: 767px) {
+  :root { --fs-display: 28px; --fs-hero: 44px; --fs-num: 24px; --fs-title: 19px; --topbar-h: 60px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #08201A; --surface: #0E2B22; --surface-2: #12352A; --surface-3: #174033;
+    --line: #1E4236; --line-strong: #2A5545;
+    --ink: #E6F2EA; --ink-2: #B5CDBE; --ink-3: #8FAE9C;
+    --accent: var(--mint-300); --on-accent: #08201A; --link: var(--mint-300); --focus: var(--mint-300);
+    --pos: #7FCB9C; --pos-bg: #133B2C; --warn: #F0B35B; --warn-bg: #3A2A12; --neg: #F28B7D; --neg-bg: #3D1A16;
+    --chart-1: var(--mint-300); --chart-2: var(--sage-500); --chart-3: #2A5545; --hatch: #2F6A50;
+    --tone-home: #8FD0A8; --tone-business: #A8D5BA; --tone-invest: #86CDBB;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / .3); --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / .6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #08201A; --surface: #0E2B22; --surface-2: #12352A; --surface-3: #174033;
+  --line: #1E4236; --line-strong: #2A5545;
+  --ink: #E6F2EA; --ink-2: #B5CDBE; --ink-3: #8FAE9C;
+  --accent: var(--mint-300); --on-accent: #08201A; --link: var(--mint-300); --focus: var(--mint-300);
+  --pos: #7FCB9C; --pos-bg: #133B2C; --warn: #F0B35B; --warn-bg: #3A2A12; --neg: #F28B7D; --neg-bg: #3D1A16;
+  --chart-1: var(--mint-300); --chart-2: var(--sage-500); --chart-3: #2A5545; --hatch: #2F6A50;
+    --tone-home: #8FD0A8; --tone-business: #A8D5BA; --tone-invest: #86CDBB;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .3); --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / .6);
+  color-scheme: dark;
+}
