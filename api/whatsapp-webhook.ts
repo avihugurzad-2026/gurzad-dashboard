@@ -34,6 +34,7 @@ async function sendWhatsApp(to: string, body: string) {
     headers: { 'X-API-Key': env('KAPSO_API_KEY'), 'content-type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body } }),
   });
+  if (r.ok) console.log('wa: reply sent');
   if (!r.ok) console.error('Kapso send failed', r.status, (await r.text()).slice(0, 300));
 }
 
@@ -106,7 +107,7 @@ export default handler(async (req, res) => {
 
   const raw = await rawBody(req);
   if (!verify(raw, String(req.headers['x-webhook-signature'] || ''))) throw new HttpError(401, 'חתימה לא תקינה');
-  if (req.headers['x-webhook-event'] !== 'whatsapp.message.received') { res.json({ ok: true, ignored: true }); return; }
+  if (req.headers['x-webhook-event'] !== 'whatsapp.message.received') { console.log('wa: ignored event', req.headers['x-webhook-event']); res.json({ ok: true, ignored: true }); return; }
 
   const payload = JSON.parse(raw.toString('utf8'));
   const events: any[] = payload.batch ? payload.data : [payload];
@@ -121,13 +122,13 @@ export default handler(async (req, res) => {
   for (const ev of events) {
     const msg = ev.message ?? {};
     const from = String(msg.from || ev.conversation?.phone_number || '').replace(/\D/g, '');
-    if (!from || !allowed.includes(from)) continue; // unknown senders are silently ignored
+    if (!from || !allowed.includes(from)) { console.log('wa: sender not allowed', from.slice(-4), 'keys', Object.keys(ev).join(','), 'msgkeys', Object.keys(msg).join(',')); continue; } // unknown senders are silently ignored
     if (msg.kapso?.direction && msg.kapso.direction !== 'inbound') continue;
 
     // idempotency: Kapso may retry deliveries
     const logId = `wa-${msg.id}`;
     const { error: dup } = await sb.from('gd_records').insert({ id: logId, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'in', text: msg.text?.body ?? `[${msg.type}]`, at: new Date().toISOString(), from } });
-    if (dup) continue;
+    if (dup) { console.log('wa: log insert failed / duplicate', dup.message); continue; }
 
     const history = await recentHistory(ws.id, from).catch(() => []);
     let reply: string;
