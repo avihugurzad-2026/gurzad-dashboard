@@ -1,6 +1,7 @@
-import type { Area, Rec } from './types';
+import type { Area, Collection, Rec } from './types';
+import { computeAlerts, type Alert } from '../../shared/alerts';
 import { store } from './store';
-import { daysUntil, monthsBack, thisMonth, today, money, relDay } from '../lib/format';
+import { daysUntil, monthsBack, thisMonth, today, money } from '../lib/format';
 
 /* ---------- parameters (dated, never hard-coded) ---------- */
 export function param(key: string, date = today()): number | undefined {
@@ -93,57 +94,10 @@ export function portfolio() {
   return { props, rented, rent, mortgage, value, occupancy: props.length ? rented.length / props.length : 0, collected, expected };
 }
 
-/* ---------- alerts ---------- */
-export type Alert = { id: string; level: 'danger' | 'warn' | 'info'; area: Area; title: string; detail: string; to: string; sort: number };
-
+/* ---------- alerts (engine shared with the push cron: shared/alerts.ts) ---------- */
+export type { Alert } from '../../shared/alerts';
 export function alerts(): Alert[] {
-  const out: Alert[] = [];
-  const push = (a: Alert) => out.push(a);
-
-  // home
-  store.all('home_tasks').filter((t) => !t.done && t.due && daysUntil(t.due) < 0).forEach((t) =>
-    push({ id: 'ht' + t.id, level: 'warn', area: 'home', title: t.title, detail: `משימת בית באיחור · ${relDay(t.due)}`, to: '/home/tasks', sort: daysUntil(t.due) }));
-  store.all('bills').filter((b) => daysUntil(b.next_due) <= 3).forEach((b) =>
-    push({ id: 'b' + b.id, level: daysUntil(b.next_due) < 0 ? 'danger' : 'warn', area: 'home', title: `${b.name} · ${money(b.amount)}`, detail: `חשבון לתשלום ${relDay(b.next_due)}`, to: '/home/bills', sort: daysUntil(b.next_due) }));
-  store.all('documents').filter((d) => d.expires && daysUntil(d.expires) <= 14).forEach((d) =>
-    push({ id: 'd' + d.id, level: daysUntil(d.expires) < 0 ? 'danger' : 'warn', area: 'home', title: d.title, detail: `פג תוקף ${relDay(d.expires)}`, to: '/home/documents', sort: daysUntil(d.expires) }));
-  const hm = homeMonth();
-  hm.byCat.filter((c) => c.budget && c.spent > c.budget).forEach((c) =>
-    push({ id: 'bud' + c.category, level: 'warn', area: 'home', title: `חריגה בתקציב · ${c.category}`, detail: `${money(c.spent)} מתוך ${money(c.budget)}`, to: '/home/budget', sort: 5 }));
-
-  // business
-  store.all('businesses').forEach((b) => {
-    const s = bizSummary(b.id);
-    s.overdue.forEach((i) => push({ id: 'io' + i.id, level: daysUntil(i.due_date) < -30 ? 'danger' : 'warn', area: 'business', title: `${b.name} · ${i.client}`, detail: `חשבונית ${i.number} באיחור ${-daysUntil(i.due_date)} ימים · ${money(gross(i))}`, to: `/business/${b.id}/invoices`, sort: daysUntil(i.due_date) }));
-    s.missingAlloc.forEach((i) => push({ id: 'ia' + i.id, level: 'danger', area: 'business', title: `${b.name} · חסר מספר הקצאה`, detail: `חשבונית ${i.number} · ${i.client}`, to: `/business/${b.id}/invoices`, sort: -100 }));
-    store.all('biz_tasks').filter((t) => t.business_id === b.id && !t.done && t.due && daysUntil(t.due) < 0).forEach((t) =>
-      push({ id: 'bt' + t.id, level: 'warn', area: 'business', title: `${b.name} · ${t.title}`, detail: `משימה באיחור · ${relDay(t.due)}`, to: `/business/${b.id}/tasks`, sort: daysUntil(t.due) }));
-  });
-
-  // investments — driven by user-defined rules
-  const rules = store.all('alert_rules').filter((r) => r.enabled);
-  const rule = (k: string) => rules.find((r) => r.kind === k);
-  store.all('properties').forEach((p) => {
-    const m = propMetrics(p);
-    const late = rule('איחור בתשלום שכירות');
-    if (late) m.late.filter((x) => -daysUntil(x.due_date) >= (late.threshold ?? 0)).forEach((x) =>
-      push({ id: 'rp' + x.id, level: 'danger', area: 'invest', title: `${p.name} · שכירות לא שולמה`, detail: `${money(x.amount - (x.paid_amount || 0))} · ${-daysUntil(x.due_date)} ימים באיחור`, to: `/invest/${p.id}/payments`, sort: daysUntil(x.due_date) }));
-    const le = rule('סיום חוזה מתקרב');
-    if (le && m.lease && daysUntil(m.lease.end) <= (le.threshold ?? 90) && daysUntil(m.lease.end) >= -30)
-      push({ id: 'le' + p.id, level: daysUntil(m.lease.end) <= 30 ? 'danger' : 'warn', area: 'invest', title: `${p.name} · חוזה מסתיים`, detail: `בעוד ${daysUntil(m.lease.end)} ימים — זמן לחדש או לחפש שוכר`, to: `/invest/${p.id}/lease`, sort: daysUntil(m.lease.end) });
-    const ins = rule('ביטוח מבנה פג');
-    if (ins && p.insurance_until && daysUntil(p.insurance_until) <= (ins.threshold ?? 30))
-      push({ id: 'in' + p.id, level: 'warn', area: 'invest', title: `${p.name} · ביטוח מבנה`, detail: `פג ${relDay(p.insurance_until)}`, to: `/invest/${p.id}`, sort: daysUntil(p.insurance_until) });
-    const ot = rule('משימה פתוחה זמן רב');
-    if (ot) store.all('prop_tasks').filter((t) => t.property_id === p.id && !t.done && t.due && -daysUntil(t.due) >= (ot.threshold ?? 7)).forEach((t) =>
-      push({ id: 'pt' + t.id, level: 'warn', area: 'invest', title: `${p.name} · ${t.title}`, detail: `פתוחה ${-daysUntil(t.due)} ימים אחרי היעד`, to: `/invest/${p.id}/tasks`, sort: daysUntil(t.due) }));
-    const vac = rule('נכס פנוי');
-    if (vac && p.status === 'פנוי')
-      push({ id: 'va' + p.id, level: 'warn', area: 'invest', title: `${p.name} · עומד ריק`, detail: 'אין שוכר פעיל', to: `/invest/${p.id}`, sort: 0 });
-  });
-
-  const rank = { danger: 0, warn: 1, info: 2 };
-  return out.sort((a, b) => rank[a.level] - rank[b.level] || a.sort - b.sort);
+  return computeAlerts((c) => store.all(c as Collection), { today: today(), money });
 }
 
 /* ---------- upcoming (next 14 days) ---------- */

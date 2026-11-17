@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Users, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft } from 'lucide-react';
+import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Users, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
@@ -10,6 +10,7 @@ import { useDerived } from '../data/store';
 import { spring, easeOut } from '../ui/kit';
 import { Sheet } from '../ui/overlay';
 import { useCrud } from '../ui/crud';
+import { dismissInstall, haptic, isIOS, promptInstall, setBadge, useInstall } from '../lib/pwa';
 
 const AREAS = [
   { to: '/', label: 'סקירה', icon: LayoutGrid, end: true },
@@ -18,6 +19,7 @@ const AREAS = [
   { to: '/invest', label: 'השקעות', icon: Building2 },
 ];
 const TOOLS = [
+  { to: '/notifications', label: 'התראות', icon: Bell },
   { to: '/whatsapp', label: 'וואטסאפ', icon: MessageCircle },
   { to: '/status', label: 'סטטוס מערכות', icon: Activity },
   { to: '/team', label: 'צוות ושיתוף', icon: Users },
@@ -37,6 +39,9 @@ export function AppShell() {
   const [quick, setQuick] = useState(false);
   const list = useDerived(() => alerts());
   const bellRef = useRef<HTMLDivElement>(null);
+  const inst = useInstall();
+  const mobile = () => matchMedia('(max-width: 767px)').matches;
+  useEffect(() => { setBadge(list.length); }, [list.length]);
 
   const txCrud = useCrud('transactions');
   const taskCrud = useCrud('home_tasks');
@@ -70,7 +75,7 @@ export function AppShell() {
           })}
         </nav>
         <div className="show-sm" style={{ fontWeight: 500, fontSize: 17 }}>
-          <span className="row" style={{ gap: 10 }}><span className="brand-mark" style={{ width: 36, height: 36, borderRadius: 12 }}><span style={{ width: 11, height: 11 }} /></span>גורזד</span>
+          <span className="row" style={{ gap: 10 }}><span className="brand-mark" style={{ width: 36, height: 36, borderRadius: 12 }}><span style={{ width: 11, height: 11 }} /></span>גורזאד</span>
         </div>
 
         <div className="topbar-actions">
@@ -82,7 +87,7 @@ export function AppShell() {
             {dark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <div ref={bellRef} style={{ position: 'relative' }}>
-            <button className="icon-btn" onClick={() => setBell((b) => !b)} aria-label={`התראות (${list.length})`} aria-expanded={bell}>
+            <button className="icon-btn" onClick={() => (mobile() ? nav('/notifications') : setBell((b) => !b))} aria-label={`התראות (${list.length})`} aria-expanded={bell}>
               <Bell size={18} />{list.length > 0 && <span className="dot-badge" />}
             </button>
             <AnimatePresence>
@@ -103,6 +108,7 @@ export function AppShell() {
                       </button>
                     ))}
                   </div>
+                  <button className="btn btn-soft btn-sm" style={{ margin: '4px 12px 12px', width: 'calc(100% - 24px)' }} onClick={() => nav('/notifications')}>כל ההתראות וההגדרות</button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -129,11 +135,21 @@ export function AppShell() {
       </aside>
 
       <main className="main">
-        <div className="page"><Outlet /></div>
+        <div className="page">
+          {!inst.standalone && !inst.dismissed && (inst.canPrompt || isIOS) && loc.pathname === '/' && (
+            <div className="install-bar show-sm-flex">
+              <span className="brand-mark" style={{ width: 40, height: 40, borderRadius: 13, flexShrink: 0 }}><span style={{ width: 12, height: 12 }} /></span>
+              <span className="li-main"><b>להתקין כאפליקציה</b><span className="li-meta">מסך מלא והתראות לטלפון</span></span>
+              <button className="btn btn-primary btn-sm" onClick={() => (inst.canPrompt ? void promptInstall() : nav('/notifications'))}>{inst.canPrompt ? 'התקנה' : 'איך?'}</button>
+              <button className="icon-btn" style={{ width: 36, height: 36, boxShadow: 'none', background: 'transparent', border: 0 }} aria-label="סגירה" onClick={dismissInstall}><X size={16} /></button>
+            </div>
+          )}
+          <Outlet />
+        </div>
       </main>
 
       {/* ---- mobile ---- */}
-      <button className="fab" aria-label="הוספה מהירה" onClick={() => setQuick(true)}><Plus size={24} /></button>
+      <button className="fab" aria-label="הוספה מהירה" onClick={() => { haptic(); setQuick(true); }}><Plus size={24} /></button>
       <nav className="tabbar" aria-label="ניווט ראשי">
         {AREAS.map((a) => {
           const on = cur === a.to;

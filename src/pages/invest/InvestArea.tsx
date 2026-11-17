@@ -32,7 +32,7 @@ export function InvestArea() {
       </PageHead>
 
       <Stagger>
-        <Card className="hero lg-5 md-12">
+        <Card className="hero hero-pink lg-5 md-12">
           <div className="spread"><span className="hero-label"><KeyRound size={16} />שכירות חודשית</span><span className="hero-chip">תפוסה {percent(d.pf.occupancy)}</span></div>
           <div className="hero-num"><DotNum value={prefs.hide ? '•••' : money(d.pf.rent).replace(/\s/g, '')} label={money(d.pf.rent)} /></div>
           <div className="hero-sub">אחרי משכנתאות: {money(d.pf.rent - d.pf.mortgage)} בחודש</div>
@@ -125,6 +125,16 @@ function Details({ p }: { p: Rec }) {
   const prefs = usePrefs();
   const m = useDerived(() => propMetrics(p), [p, prefs.hide]);
   const mine = useDerived(() => alerts().filter((a) => a.to.includes(p.id)), [p.id]);
+  const y = useDerived(() => {
+    const since = new Date(); since.setFullYear(since.getFullYear() - 1);
+    const from = since.toISOString().slice(0, 7);
+    const rows = store.all('rent_payments').filter((r) => r.property_id === p.id && (r.month || '') > from && (r.month || '') <= today().slice(0, 7));
+    const collected = rows.reduce((a, r) => a + (r.paid_amount || 0), 0);
+    const expected = rows.reduce((a, r) => a + (r.amount || 0), 0);
+    const mortgage = (p.mortgage_monthly || 0) * rows.length;
+    const lateCount = rows.filter((r) => (r.paid_amount || 0) < (r.amount || 0) && daysUntil(r.due_date) < 0).length;
+    return { collected, expected, mortgage, net: collected - mortgage, months: rows.length, lateCount };
+  }, [p, prefs.hide]);
   return (
     <Stagger>
       <Card className="lg-3 md-6 sm-6"><Kpi label="שכירות חודשית" icon={KeyRound} tone={TONE} value={p.monthly_rent ? money(p.monthly_rent) : 'אין נתונים עדיין'} /></Card>
@@ -152,6 +162,24 @@ function Details({ p }: { p: Rec }) {
           <dt>סוג</dt><dd>{p.type}</dd>
           <dt>גודל</dt><dd>{p.rooms || '—'}</dd>
         </dl>
+      </Card>
+
+      <Card className="lg-12">
+        <CardHead title="12 החודשים האחרונים" sub="מה נכנס מהנכס בפועל, ומה נשאר אחרי המשכנתא" />
+        {y.expected === 0 ? <p className="meta">אין תשלומי שכירות רשומים עדיין.</p> : (
+          <>
+            <div className="grid" style={{ gap: 12 }}>
+              <div className="lg-3 md-6 sm-6 card soft" style={{ padding: 16 }}><Kpi label="שכירות שנגבתה" value={money(y.collected)} foot={`מתוך ${money(y.expected)}`} /></div>
+              <div className="lg-3 md-6 sm-6 card soft" style={{ padding: 16 }}><Kpi label="החזרי משכנתא" value={money(y.mortgage)} foot={`${y.months} חודשים`} /></div>
+              <div className="lg-3 md-6 sm-6 card soft" style={{ padding: 16 }}><Kpi label="נטו בפועל" value={<span className={y.net < 0 ? 'neg' : ''}>{money(y.net)}</span>} foot={p.market_value ? `${(y.net / p.market_value * 100).toFixed(1)}% מהשווי` : undefined} /></div>
+              <div className="lg-3 md-6 sm-6 card soft" style={{ padding: 16 }}><Kpi label="חודשים שלא שולמו במלואם" value={String(y.lateCount)} foot={y.lateCount ? `מתוך ${y.months} חודשים` : 'הכול שולם'} /></div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div className="spread" style={{ marginBottom: 6 }}><span className="label">שיעור גבייה</span><b className="num" style={{ fontWeight: 500 }}>{percent(y.collected / y.expected)}</b></div>
+              <Meter value={y.collected} max={y.expected} tone={TONE} />
+            </div>
+          </>
+        )}
       </Card>
     </Stagger>
   );

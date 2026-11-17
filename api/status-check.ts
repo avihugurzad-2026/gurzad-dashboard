@@ -1,6 +1,7 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server';
+import { notifyEvent } from './_lib/push';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -38,7 +39,7 @@ export default handler(async (req, res) => {
     return;
   }
   const sb = sbAdmin();
-  const { data: rows } = await sb.from('gd_records').select('id, data').eq('collection', 'monitors');
+  const { data: rows } = await sb.from('gd_records').select('id, workspace_id, data').eq('collection', 'monitors');
   let n = 0;
   for (const row of rows ?? []) {
     const m = row.data as any;
@@ -46,6 +47,9 @@ export default handler(async (req, res) => {
     const r = await check(m.url);
     const history = [...(m.history ?? []).filter((h: any) => h.day !== today() || !h.ok), { day: today(), ok: r.ok, ms: r.ms }].slice(-30);
     await sb.from('gd_records').update({ data: { ...m, history, last_ok: r.ok, last_checked: new Date().toISOString() } }).eq('id', row.id);
+    // tell the phone the moment a site goes down (once, on the up → down transition)
+    if (!r.ok && m.last_ok !== false)
+      await notifyEvent(row.workspace_id, { id: 'down' + row.id, level: 'danger', area: 'business', title: `${m.name ?? m.url} לא זמין`, detail: 'בדיקת הסטטוס נכשלה. כדאי לבדוק את האתר.', to: '/status', sort: -200 }).catch((e) => console.error(e));
     n++;
   }
   res.json({ ok: true, checked: n });

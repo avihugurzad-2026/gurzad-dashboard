@@ -6,6 +6,8 @@ export default handler(async (_req, res) => {
     supabase: has('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'),
     mail: has('RESEND_API_KEY', 'MAIL_FROM'),
     owner: has('OWNER_EMAIL'),
+    push: has('VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY'),
+    cron: has('CRON_SECRET'),
     gemini: has('GEMINI_API_KEY'),
     kapso: has('KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID'),
     kapso_webhook: has('KAPSO_WEBHOOK_SECRET'),

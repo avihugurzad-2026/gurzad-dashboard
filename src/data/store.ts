@@ -68,6 +68,42 @@ export async function initStore() {
   db = await adapter.load();
   ready = true;
   emit();
+  if (!DEMO) startLiveSync();
+}
+
+/* ---------- live sync (Supabase Realtime) ----------
+   Another device or member changes a record → it appears here without a reload. RLS applies to the stream.
+   Coming back to the app after a while re-reads everything, which also covers a dropped socket. */
+let live = false;
+let lastLoad = Date.now();
+function startLiveSync() {
+  if (live || !workspaceId) return;
+  live = true;
+  const strip = (row: any): Rec => ({ ...(row.data as object), id: row.id, created_at: row.created_at });
+  supabase!.channel('gd-records')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'gd_records', filter: `workspace_id=eq.${workspaceId}` }, (p) => {
+      if (p.eventType === 'DELETE') {
+        const id = (p.old as any)?.id;
+        if (!id) return;
+        const next: DB = {};
+        let hit = false;
+        for (const [c, rows] of Object.entries(db)) { const f = rows.filter((r) => r.id !== id); hit ||= f.length !== rows.length; next[c] = f; }
+        if (hit) { db = next; emit(); }
+        return;
+      }
+      const row = p.new as any;
+      const cur = db[row.collection] ?? [];
+      const rec = strip(row);
+      const i = cur.findIndex((r) => r.id === rec.id);
+      if (i >= 0 && JSON.stringify(cur[i]) === JSON.stringify(rec)) return; // our own write echoing back
+      setCol(row.collection, i >= 0 ? cur.map((r) => (r.id === rec.id ? rec : r)) : [rec, ...cur]);
+    })
+    .subscribe();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || Date.now() - lastLoad < 60_000) return;
+    lastLoad = Date.now();
+    void adapter.load().then((fresh) => { db = fresh; emit(); }).catch(() => { /* keep what we have */ });
+  });
 }
 export const isReady = () => ready;
 

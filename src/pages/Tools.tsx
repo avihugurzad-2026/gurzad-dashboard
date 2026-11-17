@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, Bot, Check, Clock, Eye, EyeOff, Globe, KeyRound, Mail, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
+import { Activity, BellRing, Bot, Check, Clock, Eye, EyeOff, Globe, KeyRound, Mail, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
 import { ruleBasedReply } from '../../shared/agent';
 import type { Area, Rec, Role } from '../data/types';
 import { resetDemo, store, useCollection } from '../data/store';
@@ -14,7 +14,7 @@ import { Badge, Card, CardHead, Empty, Kpi, PageHead, Stagger, Toggle, easeOut }
 import { Sheet, useToast } from '../ui/overlay';
 
 /* ---------- server config probe ---------- */
-type Health = { supabase: boolean; mail?: boolean; gemini: boolean; kapso: boolean; kapso_webhook: boolean; allowed_numbers: number } | null;
+type Health = { supabase: boolean; mail?: boolean; push?: boolean; cron?: boolean; gemini: boolean; kapso: boolean; kapso_webhook: boolean; allowed_numbers: number } | null;
 function useHealth() {
   const [h, setH] = useState<Health | undefined>(undefined);
   useEffect(() => {
@@ -57,7 +57,7 @@ export function WhatsApp() {
 
   return (
     <>
-      <PageHead tag="סוכן" tone="var(--sage-500)" title="וואטסאפ" sub="כותבים לסוכן בוואטסאפ, והוא מזין ושולף מהמערכת." />
+      <PageHead tag="סוכן" tone="var(--ink-2)" title="וואטסאפ" sub="כותבים לסוכן בוואטסאפ, והוא מזין ושולף מהמערכת." />
       <Stagger>
         <Card className="flush lg-7 md-12">
           <div className="card-head" style={{ padding: '16px 20px', marginBottom: 0, borderBottom: '1px solid var(--line)' }}>
@@ -146,13 +146,13 @@ export function Status() {
 
   return (
     <>
-      <PageHead tag="ניטור" tone="var(--sage-500)" title="סטטוס אתרים ומערכות" sub={last ? `נבדק לאחרונה ב־${clock(last.toISOString())}` : 'בודק…'}>
+      <PageHead tag="ניטור" tone="var(--ink-2)" title="סטטוס אתרים ומערכות" sub={last ? `נבדק לאחרונה ב־${clock(last.toISOString())}` : 'בודק…'}>
         <button className="btn btn-ghost" onClick={run}><RefreshCw size={15} />בדיקה עכשיו</button>
         <AddButton label="בדיקה חדשה" onClick={() => crud.openNew()} />
       </PageHead>
       <Stagger>
         <Card className={`lg-4 md-12 ${down.length ? '' : 'hero dark'}`} style={down.length ? { background: 'var(--neg-bg)', borderColor: 'transparent' } : { minHeight: 0 }}>
-          <div className="row"><span className={`pulse ${down.length ? 'bad' : ''}`} style={down.length ? undefined : { background: 'var(--mint-300)' }} /><b style={{ fontWeight: 500, fontSize: 18 }}>{down.length ? `${down.length} מערכות לא זמינות` : 'כל המערכות פעילות'}</b></div>
+          <div className="row"><span className={`pulse ${down.length ? 'bad' : ''}`} style={down.length ? undefined : { background: 'var(--lime)' }} /><b style={{ fontWeight: 500, fontSize: 18 }}>{down.length ? `${down.length} מערכות לא זמינות` : 'כל המערכות פעילות'}</b></div>
           <p style={{ opacity: 0.8, marginTop: 8, fontSize: 13 }}>{withUrl.length} בדיקות פעילות{pending ? ` · ${pending} מחכות לכתובת` : ''}</p>
         </Card>
         <Card className="soft lg-8 md-12">
@@ -225,7 +225,7 @@ export function Team() {
 
   return (
     <>
-      <PageHead tag="שיתוף" tone="var(--sage-500)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו."><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></PageHead>
+      <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו."><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></PageHead>
       <Stagger>
         <Card className="flush lg-8 md-12">
           <div className="list">
@@ -282,12 +282,13 @@ export function SettingsPage() {
     { icon: Server, name: 'Supabase', desc: 'בסיס נתונים, משתמשים והרשאות, אחסון תמונות (טבלאות gd_*)', env: 'VITE_SUPABASE_URL · VITE_SUPABASE_ANON_KEY · SUPABASE_SERVICE_ROLE_KEY', ok: !DEMO },
     { icon: Mail, name: 'Resend', desc: 'שליחת קוד הכניסה (OTP) והזמנות במייל', env: 'RESEND_API_KEY · MAIL_FROM · OWNER_EMAIL', ok: !!health?.mail },
     { icon: MessageCircle, name: 'Kapso · WhatsApp', desc: 'קבלה ושליחה של הודעות וואטסאפ לסוכן', env: 'KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID · KAPSO_WEBHOOK_SECRET', ok: !!health?.kapso },
+    { icon: BellRing, name: 'התראות פוש', desc: 'התראות לטלפון מהאפליקציה המותקנת, כל בוקר ובזמן אמת כשאתר נופל', env: 'VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · CRON_SECRET', ok: !!health?.push && !!health?.cron },
     { icon: ScanLine, name: 'Gemini', desc: 'הבנת שפה חופשית לסוכן, ובהמשך סריקת קבלות', env: 'GEMINI_API_KEY', ok: !!health?.gemini },
     { icon: Plus, name: 'מערכת חשבוניות', desc: 'משיכת חשבוניות לכל עסק. נבחר ספק בהמשך', env: 'api/sync-invoices.ts', ok: false },
   ];
   return (
     <>
-      <PageHead tag="מערכת" tone="var(--sage-500)" title="הגדרות וחיבורים" />
+      <PageHead tag="מערכת" tone="var(--ink-2)" title="הגדרות וחיבורים" />
       <Stagger>
         <Card className="flush lg-8 md-12">
           <div className="card-head" style={{ padding: '20px 20px 4px', marginBottom: 0 }}><div><h2>חיבורים</h2><div className="sub">מפתחות מוגדרים כמשתני סביבה בשרת (Vercel), לא נשמרים בדפדפן</div></div></div>

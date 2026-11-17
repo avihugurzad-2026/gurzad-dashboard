@@ -1,4 +1,4 @@
-# גורזד — דשבורד בית, עסקים והשקעות (v3)
+# גורזאד — דשבורד בית, עסקים והשקעות (v3)
 
 דשבורד אישי בעברית (RTL) בשלושה תחומים: **ניהול הבית**, **ניהול עסקים** (כמה עסקים) ו**ניהול השקעות/נכסים**, עם שיתוף במייל, כניסה ב־OTP, סוכן וואטסאפ (Kapso), מסך סטטוס ונקודת חיבור ל־Gemini.
 
@@ -26,7 +26,13 @@ npm run dev        # http://localhost:5173
    | `KAPSO_API_KEY`, `KAPSO_PHONE_NUMBER_ID`, `KAPSO_WEBHOOK_SECRET`, `WHATSAPP_ALLOWED_NUMBERS` | סוכן וואטסאפ |
    | `GEMINI_API_KEY` | שפה חופשית לסוכן + סריקת קבלות |
    | `APP_URL`, `CRON_SECRET` | קישור במייל ההזמנה; בדיקות סטטוס מתוזמנות |
-3. **Kapso** — להגדיר Webhook לאירוע `whatsapp.message.received` אל `https://<domain>/api/whatsapp-webhook` עם אותו secret.
+3. **התראות פוש** — להריץ גם את `supabase/migrations/20261117000001_gd_push.sql`, ליצור זוג מפתחות (`npx web-push generate-vapid-keys`) ולהגדיר `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` ו־`CRON_SECRET`. ה־cron ‏`/api/notify` רץ כל בוקר ושולח רק מה שחדש.
+4. **Kapso** — להגדיר Webhook לאירוע `whatsapp.message.received` אל `https://<domain>/api/whatsapp-webhook` עם אותו secret.
+
+## אפליקציה בטלפון (PWA)
+- `public/manifest.webmanifest` + `public/sw.js`: התקנה למסך הבית, מסך מלא, מעטפת שעובדת בלי רשת (נתונים לא נשמרים במטמון), מספר התראות על האייקון.
+- התראות: `shared/alerts.ts` הוא מנוע ההתראות היחיד, משותף למסך ולשרת. `api/push.ts` רושם מכשירים, `api/notify.ts` (cron יומי) שולח את מה שחדש, `api/status-check.ts` שולח מיד כשאתר נופל. באייפון ובאייפד התראות עובדות רק אחרי ״הוספה למסך הבית״ (iOS 16.4 ומעלה).
+- סנכרון חי: שינוי ממכשיר אחר או מחבר צוות מופיע בלי רענון (Supabase Realtime על `gd_records`, כפוף ל־RLS).
 
 ## מבנה
 ```
@@ -37,7 +43,8 @@ src/            אפליקציית React (Vite + TS)
   pages/        Overview · home/ · business/ · invest/ · Tools (וואטסאפ, סטטוס, צוות, הגדרות) · Login
 shared/agent.ts ליבת סוכן הוואטסאפ: כלים + מנוע פקודות (משותף לדפדפן ולשרת)
 api/            פונקציות Vercel: auth/send-otp, auth/verify-otp, invite, whatsapp-webhook,
-                status-check, gemini/scan-receipt, sync-invoices (placeholder), health
+                status-check, gemini/scan-receipt, sync-invoices (placeholder), health,
+                push (רישום מכשירים), notify (cron התראות)
 supabase/       migrations
 legacy/         v2
 ```

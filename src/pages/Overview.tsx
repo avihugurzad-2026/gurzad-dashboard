@@ -23,15 +23,40 @@ export function Overview() {
     const pf = portfolio();
     const bizProfit = biz.reduce((a, x) => a + x.s.cur.profit * ((x.b.owner_pct ?? 100) / 100), 0);
     const bizProfitPrev = biz.reduce((a, x) => a + x.s.prev.profit * ((x.b.owner_pct ?? 100) / 100), 0);
-    return { hm, trend, biz, pf, bizProfit, bizProfitPrev, list: alerts(), up: upcoming(14) };
+    return { hm, trend, biz, pf, bizProfit, bizProfitPrev, list: alerts(), up: upcoming(14), up30: upcoming(30) };
   }, [businesses, prefs.hide]);
 
   const net = d.hm.income - d.hm.spent;
   const shown = d.list.slice(0, 7);
+  const urgent = d.list.filter((a) => a.level === 'danger').length;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Array.from({ length: 30 }, (_, i) => {
+    const dt = new Date(today); dt.setDate(dt.getDate() + i);
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    return d.up30.filter((u) => (u.date || '').slice(0, 10) === key).slice(0, 4);
+  });
+  const week = d.up30.filter((u) => { const t = new Date(u.date).getTime() - today.getTime(); return t >= 0 && t < 7 * 864e5; }).length;
 
   return (
     <>
       <PageHead title={<>{greeting()}, {user?.name}</>} sub={d.list.length ? `${d.list.length} דברים מחכים לך היום. כל השאר בשליטה.` : 'הכול תקין. אין שום דבר דחוף.'} />
+
+      <div className="statline">
+        <span className="stat"><b>{d.list.length + d.up.length}</b><span className="badge lime">סה״כ פתוחים</span></span>
+        <Link to="/home/tasks" className="stat"><b>{d.up.length}</b><span className="badge">ב־14 הימים הקרובים</span></Link>
+        <span className="stat"><b>{d.list.length - urgent}</b><span className="badge">למעקב</span></span>
+        <span className="stat"><b>{urgent}</b><span className="badge">דחוף</span></span>
+      </div>
+      <div className="daystrip" role="img" aria-label={`30 הימים הקרובים: ${d.up30.length} אירועים, מתוכם ${week} השבוע`}>
+        <div className="days">
+          {days.map((evs, i) => (
+            <span key={i} className={`day ${i === 0 ? 'today' : ''}`}>
+              {evs.length === 0 ? <i /> : evs.map((u) => <i key={u.id} className={u.area === 'home' ? 'ok' : u.area === 'business' ? 'p' : 'a'} />)}
+            </span>
+          ))}
+        </div>
+        <span className="trend"><CalendarDays size={15} />{week}<span>אירועים השבוע</span></span>
+      </div>
 
       <Stagger>
         {/* Hero: household cash flow this month */}

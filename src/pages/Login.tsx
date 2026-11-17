@@ -63,7 +63,7 @@ export function Login() {
     <div className="login">
       <div className="login-art hero" style={{ borderRadius: 'var(--r-xl)' }}>
         <div className="row" style={{ gap: 10, fontWeight: 500, fontSize: 18 }}>
-          <span className="brand-mark" style={{ background: 'rgb(255 255 255 / .16)' }}><span /></span>גורזד
+          <span className="brand-mark" style={{ background: 'rgb(255 255 255 / .16)' }}><span /></span>גורזאד
         </div>
         <div style={{ marginTop: 'auto' }}>
           <DotStrip values={[2, 3, 2, 4, 3, 5, 4, 3, 5, 4, 5, 3, 4, 5, 5, 4, 3, 4, 5, 4, 5, 5]} />

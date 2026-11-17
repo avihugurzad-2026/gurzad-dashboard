@@ -9,7 +9,7 @@ import { daysUntil, money, percent, shortDate } from '../../lib/format';
 import { usePrefs } from '../../lib/prefs';
 import { AddButton, useCrud } from '../../ui/crud';
 import { BarChart } from '../../ui/charts';
-import { Badge, Card, CardHead, Empty, Kpi, PageHead, PillTabs, Stagger, TabBody, spring } from '../../ui/kit';
+import { Badge, Card, CardHead, Empty, Kpi, Meter, PageHead, PillTabs, Stagger, TabBody, spring } from '../../ui/kit';
 import { RecordList, TaskList } from '../../ui/lists';
 
 const TONE = 'var(--tone-business)';
@@ -79,6 +79,29 @@ function BizOverview({ biz }: { biz: Rec }) {
   const partial = (biz.owner_pct ?? 100) < 100;
   const d = (a: number, b: number) => (b ? (a - b) / Math.abs(b) : null);
   const hasData = s.series.some((m) => m.income || m.expense);
+  const x = useDerived(() => {
+    const inv = store.all('invoices').filter((i) => i.business_id === biz.id && i.status !== 'בוטלה' && i.status !== 'טיוטה');
+    const open = inv.filter((i) => i.status !== 'שולמה');
+    const late = (i: Rec) => (i.due_date ? -daysUntil(i.due_date) : 0);
+    const bucket = (label: string, tone: string, f: (n: number) => boolean) => { const rows = open.filter((i) => f(late(i))); return { label, tone, count: rows.length, total: rows.reduce((a, i) => a + gross(i), 0) }; };
+    const aging = [
+      bucket('עוד לא הגיע המועד', 'var(--ink)', (n) => n <= 0),
+      bucket('עד 30 ימים באיחור', 'var(--warn)', (n) => n > 0 && n <= 30),
+      bucket('31 עד 60 ימים', 'var(--g-orange)', (n) => n > 30 && n <= 60),
+      bucket('מעל 60 ימים', 'var(--neg)', (n) => n > 60),
+    ];
+    const since = new Date(); since.setFullYear(since.getFullYear() - 1);
+    const from = since.toISOString().slice(0, 10);
+    const by = new Map<string, { name: string; total: number; count: number; open: number }>();
+    inv.filter((i) => (i.issue_date || '') >= from).forEach((i) => {
+      const c = by.get(i.client) ?? { name: i.client || 'ללא שם', total: 0, count: 0, open: 0 };
+      c.total += i.amount_net || 0; c.count++; if (i.status !== 'שולמה') c.open += gross(i);
+      by.set(i.client, c);
+    });
+    const all = [...by.values()].sort((a, b) => b.total - a.total);
+    const sumAll = all.reduce((a, c) => a + c.total, 0) || 1;
+    return { aging, agingMax: Math.max(1, ...aging.map((a) => a.total)), top: all.slice(0, 5).map((c) => ({ ...c, share: c.total / sumAll })) };
+  }, [biz.id, prefs.hide]);
 
   return (
     <Stagger>
@@ -117,6 +140,36 @@ function BizOverview({ biz }: { biz: Rec }) {
           </div>
         )}
         {s.mrr > 0 && <div style={{ padding: 20, borderTop: '1px solid var(--line)' }}><Kpi label="ריטיינרים פעילים (חודשי)" value={money(s.mrr * k)} foot="לפני מע״מ" /></div>}
+      </Card>
+
+      <Card className="lg-6 md-12">
+        <CardHead title="גיל החוב" sub="חשבוניות פתוחות לפי ימי איחור · כולל מע״מ" />
+        {x.aging.every((a) => !a.total) ? <p className="meta">אין חשבוניות פתוחות.</p> : (
+          <div className="stack" style={{ gap: 14 }}>
+            {x.aging.map((a) => (
+              <div key={a.label}>
+                <div className="spread" style={{ marginBottom: 6 }}><span className="label">{a.label}<span className="meta"> · {a.count} חשבוניות</span></span><b className="num" style={{ fontWeight: 500 }}>{money(a.total)}</b></div>
+                <Meter small value={a.total} max={x.agingMax} tone={a.tone} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="flush lg-6 md-12">
+        <div className="card-head" style={{ padding: '20px 20px 0', marginBottom: 6 }}><div><h2>לקוחות מובילים</h2><div className="sub">12 חודשים אחרונים · לפני מע״מ</div></div></div>
+        {x.top.length === 0 ? <Empty icon={Users} title="אין נתונים עדיין" /> : (
+          <div className="list">
+            {x.top.map((c) => (
+              <div key={c.name} className="li">
+                <span className="li-icon num" style={{ fontSize: 12, fontWeight: 500 }}>{percent(c.share)}</span>
+                <span className="li-main"><span className="li-title" style={{ display: 'block' }}>{c.name}</span><span className="li-meta">{c.count} חשבוניות{c.open ? ` · ${money(c.open)} פתוח` : ''}</span></span>
+                <span className="li-amount">{money(c.total * k)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {x.top[0]?.share > 0.4 && <p className="meta" style={{ padding: '0 20px 16px' }}>לקוח אחד אחראי ליותר מ־40% מההכנסות. כדאי לשים לב לתלות.</p>}
       </Card>
     </Stagger>
   );
