@@ -7,6 +7,7 @@ import { resetDemo, store, useCollection } from '../data/store';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { clock, shortDate, today } from '../lib/format';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
 import { AddButton, useCrud } from '../ui/crud';
@@ -24,12 +25,26 @@ function useHealth() {
   }, []);
   return h;
 }
+function useKapsoHook() {
+  const [st, setSt] = useState<{ registered: boolean; url?: string } | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { if (DEMO) { setSt(null); return; } api('/api/whatsapp-webhook?action=setup').then(setSt).catch(() => setSt(null)); }, []);
+  const register = async () => {
+    setBusy(true); setErr('');
+    try { setSt(await api('/api/whatsapp-webhook?action=setup', { method: 'POST', body: {} })); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return { st, busy, err, register };
+}
 const conn = (ok?: boolean) => ok ? <Badge kind="pos">מחובר</Badge> : <Badge>לא מחובר</Badge>;
 
 /* ================= WhatsApp ================= */
 export function WhatsApp() {
   const msgs = useCollection('wa_messages');
   const health = useHealth();
+  const hook = useKapsoHook();
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -45,7 +60,15 @@ export function WhatsApp() {
     store.add('wa_messages', { direction: 'in', text: t, at: new Date().toISOString(), sandbox: true });
     setTyping(true);
     // The sandbox runs the same agent core as the webhook, against the data on screen.
-    const reply = await ruleBasedReply(t, { all: (c) => store.all(c as any), add: (c, d) => store.add(c as any, d), update: (c, id, p) => store.update(c as any, id, p) });
+    const local = { all: (c: string) => store.all(c as any), add: (c: string, d: any) => store.add(c as any, d), update: (c: string, id: string, p: any) => store.update(c as any, id, p) };
+    let reply: string;
+    if (DEMO) reply = await ruleBasedReply(t, local);
+    else {
+      // Signed in: the real agent (Gemini + tools) on the server, with the last few turns as context.
+      const history = sorted.slice(-8).map((m: any) => ({ role: m.direction === 'in' ? 'user' : 'model', text: m.text }));
+      try { reply = (await api<{ reply: string }>('/api/whatsapp-webhook?action=chat', { body: { text: t, history } })).reply; }
+      catch { reply = await ruleBasedReply(t, local); }
+    }
     setTimeout(() => { store.add('wa_messages', { direction: 'out', text: reply, at: new Date().toISOString(), sandbox: true }); setTyping(false); }, 450);
   };
 
@@ -87,7 +110,7 @@ export function WhatsApp() {
             <CardHead title="חיבור Kapso">{health === undefined ? <span className="meta">בודק…</span> : conn(health?.kapso && health?.kapso_webhook)}</CardHead>
             <div className="list no-top inset">
               <div className="li"><span className="li-icon"><KeyRound size={18} /></span><div className="li-main"><div className="li-title">מפתח API ומספר</div><div className="li-meta ltr">KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID</div></div>{conn(health?.kapso)}</div>
-              <div className="li"><span className="li-icon"><Webhook size={18} /></span><div className="li-main"><div className="li-title">Webhook נכנס</div><div className="li-meta ltr">/api/whatsapp-webhook</div></div>{conn(health?.kapso_webhook)}</div>
+              <div className="li"><span className="li-icon"><Webhook size={18} /></span><div className="li-main"><div className="li-title">Webhook נכנס</div><div className="li-meta">{hook.err || (hook.st?.registered ? 'רשום ב-Kapso, הודעות מגיעות לסוכן' : 'עוד לא רשום ב-Kapso')}</div></div>{hook.st?.registered ? conn(true) : hook.st ? <button className="btn btn-primary" style={{ height: 36, padding: '0 14px' }} disabled={hook.busy} onClick={hook.register}>{hook.busy ? 'רושם…' : 'חבר'}</button> : conn(false)}</div>
               <div className="li"><span className="li-icon"><ShieldCheck size={18} /></span><div className="li-main"><div className="li-title">מספרים מורשים</div><div className="li-meta">רק מספרים ברשימה יכולים לדבר עם הסוכן</div></div><Badge>{health?.allowed_numbers ?? 0}</Badge></div>
               <div className="li"><span className="li-icon"><Bot size={18} /></span><div className="li-main"><div className="li-title">מוח הסוכן (Gemini)</div><div className="li-meta">בלי מפתח הסוכן עובד לפי פקודות קבועות</div></div>{conn(health?.gemini)}</div>
             </div>

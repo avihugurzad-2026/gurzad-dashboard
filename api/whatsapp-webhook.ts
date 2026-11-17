@@ -64,8 +64,33 @@ async function setup(req: VercelRequest, res: any) {
   res.json({ registered: !!mine, url });
 }
 
+/** Last few WhatsApp turns, oldest first, so the agent can follow a conversation ("כן", "תוסיף גם…"). */
+async function recentHistory(wsId: string, phone: string) {
+  const { data } = await sbAdmin().from('gd_records').select('data').eq('workspace_id', wsId).eq('collection', 'wa_messages').order('created_at', { ascending: false }).limit(12);
+  return (data ?? []).map((r) => r.data as any)
+    .filter((d) => d.from === phone || d.to === phone)
+    .slice(0, 8).reverse()
+    .map((d) => ({ role: d.direction === 'in' ? 'user' as const : 'model' as const, text: String(d.text || '') }));
+}
+
+/** Signed-in members: the in-app chat talks to the same Gemini agent (POST ?action=chat {text, history}). */
+async function chat(req: VercelRequest, res: any) {
+  if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
+  const me = await requireMember(req);
+  const body = JSON.parse((await rawBody(req)).toString('utf8') || '{}');
+  const text = String(body.text || '').slice(0, 2000);
+  if (!text) throw new HttpError(400, 'הודעה ריקה');
+  const history = (Array.isArray(body.history) ? body.history : []).slice(-8).map((h: any) => ({ role: h.role === 'model' ? 'model' as const : 'user' as const, text: String(h.text || '').slice(0, 2000) }));
+  const db = recordsData(me.workspaceId);
+  let reply: string;
+  try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(text, db, history) : await ruleBasedReply(text, db); }
+  catch (e) { console.error(e); reply = await ruleBasedReply(text, db).catch(() => 'משהו השתבש, נסה שוב בעוד רגע.'); }
+  res.json({ reply, ai: has('GEMINI_API_KEY') });
+}
+
 export default handler(async (req, res) => {
   if (req.query?.action === 'setup') return setup(req, res);
+  if (req.query?.action === 'chat') return chat(req, res);
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   if (!has('KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID') || !webhookSecret()) throw new HttpError(503, 'Kapso לא מוגדר');
 
@@ -94,11 +119,12 @@ export default handler(async (req, res) => {
     const { error: dup } = await sb.from('gd_records').insert({ id: logId, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'in', text: msg.text?.body ?? `[${msg.type}]`, at: new Date().toISOString(), from } });
     if (dup) continue;
 
+    const history = await recentHistory(ws.id, from).catch(() => []);
     let reply: string;
     if (msg.type !== 'text' || !msg.text?.body) {
       reply = 'כרגע אני מבין רק הודעות טקסט. סריקת קבלות מתמונה תתווסף בקרוב.';
     } else {
-      try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(msg.text.body, db) : await ruleBasedReply(msg.text.body, db); }
+      try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(msg.text.body, db, history.slice(0, -1)) : await ruleBasedReply(msg.text.body, db); }
       catch (e) { console.error(e); reply = await ruleBasedReply(msg.text.body, db).catch(() => 'משהו השתבש, נסה שוב בעוד רגע.'); }
     }
     await sendWhatsApp(from, reply);

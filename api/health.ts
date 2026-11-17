@@ -10,7 +10,7 @@ export default handler(async (_req, res) => {
     cron: has('CRON_SECRET'),
     gemini: has('GEMINI_API_KEY'),
     kapso: has('KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID'),
-    kapso_webhook: has('KAPSO_WEBHOOK_SECRET'),
+    kapso_webhook: has('KAPSO_WEBHOOK_SECRET') || has('SUPABASE_SERVICE_ROLE_KEY'),
     allowed_numbers: env('WHATSAPP_ALLOWED_NUMBERS').split(',').filter(Boolean).length,
   });
 });

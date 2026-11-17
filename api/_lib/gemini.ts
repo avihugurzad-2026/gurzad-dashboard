@@ -11,8 +11,10 @@ async function call(body: unknown) {
 }
 
 /** Free-text → tool calls → Hebrew reply. Max 4 tool rounds. */
-export async function geminiAgentReply(text: string, db: AgentData): Promise<string> {
-  const contents: any[] = [{ role: 'user', parts: [{ text }] }];
+export async function geminiAgentReply(text: string, db: AgentData, history: { role: 'user' | 'model'; text: string }[] = []): Promise<string> {
+  const contents: any[] = [...history.filter((h) => h.text).map((h) => ({ role: h.role, parts: [{ text: h.text }] })), { role: 'user', parts: [{ text }] }];
+  // Gemini requires the conversation to start with a user turn.
+  while (contents.length > 1 && contents[0].role !== 'user') contents.shift();
   for (let round = 0; round < 4; round++) {
     const out = await call({
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
