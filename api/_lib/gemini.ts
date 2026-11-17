@@ -2,7 +2,7 @@ import { env } from './server.js';
 import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent.js';
 
 const endpoint = () =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${env('GEMINI_MODEL') || 'gemini-2.5-flash'}:generateContent`;
+  `https://generativelanguage.googleapis.com/v1beta/models/${env('GEMINI_MODEL') || 'gemini-3.8-flash'}:generateContent`;
 
 async function call(body: unknown) {
   const r = await fetch(endpoint(), { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
