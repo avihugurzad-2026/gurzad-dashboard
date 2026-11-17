@@ -4,6 +4,7 @@ import type { Collection, Rec } from '../data/types';
 import { SCHEMAS } from '../data/schemas';
 import { store } from '../data/store';
 import { RecordSheet, useToast } from './overlay';
+import { notifyAssigned } from '../lib/reminders';
 
 /** One hook = add / edit / delete-with-undo sheet for a collection. `scope` is merged into new records (e.g. business_id). */
 export function useCrud(collection: Collection, scope?: Record<string, any>, opts?: { hide?: string[]; preset?: Record<string, any> }) {
@@ -28,8 +29,8 @@ export function useCrud(collection: Collection, scope?: Record<string, any>, opt
       fields={fields}
       initial={state.rec ?? { ...opts?.preset, ...state.preset }}
       onSave={(data) => {
-        if (state.rec) { store.update(collection, state.rec.id, data); toast('נשמר'); }
-        else { store.add(collection, { ...JSON.parse(scopeKey), ...data }); toast(`${schema.singular} נוסף/ה`); }
+        if (state.rec) { store.update(collection, state.rec.id, data); toast('נשמר'); notifyAssigned(collection, state.rec.id, data, state.rec, toast); }
+        else { const rec = store.add(collection, { ...JSON.parse(scopeKey), ...data }); toast(`${schema.singular} נוסף/ה`); notifyAssigned(collection, rec.id, data, null, toast); }
       }}
       onDelete={state.rec ? () => remove(state.rec!) : undefined}
     />

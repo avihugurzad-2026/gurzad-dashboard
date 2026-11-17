@@ -1,4 +1,5 @@
-import { useState, type ReactNode, type FormEvent } from 'react';
+import { useState, type CSSProperties, type ReactNode, type FormEvent } from 'react';
+import { catVar, categoryOf } from '../../shared/planner';
 import { AnimatePresence, motion } from 'motion/react';
 import { ListChecks, Pencil, Plus, Repeat, Trash2, User, type LucideIcon } from 'lucide-react';
 import type { Collection, Rec } from '../data/types';
@@ -29,22 +30,24 @@ export function QuickAdd({ placeholder, onAdd }: { placeholder: string; onAdd: (
 /* ---------- Tasks ---------- */
 const NEXT: Record<string, number> = { 'כל יום': 1, 'כל שבוע': 7, 'כל חודש': 30 };
 
+/** Mark a task done. A recurring task rolls its due date forward instead of closing. */
+export function toggleTask(collection: Collection, t: Rec, done: boolean, toast: (text: string, undo?: () => void) => void) {
+  if (done && NEXT[t.repeat]) {
+    const prev = t.due;
+    const base = t.due && daysUntil(t.due) > 0 ? t.due : today();
+    store.update(collection, t.id, { due: addDays(base, NEXT[t.repeat]) });
+    toast(`בוצע · חוזר ${relDay(addDays(base, NEXT[t.repeat]))}`, () => store.update(collection, t.id, { due: prev }));
+    return;
+  }
+  store.update(collection, t.id, { done });
+}
+
 export function TaskList({ collection, rows, scope, hideDone, emptyText }: { collection: Collection; rows: Rec[]; scope?: Record<string, any>; hideDone?: boolean; emptyText?: string }) {
   const crud = useCrud(collection, scope);
   const toast = useToast();
   const sorted = [...rows].filter((t) => !hideDone || !t.done).sort((a, b) => Number(a.done) - Number(b.done) || (a.due || '9') .localeCompare(b.due || '9'));
 
-  const toggle = (t: Rec, done: boolean) => {
-    // Recurring task: completing it rolls the due date forward instead of closing it.
-    if (done && NEXT[t.repeat]) {
-      const prev = t.due;
-      const base = t.due && daysUntil(t.due) > 0 ? t.due : today();
-      store.update(collection, t.id, { due: addDays(base, NEXT[t.repeat]) });
-      toast(`בוצע · חוזר ${relDay(addDays(base, NEXT[t.repeat]))}`, () => store.update(collection, t.id, { due: prev }));
-      return;
-    }
-    store.update(collection, t.id, { done });
-  };
+  const toggle = (t: Rec, done: boolean) => toggleTask(collection, t, done, toast);
 
   return (
     <>
@@ -61,7 +64,8 @@ export function TaskList({ collection, rows, scope, hideDone, emptyText }: { col
                     <div className="li-main">
                       <div className={`li-title ${t.done ? 'done' : ''}`}>{t.title}</div>
                       <div className="li-meta">
-                        {t.due && <span className={late ? 'neg' : ''}>{relDay(t.due)}</span>}
+                        <span className="cat-dot" style={{ '--cat': catVar(categoryOf(collection, t)) } as CSSProperties} aria-hidden />
+                        {t.due && <span className={late ? 'neg' : ''}>{relDay(t.due)}{t.time ? ` · ${t.time}` : ''}</span>}
                         {t.assignee && <span className="row" style={{ gap: 3 }}><User size={12} />{t.assignee}</span>}
                         {t.vendor && <span>{t.vendor}</span>}
                         {t.repeat && t.repeat !== 'לא חוזר' && <span className="row" style={{ gap: 3 }}><Repeat size={12} />{t.repeat}</span>}

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { X, Trash2 } from 'lucide-react';
 import type { FieldDef } from '../data/types';
+import { useCollection } from '../data/store';
 import { easeOut } from './kit';
 
 /* ================= Toasts ================= */
@@ -123,6 +124,7 @@ export function RecordSheet({ open, onClose, title, fields, initial, onSave, onD
 }) {
   const [v, setV] = useState<Record<string, any>>({});
   const [tried, setTried] = useState(false);
+  const members = useCollection('members');
   useEffect(() => { if (open) { setV({ ...defaultsFor(fields), ...(initial ?? {}) }); setTried(false); } }, [open, initial, fields]);
 
   const set = (k: string, val: any) => setV((x) => ({ ...x, [k]: val }));
@@ -133,7 +135,11 @@ export function RecordSheet({ open, onClose, title, fields, initial, onSave, onD
     setTried(true);
     if (fields.some(missing)) return;
     const out: Record<string, any> = {};
-    fields.forEach((f) => { out[f.key] = f.type === 'money' || f.type === 'number' ? (v[f.key] === '' ? null : Number(v[f.key])) : v[f.key]; });
+    fields.forEach((f) => {
+      out[f.key] = f.type === 'money' || f.type === 'number' ? (v[f.key] === '' ? null : Number(v[f.key])) : v[f.key];
+      // a member field also stores the address the reminders go to
+      if (f.type === 'member') out[`${f.key}_email`] = members.find((m) => m.name === v[f.key])?.email ?? '';
+    });
     onSave(out);
     onClose();
   };
@@ -157,12 +163,18 @@ export function RecordSheet({ open, onClose, title, fields, initial, onSave, onD
                   <span>{f.label}{f.required && <span className="neg" aria-hidden> *</span>}</span>
                   {f.type === 'select' ? (
                     <select className="select" {...common}>{!f.required && !f.default && <option value="">—</option>}{f.options!.map((o) => <option key={o}>{o}</option>)}</select>
+                  ) : f.type === 'member' ? (
+                    <select className="select" {...common}>
+                      <option value="">ללא</option>
+                      {members.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      {v[f.key] && !members.some((m) => m.name === v[f.key]) && <option value={v[f.key]}>{v[f.key]}</option>}
+                    </select>
                   ) : f.type === 'textarea' ? (
                     <textarea className="textarea" dir="auto" {...common} />
                   ) : f.type === 'money' ? (
                     <div className="money-input"><input className="input num" type="number" inputMode="decimal" min="0" step="any" dir="ltr" style={{ textAlign: 'right' }} {...common} /></div>
                   ) : (
-                    <input className="input" dir={['date', 'month', 'number', 'email', 'tel', 'url'].includes(f.type) ? 'ltr' : 'auto'} style={['email', 'tel', 'url', 'number'].includes(f.type) ? { textAlign: 'right' } : undefined}
+                    <input className="input" dir={['date', 'time', 'month', 'number', 'email', 'tel', 'url'].includes(f.type) ? 'ltr' : 'auto'} style={['email', 'tel', 'url', 'number'].includes(f.type) ? { textAlign: 'right' } : undefined}
                       type={f.type === 'text' ? 'text' : f.type} inputMode={f.type === 'number' ? 'numeric' : undefined} {...common} />
                   )}
                   {bad ? <small className="neg">שדה חובה</small> : f.hint && <small>{f.hint}</small>}

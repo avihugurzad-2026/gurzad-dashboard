@@ -55,7 +55,7 @@ export function Overview() {
             </span>
           ))}
         </div>
-        <span className="trend"><CalendarDays size={15} />{week}<span>אירועים השבוע</span></span>
+        <Link to="/planner/month" className="trend" style={{ color: 'inherit' }}><CalendarDays size={15} />{week}<span>אירועים השבוע</span></Link>
       </div>
 
       <Stagger>
@@ -124,7 +124,7 @@ export function Overview() {
         <Card className="flush lg-12">
           <div className="card-head" style={{ padding: '20px 20px 0', marginBottom: 8 }}>
             <div><h2>14 הימים הקרובים</h2><div className="sub">תשלומים, גבייה ומשימות</div></div>
-            <CalendarDays size={18} className="muted" />
+            <Link className="card-link" to="/planner/week">ליומן<ChevronLeft size={14} /></Link>
           </div>
           {d.up.length === 0 ? <Empty icon={CalendarDays} title="לוח פנוי" text="אין מועדים בשבועיים הקרובים." /> : (
             <div className="list">

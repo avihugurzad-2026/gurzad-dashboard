@@ -72,7 +72,7 @@ export async function notifyWorkspace(workspaceId: string) {
   const fresh = all.filter((a) => !seen.has(a.id) || (a.level === 'danger' && Date.now() - seen.get(a.id)! > 3 * 864e5 - 36e5));
 
   // forget alerts that were resolved, so they notify again if they come back
-  const gone = [...seen.keys()].filter((id) => !all.some((a) => a.id === id));
+  const gone = [...seen.keys()].filter((id) => !id.includes(':') && !all.some((a) => a.id === id)); // ids with ':' are email reminders
   if (gone.length) await sb.from('gd_notify_log').delete().eq('workspace_id', workspaceId).in('alert_id', gone);
   if (!fresh.length) return { alerts: all.length, fresh: 0, sent: 0 };
 

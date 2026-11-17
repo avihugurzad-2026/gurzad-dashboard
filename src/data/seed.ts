@@ -57,12 +57,12 @@ export function buildSeed(): Record<string, Rec[]> {
 
   return {
     home_tasks: [
-      r({ title: 'להזמין טכנאי למזגן בסלון', due: d(1), assignee: 'אביהו', repeat: 'לא חוזר', priority: 'גבוהה', done: false }),
-      r({ title: 'לחדש ביטוח דירה', due: d(6), assignee: 'אביהו', repeat: 'לא חוזר', priority: 'רגילה', done: false }),
-      r({ title: 'ניקיון מקרר', due: d(0), assignee: '', repeat: 'כל שבוע', priority: 'נמוכה', done: false }),
-      r({ title: 'להוציא זבל מיחזור', due: d(0), assignee: '', repeat: 'כל שבוע', priority: 'רגילה', done: true }),
-      r({ title: 'תשלום ועד בית', due: d(-1), assignee: 'אביהו', repeat: 'כל חודש', priority: 'רגילה', done: false }),
-      r({ title: 'לקבוע תור לרופא שיניים', due: d(10), assignee: '', repeat: 'לא חוזר', priority: 'רגילה', done: false }),
+      r({ title: 'להזמין טכנאי למזגן בסלון', due: d(1), time: '09:00', category: 'בית', assignee: 'אביהו', assignee_email: 'owner@example.com', repeat: 'לא חוזר', priority: 'גבוהה', done: false }),
+      r({ title: 'לחדש ביטוח דירה', due: d(6), category: 'כספים', assignee: 'אביהו', assignee_email: 'owner@example.com', repeat: 'לא חוזר', priority: 'רגילה', done: false }),
+      r({ title: 'ניקיון מקרר', due: d(0), category: 'בית', assignee: 'נועה', assignee_email: 'noa@example.com', repeat: 'כל שבוע', priority: 'נמוכה', done: false }),
+      r({ title: 'להוציא זבל מיחזור', due: d(0), time: '20:00', category: 'בית', assignee: '', repeat: 'כל שבוע', priority: 'רגילה', done: true }),
+      r({ title: 'תשלום ועד בית', due: d(-1), category: 'כספים', assignee: 'אביהו', assignee_email: 'owner@example.com', repeat: 'כל חודש', priority: 'רגילה', done: false }),
+      r({ title: 'לקבוע תור לרופא שיניים', due: d(3), time: '16:30', category: 'בריאות', assignee: 'נועה', assignee_email: 'noa@example.com', repeat: 'לא חוזר', priority: 'רגילה', done: false }),
     ],
     shopping: [
       ['חלב 3%', '2', 'חלב וביצים'], ['ביצים L', '12', 'חלב וביצים'], ['עגבניות', '1 ק״ג', 'ירקות ופירות'], ['מלפפונים', '1 ק״ג', 'ירקות ופירות'],
@@ -103,11 +103,11 @@ export function buildSeed(): Record<string, Rec[]> {
     clients: clientsA.map((name, i) => r({ business_id: biz1, name, contact: '', phone: '', monthly_fee: [3500, 2200, 4800, 1800, 2600, 3100][i], status: i < 5 ? 'פעיל' : 'ליד' })),
     biz_expenses: bizExp,
     biz_tasks: [
-      r({ business_id: biz1, title: 'להנפיק חשבוניות ריטיינר לחודש', due: d(2), assignee: 'אביהו', priority: 'גבוהה', done: false }),
-      r({ business_id: biz1, title: 'הצעת מחיר לקמפיין חורף', due: d(4), assignee: '', priority: 'רגילה', done: false }),
-      r({ business_id: biz1, title: 'לבקש מספר הקצאה לחשבונית 2391', due: d(-1), assignee: 'אביהו', priority: 'גבוהה', done: false }),
-      r({ business_id: biz2, title: 'הזמנת מוצרים לחודש הבא', due: d(5), assignee: '', priority: 'רגילה', done: false }),
-      r({ business_id: biz2, title: 'פגישת שותפים — דוח רבעוני', due: d(9), assignee: 'אביהו', priority: 'רגילה', done: false }),
+      r({ business_id: biz1, title: 'להנפיק חשבוניות ריטיינר לחודש', due: d(2), time: '10:00', category: 'כספים', assignee: 'אביהו', assignee_email: 'owner@example.com', priority: 'גבוהה', done: false }),
+      r({ business_id: biz1, title: 'הצעת מחיר לקמפיין חורף', due: d(1), time: '14:00', category: 'לקוחות', assignee: '', priority: 'רגילה', done: false }),
+      r({ business_id: biz1, title: 'לבקש מספר הקצאה לחשבונית 2391', due: d(-1), category: 'כספים', assignee: 'אביהו', assignee_email: 'owner@example.com', priority: 'גבוהה', done: false }),
+      r({ business_id: biz2, title: 'הזמנת מוצרים לחודש הבא', due: d(5), category: 'עבודה', assignee: '', priority: 'רגילה', done: false }),
+      r({ business_id: biz2, title: 'פגישת שותפים — דוח רבעוני', due: d(9), time: '11:00', category: 'עבודה', assignee: 'אביהו', assignee_email: 'owner@example.com', priority: 'רגילה', done: false }),
     ],
     integrations: [
       r({ business_id: biz1, name: 'מערכת חשבוניות', kind: 'חשבוניות', status: 'לא מחובר', note: 'נחבר דרך API של ספק החשבוניות כשתבחר אותו' }),
@@ -159,6 +159,15 @@ export function buildSeed(): Record<string, Rec[]> {
     ],
     members: [
       r({ email: 'owner@example.com', name: 'אביהו', role: 'owner', areas: ['home', 'business', 'invest'], status: 'active' }),
+      r({ email: 'noa@example.com', name: 'נועה', role: 'editor', areas: ['home'], status: 'active' }),
+    ],
+    events: [
+      r({ title: 'פגישה עם סטודיו גלים', date: d(0), time: '12:30', end_time: '13:30', category: 'לקוחות', assignee: 'אביהו', assignee_email: 'owner@example.com', place: 'זום' }),
+      r({ title: 'אסיפת הורים', date: d(2), time: '18:00', end_time: '19:00', category: 'משפחה', assignee: 'נועה', assignee_email: 'noa@example.com', place: 'בית הספר' }),
+      r({ title: 'טיפול 10,000 לרכב', date: d(4), time: '08:00', category: 'סידורים', assignee: 'אביהו', assignee_email: 'owner@example.com', place: 'מוסך' }),
+      r({ title: 'ארוחת שישי אצל ההורים', date: d(5), time: '19:30', category: 'משפחה', assignee: '', place: '' }),
+      r({ title: 'אימון', date: d(1), time: '07:00', end_time: '08:00', category: 'בריאות', assignee: 'אביהו', assignee_email: 'owner@example.com', place: '' }),
+      r({ title: 'סיור בנכס בבאר שבע', date: d(8), time: '10:00', category: 'נכסים', assignee: 'אביהו', assignee_email: 'owner@example.com', place: 'באר שבע' }),
     ],
     parameters: [
       r({ key: 'vat_rate', effective_from: '2025-01-01', value: 0.18 }),

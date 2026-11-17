@@ -107,6 +107,7 @@ export function upcoming(days = 14): Upcoming[] {
   const out: Upcoming[] = [];
   store.all('bills').filter((b) => within(b.next_due)).forEach((b) => out.push({ id: 'b' + b.id, date: b.next_due, title: b.name, meta: 'חשבון', area: 'home', amount: b.amount, to: '/home/bills' }));
   store.all('home_tasks').filter((t) => !t.done && within(t.due)).forEach((t) => out.push({ id: 't' + t.id, date: t.due, title: t.title, meta: 'משימת בית', area: 'home', to: '/home/tasks' }));
+  store.all('events').filter((e) => within(e.date)).forEach((e) => out.push({ id: 'e' + e.id, date: e.date, title: e.title, meta: e.time ? `אירוע · ${e.time}` : 'אירוע', area: 'home', to: '/planner/week' }));
   store.all('rent_payments').filter((x) => within(x.due_date) && (x.paid_amount || 0) < x.amount).forEach((x) => {
     const p = store.get('properties', x.property_id);
     out.push({ id: 'r' + x.id, date: x.due_date, title: p?.name ?? 'נכס', meta: 'שכירות צפויה', area: 'invest', amount: x.amount, to: `/invest/${x.property_id}/payments` });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Users, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X } from 'lucide-react';
+import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Users, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
@@ -18,6 +18,7 @@ const AREAS = [
   { to: '/home', label: 'בית', icon: Home },
   { to: '/business', label: 'עסקים', icon: Briefcase },
   { to: '/invest', label: 'השקעות', icon: Building2 },
+  { to: '/planner', label: 'יומן', icon: CalendarDays },
 ];
 const TOOLS = [
   { to: '/notifications', label: 'התראות', icon: Bell },
@@ -48,6 +49,7 @@ export function AppShell() {
   const txCrud = useCrud('transactions');
   const taskCrud = useCrud('home_tasks');
   const shopCrud = useCrud('shopping');
+  const eventCrud = useCrud('events');
 
   useEffect(() => { setBell(false); setMore(false); setQuick(false); window.scrollTo(0, 0); }, [loc.pathname]);
   useEffect(() => {
@@ -203,6 +205,7 @@ export function AppShell() {
               { label: 'הוצאה', icon: Receipt, run: () => txCrud.openNew({ kind: 'הוצאה' }) },
               { label: 'פריט לקניות', icon: ShoppingBasket, run: () => shopCrud.openNew() },
               { label: 'משימת בית', icon: ListChecks, run: () => taskCrud.openNew() },
+              { label: 'אירוע ביומן', icon: CalendarDays, run: () => eventCrud.openNew() },
               { label: 'הכנסה', icon: Plus, run: () => txCrud.openNew({ kind: 'הכנסה', category: 'משכורת' }) },
             ].map((q) => (
               <button key={q.label} className="card soft clickable" style={{ gridColumn: 'span 1', textAlign: 'start', display: 'flex', flexDirection: 'column', gap: 14 }}
@@ -214,7 +217,7 @@ export function AppShell() {
           </div>
         </div>
       </Sheet>
-      {txCrud.sheet}{taskCrud.sheet}{shopCrud.sheet}
+      {txCrud.sheet}{taskCrud.sheet}{shopCrud.sheet}{eventCrud.sheet}
     </div>
   );
 }

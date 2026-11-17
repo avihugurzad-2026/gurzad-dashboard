@@ -1,11 +1,15 @@
 import type { Collection, FieldDef } from './types';
 import { today, thisMonth } from '../lib/format';
+import { CATEGORY_NAMES } from '../../shared/planner';
 
 export const HOME_CATEGORIES = ['סופר ומזון', 'דיור ומשכנתא', 'חשמל מים וגז', 'תחבורה ורכב', 'ילדים וחינוך', 'בריאות', 'בילויים ומסעדות', 'ביגוד', 'תקשורת ומנויים', 'ביטוחים', 'חיסכון והשקעה', 'שונות'];
 export const INCOME_CATEGORIES = ['משכורת', 'משיכה מהעסק', 'שכירות', 'החזרים', 'אחר'];
 export const SHOP_DEPTS = ['ירקות ופירות', 'חלב וביצים', 'מאפייה', 'בשר ודגים', 'יבשים ושימורים', 'קפואים', 'ניקיון', 'פארם', 'אחר'];
 export const PAY_METHODS = ['אשראי', 'הוראת קבע', 'העברה בנקאית', 'מזומן', 'ביט / פייבוקס'];
 
+const category = (def: string): FieldDef => ({ key: 'category', label: 'סיווג', type: 'select', options: CATEGORY_NAMES, default: def, half: true, hint: 'קובע את הצבע בלוחות' });
+const time: FieldDef = { key: 'time', label: 'שעה', type: 'time', half: true };
+const assignee: FieldDef = { key: 'assignee', label: 'אחראי', type: 'member', half: true, hint: 'מקבל מייל כשמצוות, ותזכורת יום לפני' };
 const priority: FieldDef = { key: 'priority', label: 'עדיפות', type: 'select', options: ['רגילה', 'גבוהה', 'נמוכה'], default: 'רגילה', half: true };
 
 export const SCHEMAS: Partial<Record<Collection, { title: string; singular: string; fields: FieldDef[] }>> = {
@@ -14,7 +18,9 @@ export const SCHEMAS: Partial<Record<Collection, { title: string; singular: stri
     fields: [
       { key: 'title', label: 'מה צריך לעשות', type: 'text', required: true },
       { key: 'due', label: 'עד מתי', type: 'date', half: true },
-      { key: 'assignee', label: 'אחראי', type: 'text', half: true, placeholder: 'מי?' },
+      time,
+      category('בית'),
+      assignee,
       { key: 'repeat', label: 'חוזר', type: 'select', options: ['לא חוזר', 'כל יום', 'כל שבוע', 'כל חודש'], default: 'לא חוזר', half: true },
       priority,
       { key: 'done', label: 'בוצע', type: 'bool', default: false },
@@ -128,7 +134,9 @@ export const SCHEMAS: Partial<Record<Collection, { title: string; singular: stri
     fields: [
       { key: 'title', label: 'משימה', type: 'text', required: true },
       { key: 'due', label: 'עד מתי', type: 'date', half: true },
-      { key: 'assignee', label: 'אחראי', type: 'text', half: true },
+      time,
+      category('עבודה'),
+      assignee,
       priority,
       { key: 'done', label: 'בוצע', type: 'bool', default: false },
     ],
@@ -195,10 +203,26 @@ export const SCHEMAS: Partial<Record<Collection, { title: string; singular: stri
     fields: [
       { key: 'title', label: 'משימה', type: 'text', required: true },
       { key: 'due', label: 'עד מתי', type: 'date', half: true },
+      time,
+      category('נכסים'),
+      assignee,
       { key: 'vendor', label: 'בעל מקצוע', type: 'text', half: true },
       { key: 'cost', label: 'עלות משוערת', type: 'money', half: true },
       priority,
       { key: 'done', label: 'בוצע', type: 'bool', default: false },
+    ],
+  },
+  events: {
+    title: 'אירועים', singular: 'אירוע',
+    fields: [
+      { key: 'title', label: 'מה קורה', type: 'text', required: true },
+      { key: 'date', label: 'תאריך', type: 'date', required: true, default: () => today(), half: true },
+      time,
+      { key: 'end_time', label: 'עד שעה', type: 'time', half: true },
+      category('סידורים'),
+      assignee,
+      { key: 'place', label: 'מקום', type: 'text', half: true },
+      { key: 'note', label: 'הערה', type: 'textarea' },
     ],
   },
   alert_rules: {

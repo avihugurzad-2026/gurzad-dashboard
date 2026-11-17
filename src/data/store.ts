@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { uid } from '../lib/format';
 
 type DB = Record<string, Rec[]>;
-const KEY = 'gurzad-v3-demo';
+const KEY = 'gurzad-v3.3-demo';
 const EMPTY: Rec[] = [];
 
 let db: DB = {};

@@ -1,59 +1,77 @@
 /* Gurzad v3 — design tokens. Palette swap = edit this file only.
    Source: docs/v3/DESIGN-SYSTEM.md */
 :root {
-  /* Gurzad v3.1 — clean neutral system: soft gray ground, white pill cards, lime accent, mesh gradients */
-  --lime: #DDF247;
-  --on-lime: #1B1B1D;
-  --chrome: #1B1B1D;
+  /* Gurzad v3.3 — slate and pale-lime gradients on light grey, black type, frosted glass on floating layers.
+     Each area and each task category has its own colour so the eye can sort a board at a glance. */
+  --lime: #EEF27A;
+  --lime-soft: #F6F8B4;
+  --on-lime: #17181A;
+  --chrome: #17181A;
   --on-chrome: #F5F5F6;
-  --g-green: #2FA83F;
-  --g-orange: #FF7417;
-  --g-pink: #FF3D83;
+  --slate: #5F8A99;
+  --slate-soft: #A9C0C6;
+  --cobalt: #3340D6;
+  /* legacy names kept for charts: green = ok, orange = amber, pink = violet */
+  --g-green: #2F9E8F;
+  --g-orange: #E0A030;
+  --g-pink: #8B7FE8;
 
   /* Semantic */
-  --bg: #E7E7E9;
-  --surface: #F5F5F6;
-  --surface-2: #EDEDEF;
-  --surface-3: #E1E1E4;
+  --bg: #ECEDEF;
+  --bg-wash: linear-gradient(180deg, #C5D5DB 0, #DDE5E8 220px, #ECEDEF 520px);
+  --surface: #F8F8F9;
+  --surface-2: #F0F0F2;
+  --surface-3: #E3E4E7;
   --card-edge: rgb(255 255 255 / .9);
-  --line: #DCDCDF;
-  --line-strong: #C6C6CB;
-  --ink: #1B1B1D;
-  --ink-2: #55555B;
-  --ink-3: #74747B;
-  --accent: #1B1B1D;
+  --line: #DCDDE0;
+  --line-strong: #C4C6CB;
+  --ink: #17181A;
+  --ink-2: #53555B;
+  --ink-3: #74767D;
+  --accent: #17181A;
   --on-accent: #FFFFFF;
-  --link: #1B1B1D;
-  --focus: #1B1B1D;
-  --pos: #1B7F37;
-  --pos-bg: #DFF3D6;
-  --warn: #AD4E06;
-  --warn-bg: #FCEBD3;
+  --link: #17181A;
+  --focus: #17181A;
+  --pos: #1B7F5A;
+  --pos-bg: #DDF1E6;
+  --warn: #9A5B00;
+  --warn-bg: #FBEBCB;
   --neg: #CF2A1D;
   --neg-bg: #FBE3E0;
-  --chart-1: #1B1B1D;
-  --chart-2: #FF7417;
-  --chart-3: #C6C6CB;
-  --hatch: #C6C6CB;
+  --chart-1: #17181A;
+  --chart-2: #5F8A99;
+  --chart-3: #C4C6CB;
+  --hatch: #C4C6CB;
 
   /* Area tones */
-  --tone-home: #1B7F37;
-  --tone-business: #C2500A;
-  --tone-invest: #C9246A;
+  --tone-home: #1F8A7A;
+  --tone-business: #3340D6;
+  --tone-invest: #7A5AE0;
 
-  /* Mesh gradients */
-  --hero-grad:
-    radial-gradient(75% 60% at 50% 108%, #1F9A3A 0%, transparent 72%),
-    radial-gradient(95% 55% at 50% -8%, #F0B27E 0%, transparent 72%),
-    linear-gradient(180deg, #E9BD8E 0%, #B5D650 34%, #45B347 68%, #2A9A3C 100%);
-  --hero-grad-orange:
-    radial-gradient(62% 68% at 50% 56%, #FF6200 0%, #FF8A22 38%, transparent 78%),
-    radial-gradient(60% 60% at 100% 0%, #A9BFD8 0%, transparent 62%),
-    linear-gradient(135deg, #C3CEDB 0%, #F2C59A 50%, #C3CEDB 100%);
-  --hero-grad-pink:
-    radial-gradient(62% 66% at 50% 58%, #FF2274 0%, #FF5F9A 42%, transparent 82%),
-    linear-gradient(180deg, #F6BFD1 0%, #F38FB1 100%);
-  --hero-ink: #FFFFFF;
+  /* Task categories */
+  --cat-home: #2F9E8F;
+  --cat-money: #E0A030;
+  --cat-work: #3340D6;
+  --cat-clients: #8B7FE8;
+  --cat-family: #E26D8F;
+  --cat-health: #58B368;
+  --cat-errands: #5F8A99;
+  --cat-property: #A3AD0C;
+  --cat-google: #4C8DF6;
+
+  /* Gradients (reference: slate sky melting into pale lime) */
+  --hero-grad: linear-gradient(180deg, #5F8A99 0%, #8FB0A9 30%, #C9D88F 58%, #EEF27A 100%);
+  --hero-grad-lime: linear-gradient(165deg, #F4F78A 0%, #EEF28C 45%, #FAFBD9 100%);
+  --hero-grad-slate: linear-gradient(180deg, #557F8F 0%, #7FA2AD 55%, #A9C0C6 100%);
+  --hero-grad-violet: linear-gradient(165deg, #6F6BD8 0%, #9C97EA 55%, #CFCBF6 100%);
+  --hero-ink: #17181A;
+  --meter-grad: linear-gradient(90deg, #EEF27A, #58B368 50%, #3340D6);
+
+  /* Liquid glass (floating layers only) */
+  --glass-bg: rgb(255 255 255 / .55);
+  --glass-edge: rgb(255 255 255 / .7);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / .85), inset 0 -1px 0 rgb(0 0 0 / .04);
+  --glass-blur: blur(22px) saturate(180%);
 
   /* Type */
   --font: "Google Sans", "Heebo", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -101,25 +119,31 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #111113; --surface: #1B1B1E; --surface-2: #232327; --surface-3: #2D2D32; --card-edge: rgb(255 255 255 / .06);
-    --line: #2C2C31; --line-strong: #3D3D44;
-    --ink: #F3F3F4; --ink-2: #B7B7BD; --ink-3: #909097;
-    --accent: #F3F3F4; --on-accent: #111113; --link: #F3F3F4; --focus: var(--lime); --chrome: #2A2A2F;
-    --pos: #86D98F; --pos-bg: #173322; --warn: #F2B263; --warn-bg: #3A2A12; --neg: #F58C80; --neg-bg: #3D1A16;
-    --chart-1: #F3F3F4; --chart-2: #FF8A3A; --chart-3: #3D3D44; --hatch: #4A4A52;
-    --tone-home: #86D98F; --tone-business: #FF9A55; --tone-invest: #FF7FAE;
+    --bg: #101113; --bg-wash: linear-gradient(180deg, #1D2A30 0, #14181A 240px, #101113 520px);
+    --surface: #1B1C1F; --surface-2: #232428; --surface-3: #2D2E33; --card-edge: rgb(255 255 255 / .06);
+    --line: #2C2D32; --line-strong: #3D3E45;
+    --ink: #F3F3F4; --ink-2: #B7B8BE; --ink-3: #909198;
+    --accent: #F3F3F4; --on-accent: #101113; --link: #F3F3F4; --focus: var(--lime); --chrome: #2A2B30;
+    --pos: #7FD6AE; --pos-bg: #15322A; --warn: #F2C063; --warn-bg: #3A2C12; --neg: #F58C80; --neg-bg: #3D1A16;
+    --chart-1: #F3F3F4; --chart-2: #8FB0BD; --chart-3: #3D3E45; --hatch: #4A4B52;
+    --tone-home: #6FD0BF; --tone-business: #8E97FF; --tone-invest: #B4A2FF; --cobalt: #8E97FF;
+    --glass-bg: rgb(34 36 40 / .6); --glass-edge: rgb(255 255 255 / .12);
+    --glass-shine: inset 0 1px 0 rgb(255 255 255 / .12), inset 0 -1px 0 rgb(0 0 0 / .3);
     --shadow-1: 0 1px 2px rgb(0 0 0 / .3); --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / .6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-    --bg: #111113; --surface: #1B1B1E; --surface-2: #232327; --surface-3: #2D2D32; --card-edge: rgb(255 255 255 / .06);
-    --line: #2C2C31; --line-strong: #3D3D44;
-    --ink: #F3F3F4; --ink-2: #B7B7BD; --ink-3: #909097;
-    --accent: #F3F3F4; --on-accent: #111113; --link: #F3F3F4; --focus: var(--lime); --chrome: #2A2A2F;
-    --pos: #86D98F; --pos-bg: #173322; --warn: #F2B263; --warn-bg: #3A2A12; --neg: #F58C80; --neg-bg: #3D1A16;
-    --chart-1: #F3F3F4; --chart-2: #FF8A3A; --chart-3: #3D3D44; --hatch: #4A4A52;
-    --tone-home: #86D98F; --tone-business: #FF9A55; --tone-invest: #FF7FAE;
+    --bg: #101113; --bg-wash: linear-gradient(180deg, #1D2A30 0, #14181A 240px, #101113 520px);
+    --surface: #1B1C1F; --surface-2: #232428; --surface-3: #2D2E33; --card-edge: rgb(255 255 255 / .06);
+    --line: #2C2D32; --line-strong: #3D3E45;
+    --ink: #F3F3F4; --ink-2: #B7B8BE; --ink-3: #909198;
+    --accent: #F3F3F4; --on-accent: #101113; --link: #F3F3F4; --focus: var(--lime); --chrome: #2A2B30;
+    --pos: #7FD6AE; --pos-bg: #15322A; --warn: #F2C063; --warn-bg: #3A2C12; --neg: #F58C80; --neg-bg: #3D1A16;
+    --chart-1: #F3F3F4; --chart-2: #8FB0BD; --chart-3: #3D3E45; --hatch: #4A4B52;
+    --tone-home: #6FD0BF; --tone-business: #8E97FF; --tone-invest: #B4A2FF; --cobalt: #8E97FF;
+    --glass-bg: rgb(34 36 40 / .6); --glass-edge: rgb(255 255 255 / .12);
+    --glass-shine: inset 0 1px 0 rgb(255 255 255 / .12), inset 0 -1px 0 rgb(0 0 0 / .3);
     --shadow-1: 0 1px 2px rgb(0 0 0 / .3); --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / .6);
     color-scheme: dark;
 }

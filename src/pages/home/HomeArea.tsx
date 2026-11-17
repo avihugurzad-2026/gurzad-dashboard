@@ -60,7 +60,7 @@ function HomeOverview() {
 
   return (
     <Stagger>
-      <Card className="hero hero-orange lg-5 md-12">
+      <Card className="hero hero-lime lg-5 md-12">
         <div className="spread"><span className="hero-label"><PiggyBank size={16} />נשאר בתקציב החודש</span><span className="hero-chip">{d.m.budget ? `${Math.round((d.m.spent / d.m.budget) * 100)}% נוצל` : 'ללא תקציב'}</span></div>
         <div className="hero-num"><DotNum value={prefs.hide ? '•••' : money(Math.abs(left)).replace(/\s/g, '')} label={money(left)} /></div>
         <div className="hero-sub">{left < 0 ? 'חריגה מהתקציב · ' : ''}יצאו {money(d.m.spent)} מתוך {money(d.m.budget)}</div>

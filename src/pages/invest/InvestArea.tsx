@@ -32,7 +32,7 @@ export function InvestArea() {
       </PageHead>
 
       <Stagger>
-        <Card className="hero hero-pink lg-5 md-12">
+        <Card className="hero hero-violet lg-5 md-12">
           <div className="spread"><span className="hero-label"><KeyRound size={16} />שכירות חודשית</span><span className="hero-chip">תפוסה {percent(d.pf.occupancy)}</span></div>
           <div className="hero-num"><DotNum value={prefs.hide ? '•••' : money(d.pf.rent).replace(/\s/g, '')} label={money(d.pf.rent)} /></div>
           <div className="hero-sub">אחרי משכנתאות: {money(d.pf.rent - d.pf.mortgage)} בחודש</div>

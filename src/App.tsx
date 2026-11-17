@@ -8,6 +8,7 @@ import { AppShell } from './layout/AppShell';
 import { Login } from './pages/Login';
 import { Overview } from './pages/Overview';
 import { Notifications } from './pages/Notifications';
+import { Planner } from './pages/Planner';
 import { HomeArea } from './pages/home/HomeArea';
 import { BusinessArea } from './pages/business/BusinessArea';
 import { AlertRules, InvestArea, Property } from './pages/invest/InvestArea';
@@ -40,6 +41,7 @@ function Gate() {
         <Route path="invest" element={<InvestArea />} />
         <Route path="invest/alerts" element={<AlertRules />} />
         <Route path="invest/:propId/:tab?" element={<Property />} />
+        <Route path="planner/:view?" element={<Planner />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="status" element={<Status />} />
         <Route path="team" element={<Team />} />
