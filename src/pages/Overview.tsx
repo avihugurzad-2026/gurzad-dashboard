@@ -7,6 +7,7 @@ import { greeting, money, moneyRaw, percent, relDay, shortDate } from '../lib/fo
 import { usePrefs } from '../lib/prefs';
 import { Card, DotNum, Empty, Kpi, Meter, PageHead, Stagger, Badge } from '../ui/kit';
 import { DotStrip, Spark } from '../ui/charts';
+import { HomeSchedule } from './Planner';
 
 const TONE = { home: 'var(--tone-home)', business: 'var(--tone-business)', invest: 'var(--tone-invest)' } as const;
 const AREA_LABEL = { home: 'בית', business: 'עסקים', invest: 'השקעות' } as const;
@@ -59,6 +60,9 @@ export function Overview() {
       </div>
 
       <Stagger>
+        {/* Today's agenda and this week, straight from the planner */}
+        <HomeSchedule />
+
         {/* Hero: household cash flow this month */}
         <Card className="hero lg-5 md-12" style={{ padding: 'var(--s-6)' }}>
           <div className="spread">

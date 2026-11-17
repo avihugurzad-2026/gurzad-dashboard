@@ -536,3 +536,14 @@ fieldset.stack { display: flex; }
 .pl-toolbar .btn:disabled { opacity: .45; }
 .pl-item.compact .pl-time { font-size: 11px; color: var(--ink-3); text-align: start; }
 @media (max-width: 1023px) { .week-col.is-empty .week-head b { order: -1; } }
+/* home page schedule */
+.schedule-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+.schedule-today, .schedule-week { padding: 20px; min-width: 0; }
+.schedule-today { border-inline-end: 1px solid var(--line); }
+.weekmini .month-cell { min-height: 150px; }
+.weekmini .month-cell.out { opacity: .5; }
+@media (max-width: 1199px) {
+  .schedule-grid { grid-template-columns: 1fr; }
+  .schedule-today { border-inline-end: 0; border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 899px) { .weekmini .month-cell { min-height: 0; } .schedule-today, .schedule-week { padding: 16px; } }

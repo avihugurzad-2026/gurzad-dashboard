@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Clock, ExternalLink, Link2, Mail, MapPin, Plus, RefreshCw, Unlink, User } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
@@ -41,7 +41,8 @@ export function Planner() {
   const view: View = rawView === 'day' || rawView === 'month' ? rawView : 'week';
   const nav = useNavigate();
   const toast = useToast();
-  const [anchor, setAnchor] = useState(today());
+  const [sp] = useSearchParams();
+  const [anchor, setAnchor] = useState(() => (/^\d{4}-\d{2}-\d{2}$/.test(sp.get('d') ?? '') ? sp.get('d')! : today()));
   const [hidden, setHidden] = useState<string[]>([]);
   const [adding, setAdding] = useState<string | null>(null);
   const [remOpen, setRemOpen] = useState(false);
@@ -69,24 +70,7 @@ export function Planner() {
     events: useCrud('events'),
   };
 
-  const items = useDerived(() => {
-    const out: Item[] = [];
-    const bizName = new Map(store.all('businesses').map((b) => [b.id, b.name]));
-    const propName = new Map(store.all('properties').map((p) => [p.id, p.name]));
-    for (const col of PLAN_COLLECTIONS) {
-      for (const r of store.all(col)) {
-        const date = dateOf(col, r);
-        if (!date) continue;
-        const done = col !== 'events' && !!r.done;
-        const meta: string[] = [];
-        if (col === 'biz_tasks' && bizName.get(r.business_id)) meta.push(bizName.get(r.business_id)!);
-        if (col === 'prop_tasks' && propName.get(r.property_id)) meta.push(propName.get(r.property_id)!);
-        if (r.place) meta.push(r.place);
-        out.push({ key: col + r.id, col, rec: r, title: r.title, date, time: r.time || undefined, end: r.end_time || undefined, cat: categoryOf(col, r), done, late: col !== 'events' && !done && daysUntil(date) < 0, meta });
-      }
-    }
-    return out;
-  }, []);
+  const items = usePlanItems();
 
   const all = useMemo(() => [
     ...items,
@@ -207,6 +191,27 @@ export function Planner() {
       {crud.home_tasks.sheet}{crud.biz_tasks.sheet}{crud.prop_tasks.sheet}{crud.events.sheet}
     </>
   );
+}
+
+export function usePlanItems(): Item[] {
+  return useDerived(() => {
+    const out: Item[] = [];
+    const bizName = new Map(store.all('businesses').map((b) => [b.id, b.name]));
+    const propName = new Map(store.all('properties').map((p) => [p.id, p.name]));
+    for (const col of PLAN_COLLECTIONS) {
+      for (const r of store.all(col)) {
+        const date = dateOf(col, r);
+        if (!date) continue;
+        const done = col !== 'events' && !!r.done;
+        const meta: string[] = [];
+        if (col === 'biz_tasks' && bizName.get(r.business_id)) meta.push(bizName.get(r.business_id)!);
+        if (col === 'prop_tasks' && propName.get(r.property_id)) meta.push(propName.get(r.property_id)!);
+        if (r.place) meta.push(r.place);
+        out.push({ key: col + r.id, col, rec: r, title: r.title, date, time: r.time || undefined, end: r.end_time || undefined, cat: categoryOf(col, r), done, late: col !== 'events' && !done && daysUntil(date) < 0, meta });
+      }
+    }
+    return out;
+  }, []);
 }
 
 /* ---------------- one item ---------------- */
@@ -462,3 +467,65 @@ export function ReminderSheet({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+
+/* ---------------- home page: today + this week ---------------- */
+export function HomeSchedule() {
+  const nav = useNavigate();
+  const toast = useToast();
+  const items = usePlanItems();
+  const start = weekStart(today());
+  const google = useGoogle(start, addDays(start, 6));
+  const crud = { home_tasks: useCrud('home_tasks'), biz_tasks: useCrud('biz_tasks'), prop_tasks: useCrud('prop_tasks'), events: useCrud('events') };
+  const all = [...items, ...google.events.map((g): Item => ({ key: 'g' + g.id, col: 'google', g, title: g.title, date: g.date, time: g.allDay ? undefined : g.time, end: g.end_time, cat: GOOGLE_CATEGORY, done: false, late: false, meta: g.place ? [g.place] : [] }))];
+  const byDay = (d: string) => all.filter((i) => i.date === d).sort(sortItems);
+  const t = today();
+  const todayList = byDay(t);
+  const overdue = all.filter((i) => i.late).length;
+  const open = (i: Item) => { if (i.col === 'google') { if (i.g?.link) window.open(i.g.link, '_blank', 'noopener'); return; } crud[i.col].openEdit(i.rec!); };
+  const toggle = (i: Item, v: boolean) => { if (i.rec && i.col !== 'google' && i.col !== 'events') toggleTask(i.col, i.rec, v, toast); };
+  const weekOpen = all.filter((i) => i.date >= start && i.date <= addDays(start, 6) && !i.done).length;
+
+  return (
+    <Card className="flush lg-12 schedule">
+      <div className="schedule-grid">
+        <div className="schedule-today">
+          <div className="card-head" style={{ marginBottom: 12 }}>
+            <div><h2>הלו״ז של היום</h2><div className="sub">{DOW_LONG[dow(t)]}, {shortDate(t)}{overdue ? ` · ${overdue} באיחור` : ''}</div></div>
+            <Link className="card-link" to="/planner/day">ליום המלא<ChevronLeft size={14} /></Link>
+          </div>
+          {todayList.length === 0 ? <Empty icon={CalendarDays} title="יום פנוי" text="אין משימות או אירועים להיום." /> : (
+            <div className="pl-list">{todayList.slice(0, 6).map((i) => <PlanCard key={i.key} i={i} onOpen={open} onToggle={toggle} />)}</div>
+          )}
+          {todayList.length > 6 && <Link className="card-link" to="/planner/day" style={{ marginTop: 6 }}>ועוד {todayList.length - 6}</Link>}
+        </div>
+        <div className="schedule-week">
+          <div className="card-head" style={{ marginBottom: 12 }}>
+            <div><h2>השבוע</h2><div className="sub">{shortDate(start)} – {shortDate(addDays(start, 6))} · {weekOpen ? `${weekOpen} פתוחים` : 'אין נתונים עדיין'}</div></div>
+            <Link className="card-link" to="/planner/week">לשבוע<ChevronLeft size={14} /></Link>
+          </div>
+          <div className="month weekmini">
+            {DOW.map((x) => <span key={x} className="dow">{x}</span>)}
+            {Array.from({ length: 7 }, (_, n) => {
+              const d = addDays(start, n);
+              const list = byDay(d).filter((i) => !i.done);
+              return (
+                <button key={d} className={`month-cell ${d === t ? 'today' : ''} ${d < t ? 'out' : ''}`} onClick={() => nav(`/planner/day?d=${d}`)} aria-label={`${DOW_LONG[n]} ${shortDate(d)}: ${list.length} פריטים`}>
+                  <b>{Number(d.slice(8))}</b>
+                  {list.slice(0, 4).map((i) => <span key={i.key} className="ev" style={catStyle(i.cat)}>{i.time ? `${i.time} ` : ''}{i.title}</span>)}
+                  {list.length > 4 && <span className="more ev" style={{ background: 'none', borderInlineStart: 0 }}>ועוד {list.length - 4}</span>}
+                  <span className="dots">{list.slice(0, 5).map((i) => <i key={i.key} style={catStyle(i.cat)} />)}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="chips" style={{ marginTop: 12 }}>
+            {[...new Set(all.filter((i) => i.date >= start && i.date <= addDays(start, 6) && !i.done).map((i) => i.cat))].map((c) => (
+              <span key={c} className="badge" style={catStyle(c)}><span className="cat-dot" />{c}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      {crud.home_tasks.sheet}{crud.biz_tasks.sheet}{crud.prop_tasks.sheet}{crud.events.sheet}
+    </Card>
+  );
+}
