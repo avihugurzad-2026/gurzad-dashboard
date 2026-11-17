@@ -43,27 +43,40 @@ export async function geminiAgentReply(text: string, db: AgentData, history: { r
   return 'בוצע.';
 }
 
-/** Receipt image → structured expense. Used by /api/gemini/scan-receipt (and later by WhatsApp image messages). */
-export async function scanReceipt(base64: string, mimeType: string) {
+const RECEIPT_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    merchant: { type: 'STRING', nullable: true, description: 'שם העסק/הספק' },
+    total: { type: 'NUMBER', nullable: true, description: 'סה״כ לתשלום כולל מע״מ' },
+    vat: { type: 'NUMBER', nullable: true, description: 'סכום המע״מ' },
+    date: { type: 'STRING', nullable: true, description: 'YYYY-MM-DD' },
+    category: { type: 'STRING', nullable: true, description: 'קטגוריית הוצאה בעברית' },
+    invoice_number: { type: 'STRING', nullable: true },
+    payment_method: { type: 'STRING', nullable: true },
+    items: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, qty: { type: 'NUMBER', nullable: true }, price: { type: 'NUMBER', nullable: true } }, required: ['name'] } },
+    suggested_target: { type: 'STRING', nullable: true, description: 'אחת מהאפשרויות ברשימת היעדים, הכי סבירה' },
+  },
+};
+const receiptPrompt = (targets: string[], cats: string[]) =>
+  `זו קבלה או חשבונית. חלץ את כל הפרטים: ספק, תאריך, סה״כ, מע״מ, אמצעי תשלום ורשימת מוצרים/שירותים עם כמות ומחיר.
+אם שדה לא מופיע בבירור, החזר null ואל תנחש.
+category: בחר אחת מ: ${cats.join(', ')}.
+suggested_target: בחר מהרשימה לאן ההוצאה הכי סבירה שייכת: ${targets.join(' | ')}.`;
+
+/** Receipt image/PDF → structured expense (with line items and a suggested destination). */
+export async function scanReceipt(base64: string, mimeType: string, targets: string[] = [], cats: string[] = []) {
   const out = await call({
-    contents: [{ role: 'user', parts: [
-      { inlineData: { mimeType, data: base64 } },
-      { text: 'זו קבלה או חשבונית. חלץ את הפרטים. אם שדה לא מופיע בבירור, החזר null ואל תנחש.' },
-    ] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'OBJECT',
-        properties: {
-          merchant: { type: 'STRING', nullable: true },
-          total: { type: 'NUMBER', nullable: true },
-          vat: { type: 'NUMBER', nullable: true },
-          date: { type: 'STRING', description: 'YYYY-MM-DD', nullable: true },
-          category: { type: 'STRING', nullable: true },
-          invoice_number: { type: 'STRING', nullable: true },
-        },
-      },
-    },
+    contents: [{ role: 'user', parts: [{ inlineData: { mimeType, data: base64 } }, { text: receiptPrompt(targets, cats) }] }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: RECEIPT_SCHEMA },
+  });
+  return JSON.parse(out.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');
+}
+
+/** Receipt that arrived as a web page (digital receipt link) → same structure. */
+export async function scanReceiptText(text: string, targets: string[] = [], cats: string[] = []) {
+  const out = await call({
+    contents: [{ role: 'user', parts: [{ text: `${receiptPrompt(targets, cats)}\n\nתוכן הדף:\n${text}` }] }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: RECEIPT_SCHEMA },
   });
   return JSON.parse(out.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');
 }

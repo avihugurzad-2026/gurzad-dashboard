@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
 import { env, handler, has, HttpError, recordsData, requireMember, sbAdmin } from './_lib/server.js';
 import { geminiAgentReply } from './_lib/gemini.js';
+import { downloadMedia, ingest, pickTarget, question, saveExpense, targets, type Receipt } from './_lib/receipts.js';
 import { ruleBasedReply } from '../shared/agent.js';
 
 // Kapso → this endpoint (event: whatsapp.message.received). Docs: https://docs.kapso.ai/docs/platform/webhooks/overview
@@ -134,11 +135,37 @@ export default handler(async (req, res) => {
 
     const history = await recentHistory(ws.id, from).catch(() => []);
     let reply: string;
-    if (msg.type !== 'text' || !msg.text?.body) {
-      reply = 'כרגע אני מבין רק הודעות טקסט. סריקת קבלות מתמונה תתווסף בקרוב.';
-    } else {
-      try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(msg.text.body, db, history.slice(0, -1)) : await ruleBasedReply(msg.text.body, db); }
-      catch (e) { console.error(e); reply = await ruleBasedReply(msg.text.body, db).catch(() => 'משהו השתבש, נסה שוב בעוד רגע.'); }
+    const pendingId = `wa-pending-${ws.id}-${from}`;
+    const body: string = msg.text?.body ?? '';
+    const link = body.match(/https?:\/\/\S+/)?.[0];
+    const media = msg.type === 'image' ? msg.image : msg.type === 'document' ? msg.document : null;
+    try {
+      const { data: pend } = await sb.from('gd_records').select('data').eq('id', pendingId).maybeSingle();
+      const pending = pend?.data as Receipt | undefined;
+      if (media?.id || (link && /קבל|חשבונ|receipt|invoice|pdf|jpg|png/i.test(body + link)) || (link && body.trim() === link)) {
+        // A new receipt: keep a copy, read it, ask where it belongs.
+        if (media?.id) await sendWhatsApp(from, 'קיבלתי, קורא את הקבלה… ⏳');
+        const src = media?.id ? await downloadMedia(media.id) : { url: link! };
+        const r = await ingest(db, ws.id, src);
+        await sb.from('gd_records').upsert({ id: pendingId, workspace_id: ws.id, collection: 'wa_pending', data: r });
+        reply = question(r, await targets(db));
+      } else if (pending && body) {
+        if (/^\s*(בטל|ביטול|cancel)\s*$/i.test(body)) { await sb.from('gd_records').delete().eq('id', pendingId); reply = 'בוטל, הקבלה לא נרשמה.'; }
+        else {
+          const ts = await targets(db);
+          const t = pickTarget(body, ts, pending);
+          if (t) { reply = await saveExpense(db, pending, t); await sb.from('gd_records').delete().eq('id', pendingId); }
+          else reply = `לא הבנתי לאן לשייך. לענות במספר:\n${ts.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\nאו "בטל".`;
+        }
+      } else if (msg.type !== 'text' || !body) {
+        reply = 'אני מבין טקסט, תמונות של קבלות, קבצי PDF וקישורים לקבלות.';
+      } else {
+        try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(body, db, history.slice(0, -1)) : await ruleBasedReply(body, db); }
+        catch (e) { console.error(e); reply = await ruleBasedReply(body, db).catch(() => 'משהו השתבש, נסה שוב בעוד רגע.'); }
+      }
+    } catch (e) {
+      console.error('wa receipt', e);
+      reply = 'לא הצלחתי לקרוא את הקבלה. אפשר לשלוח תמונה ברורה יותר או קישור אחר.';
     }
     await sendWhatsApp(from, reply);
     await sb.from('gd_records').insert({ id: `${logId}-r`, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'out', text: reply, at: new Date().toISOString(), to: from } });
