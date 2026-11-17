@@ -1,5 +1,5 @@
-import { handler, HttpError, requireMember, sbAdmin, env } from './_lib/server';
-import { inviteMail, sendMail } from './_lib/mail';
+import { handler, HttpError, requireMember, sbAdmin, env } from './_lib/server.js';
+import { inviteMail, sendMail } from './_lib/mail.js';
 
 // POST { email, name, role, areas } — owner only. Stores the invite and emails it through Resend.
 // The invitee signs in with an email OTP; /api/auth/verify-otp turns the invite into a membership.

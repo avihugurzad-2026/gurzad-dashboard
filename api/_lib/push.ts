@@ -1,7 +1,7 @@
 import webpush from 'web-push';
-import { env, has, sbAdmin } from './server';
-import { computeAlerts, DEFAULT_NOTIFY_PREFS, digest, wants, type Alert, type NotifyPrefs } from '../../shared/alerts';
-import type { Row } from '../../shared/agent';
+import { env, has, sbAdmin } from './server.js';
+import { computeAlerts, DEFAULT_NOTIFY_PREFS, digest, wants, type Alert, type NotifyPrefs } from '../../shared/alerts.js';
+import type { Row } from '../../shared/agent.js';
 
 export const pushReady = () => has('VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY');
 let configured = false;

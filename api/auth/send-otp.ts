@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { env, handler, HttpError, sbAdmin } from '../_lib/server';
-import { otpMail, sendMail } from '../_lib/mail';
+import { env, handler, HttpError, sbAdmin } from '../_lib/server.js';
+import { otpMail, sendMail } from '../_lib/mail.js';
 
 export const hashCode = (email: string, code: string) =>
   crypto.createHmac('sha256', env('SUPABASE_SERVICE_ROLE_KEY')).update(`${email}:${code}`).digest('hex');

@@ -1,7 +1,7 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
-import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server';
-import { notifyEvent } from './_lib/push';
+import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
+import { notifyEvent } from './_lib/push.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 

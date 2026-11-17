@@ -1,5 +1,5 @@
-import { env } from './server';
-import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent';
+import { env } from './server.js';
+import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent.js';
 
 const endpoint = () =>
   `https://generativelanguage.googleapis.com/v1beta/models/${env('GEMINI_MODEL') || 'gemini-2.5-flash'}:generateContent`;

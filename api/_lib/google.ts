@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { env, has, HttpError, sbAdmin } from './server';
-import { PLAN_COLLECTIONS, AREA_OF, addDaysIso, categoryOf, catHex, dateOf } from '../../shared/planner';
+import { env, has, HttpError, sbAdmin } from './server.js';
+import { PLAN_COLLECTIONS, AREA_OF, addDaysIso, categoryOf, catHex, dateOf } from '../../shared/planner.js';
 
 // Google Calendar, one connection per dashboard user (OAuth 2.0 web flow, offline access).
 // The refresh token is stored encrypted (AES-256-GCM) in gd_google_tokens, which only the service role can read.

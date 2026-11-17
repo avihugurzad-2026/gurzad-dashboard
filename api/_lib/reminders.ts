@@ -1,7 +1,7 @@
-import { env, has, sbAdmin } from './server';
-import { sendMail, templateMail } from './mail';
-import { PLAN_COLLECTIONS, SETTINGS_KEY, addDaysIso, catHex, categoryOf, dateOf, fillTemplate, mergeReminders, varsFor, type ReminderSettings } from '../../shared/planner';
-import { todayIL } from './google';
+import { env, has, sbAdmin } from './server.js';
+import { sendMail, templateMail } from './mail.js';
+import { PLAN_COLLECTIONS, SETTINGS_KEY, addDaysIso, catHex, categoryOf, dateOf, fillTemplate, mergeReminders, varsFor, type ReminderSettings } from '../../shared/planner.js';
+import { todayIL } from './google.js';
 
 // Email reminders to whoever a task or event is assigned to.
 // Only addresses on the workspace's member list are ever written to, and each mail is sent once (gd_notify_log).

@@ -1,6 +1,6 @@
-import { handler, HttpError, requireMember, sbAdmin, env } from './_lib/server';
-import { pushReady, sendPush } from './_lib/push';
-import { DEFAULT_NOTIFY_PREFS } from '../shared/alerts';
+import { handler, HttpError, requireMember, sbAdmin, env } from './_lib/server.js';
+import { pushReady, sendPush } from './_lib/push.js';
+import { DEFAULT_NOTIFY_PREFS } from '../shared/alerts.js';
 
 const AREAS = ['home', 'business', 'invest'];
 const cleanPrefs = (p: any) => ({

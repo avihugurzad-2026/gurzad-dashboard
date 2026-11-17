@@ -1,4 +1,4 @@
-import { env, HttpError } from './server';
+import { env, HttpError } from './server.js';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 

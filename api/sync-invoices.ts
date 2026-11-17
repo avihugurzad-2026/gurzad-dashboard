@@ -1,4 +1,4 @@
-import { handler, HttpError, requireMember } from './_lib/server';
+import { handler, HttpError, requireMember } from './_lib/server.js';
 
 // Placeholder for the per-business invoice provider sync (the provider is not chosen yet).
 // Contract for a provider adapter:

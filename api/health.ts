@@ -1,4 +1,4 @@
-import { handler, has, env } from './_lib/server';
+import { handler, has, env } from './_lib/server.js';
 
 // Reports WHICH integrations are configured — never the values.
 export default handler(async (_req, res) => {

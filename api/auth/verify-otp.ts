@@ -1,5 +1,5 @@
-import { env, handler, HttpError, sbAdmin } from '../_lib/server';
-import { hashCode, isAllowed } from './send-otp';
+import { env, handler, HttpError, sbAdmin } from '../_lib/server.js';
+import { hashCode, isAllowed } from './send-otp.js';
 
 // POST { email, code } → { token_hash }. The client exchanges token_hash for a Supabase session
 // (supabase.auth.verifyOtp({ token_hash, type: 'magiclink' })), so RLS works with a normal user JWT.

@@ -1,5 +1,5 @@
-import { handler, has, HttpError, requireMember } from '../_lib/server';
-import { scanReceipt } from '../_lib/gemini';
+import { handler, has, HttpError, requireMember } from '../_lib/server.js';
+import { scanReceipt } from '../_lib/gemini.js';
 
 // POST { image: <base64>, mimeType } → { merchant, total, vat, date, category, invoice_number }
 // Ready for the receipt-scanning feature; nothing in the UI calls it yet.

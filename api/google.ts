@@ -1,5 +1,5 @@
-import { handler, HttpError, requireMember, sbAdmin } from './_lib/server';
-import { authUrl, backTo, disconnect, finishConnect, googleReady, listEvents, pushToGoogle, readState, tokenRow } from './_lib/google';
+import { handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
+import { authUrl, backTo, disconnect, finishConnect, googleReady, listEvents, pushToGoogle, readState, tokenRow } from './_lib/google.js';
 
 // Google Calendar per user.
 // GET  ?action=status              → { ready, connected, email, push, synced_at }

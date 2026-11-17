@@ -1,6 +1,6 @@
 // Alert engine — shared by the app (browser) and the push cron (server), so the phone gets
 // exactly the same "דורש תשומת לב" list the dashboard shows. Pure: data comes in through `get`.
-import type { Row } from './agent';
+import type { Row } from './agent.js';
 
 export type AlertArea = 'home' | 'business' | 'invest';
 export type AlertLevel = 'danger' | 'warn' | 'info';

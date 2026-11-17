@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { AgentData, Row } from '../../shared/agent';
+import type { AgentData, Row } from '../../shared/agent.js';
 
 export const env = (k: string) => process.env[k] || '';
 export const has = (...keys: string[]) => keys.every((k) => !!process.env[k]);

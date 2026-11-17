@@ -1,7 +1,7 @@
-import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server';
-import { notifyWorkspace, pushReady } from './_lib/push';
-import { mailAssigned, mailDueReminders, mailReady, mailTest } from './_lib/reminders';
-import { pushAll } from './_lib/google';
+import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
+import { notifyWorkspace, pushReady } from './_lib/push.js';
+import { mailAssigned, mailDueReminders, mailReady, mailTest } from './_lib/reminders.js';
+import { pushAll } from './_lib/google.js';
 
 // GET  (Vercel cron, daily ~07:10 Israel time, CRON_SECRET): phone pushes for new alerts, email reminders
 //      for tasks/events N days ahead, and the daily dashboard → Google Calendar sync.

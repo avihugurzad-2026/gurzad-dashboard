@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
-import { env, handler, has, HttpError, recordsData, sbAdmin } from './_lib/server';
-import { geminiAgentReply } from './_lib/gemini';
-import { ruleBasedReply } from '../shared/agent';
+import { env, handler, has, HttpError, recordsData, sbAdmin } from './_lib/server.js';
+import { geminiAgentReply } from './_lib/gemini.js';
+import { ruleBasedReply } from '../shared/agent.js';
 
 // Kapso → this endpoint (event: whatsapp.message.received). Docs: https://docs.kapso.ai/docs/platform/webhooks/overview
 export const config = { api: { bodyParser: false } }; // raw body is needed for the signature
