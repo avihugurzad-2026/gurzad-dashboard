@@ -126,7 +126,9 @@ export default handler(async (req, res) => {
     if (msg.kapso?.direction && msg.kapso.direction !== 'inbound') continue;
 
     // idempotency: Kapso may retry deliveries
-    const logId = `wa-${msg.id}`;
+    const msgId = msg.id || msg.wamid || msg.kapso?.id || ev.id || String(req.headers['x-idempotency-key'] || '') || crypto.randomUUID();
+    const logId = `wa-${msgId}`;
+    console.log('wa: in', msg.type, 'id?', !!msg.id, 'keys', Object.keys(msg).join(','));
     const { error: dup } = await sb.from('gd_records').insert({ id: logId, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'in', text: msg.text?.body ?? `[${msg.type}]`, at: new Date().toISOString(), from } });
     if (dup) { console.log('wa: log insert failed / duplicate', dup.message); continue; }
 
