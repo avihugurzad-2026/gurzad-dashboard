@@ -1,18 +1,21 @@
 import { env } from './server.js';
 import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent.js';
 
-const endpoint = () =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${env('GEMINI_MODEL') || 'gemini-3.8-flash'}:generateContent`;
+const MODELS = () => [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
+const endpoint = (model: string) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 async function call(body: unknown) {
-  // Busy (429/503): wait briefly and retry, up to 3 tries.
-  for (let attempt = 0; ; attempt++) {
-    const r = await fetch(endpoint(), { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
-    if (r.ok) return r.json() as Promise<any>;
-    const text = (await r.text()).slice(0, 300);
-    if ((r.status === 503 || r.status === 429) && attempt < 2) { await new Promise((ok) => setTimeout(ok, 1200 * (attempt + 1))); continue; }
-    throw new Error(`Gemini ${r.status}: ${text}`);
+  // Each try is capped at 9s; when the main model is busy (429/503) or slow, fall back to the next one.
+  let last = '';
+  for (const model of MODELS()) {
+    try {
+      const r = await fetch(endpoint(model), { method: 'POST', signal: AbortSignal.timeout(9000), headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
+      if (r.ok) return r.json() as Promise<any>;
+      last = `Gemini ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`;
+      if (r.status !== 503 && r.status !== 429 && r.status !== 404) break;
+    } catch (e) { last = `Gemini ${model}: ${(e as Error).message}`; }
   }
+  throw new Error(last);
 }
 
 /** Free-text → tool calls → Hebrew reply. Max 4 tool rounds. */
