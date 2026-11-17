@@ -2,7 +2,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { AgentData, Row } from '../../shared/agent.js';
 
-export const env = (k: string) => process.env[k] || '';
+/** Env value, trimmed and without wrapping quotes (values pasted into Vercel often carry them). */
+export const env = (k: string) => (process.env[k] || '').trim().replace(/^(['"])(.*)\1$/, '$2');
 export const has = (...keys: string[]) => keys.every((k) => !!process.env[k]);
 
 let admin: SupabaseClient | null = null;
