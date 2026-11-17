@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
 import { env, handler, has, HttpError, recordsData, requireMember, sbAdmin } from './_lib/server.js';
-import { geminiAgentReply } from './_lib/gemini.js';
+import { waitUntil } from '@vercel/functions';
+import { GeminiBusy, geminiAgentReply, whileBusy } from './_lib/gemini.js';
 import { downloadMedia, ingest, pickTarget, question, saveExpense, targets, type Receipt } from './_lib/receipts.js';
 import { ruleBasedReply } from '../shared/agent.js';
 
@@ -96,7 +97,7 @@ async function chat(req: VercelRequest, res: any) {
   const db = recordsData(me.workspaceId);
   let reply: string;
   try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(text, db, history) : await ruleBasedReply(text, db); }
-  catch (e) { console.error(e); reply = await ruleBasedReply(text, db).catch(() => 'משהו השתבש, נסה שוב בעוד רגע.'); }
+  catch (e) { console.error(e); reply = e instanceof GeminiBusy ? 'ה-AI עמוס כרגע ולא ביצעתי כלום. נסה שוב בעוד כמה דקות.' : 'משהו השתבש ולא ביצעתי את הבקשה. אפשר לנסח שוב?'; }
   res.json({ reply, ai: has('GEMINI_API_KEY') });
 }
 
@@ -110,6 +111,12 @@ export default handler(async (req, res) => {
   if (!verify(raw, String(req.headers['x-webhook-signature'] || ''))) throw new HttpError(401, 'חתימה לא תקינה');
   if (req.headers['x-webhook-event'] !== 'whatsapp.message.received') { console.log('wa: ignored event', req.headers['x-webhook-event']); res.json({ ok: true, ignored: true }); return; }
 
+  // Answer Kapso right away (so it doesn't time out and resend), and do the real work in the background.
+  res.json({ ok: true });
+  waitUntil(processEvents(raw, String(req.headers['x-idempotency-key'] || '')).catch((e) => console.error('wa process', e)));
+});
+
+async function processEvents(raw: Buffer, idemKey: string) {
   const payload = JSON.parse(raw.toString('utf8'));
   const events: any[] = payload.batch ? payload.data : [payload];
   const allowed = env('WHATSAPP_ALLOWED_NUMBERS').split(',').map((s) => s.replace(/\D/g, '')).filter(Boolean);
@@ -127,7 +134,7 @@ export default handler(async (req, res) => {
     if (msg.kapso?.direction && msg.kapso.direction !== 'inbound') continue;
 
     // idempotency: Kapso may retry deliveries
-    const msgId = msg.id || msg.wamid || msg.kapso?.id || ev.id || String(req.headers['x-idempotency-key'] || '') || crypto.randomUUID();
+    const msgId = msg.id || msg.wamid || msg.kapso?.id || ev.id || idemKey || crypto.randomUUID();
     const logId = `wa-${msgId}`;
     console.log('wa: in', msg.type, 'id?', !!msg.id, 'keys', Object.keys(msg).join(','));
     const { error: dup } = await sb.from('gd_records').insert({ id: logId, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'in', text: msg.text?.body ?? `[${msg.type}]`, at: new Date().toISOString(), from } });
@@ -146,7 +153,7 @@ export default handler(async (req, res) => {
         // A new receipt: keep a copy, read it, ask where it belongs.
         if (media?.id) await sendWhatsApp(from, 'קיבלתי, קורא את הקבלה… ⏳');
         const src = media?.id ? await downloadMedia(media.id) : { url: link! };
-        const r = await ingest(db, ws.id, src);
+        const r = await whileBusy(() => sendWhatsApp(from, 'ה-AI עמוס כרגע, ממשיך לנסות לקרוא את הקבלה ⏳'), () => ingest(db, ws.id, src));
         await sb.from('gd_records').upsert({ id: pendingId, workspace_id: ws.id, collection: 'wa_pending', data: r });
         reply = question(r, await targets(db));
       } else if (pending && body) {
@@ -160,15 +167,23 @@ export default handler(async (req, res) => {
       } else if (msg.type !== 'text' || !body) {
         reply = 'אני מבין טקסט, תמונות של קבלות, קבצי PDF וקישורים לקבלות.';
       } else {
-        try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(body, db, history.slice(0, -1)) : await ruleBasedReply(body, db); }
-        catch (e) { console.error(e); reply = await ruleBasedReply(body, db).catch(() => 'משהו השתבש, נסה שוב בעוד רגע.'); }
+        if (!has('GEMINI_API_KEY')) reply = await ruleBasedReply(body, db);
+        else {
+          try { reply = await whileBusy(() => sendWhatsApp(from, 'רגע, ה-AI עמוס כרגע. אני ממשיך לנסות ואענה ברגע שזה יעבור ⏳'), () => geminiAgentReply(body, db, history.slice(0, -1))); }
+          catch (e) {
+            console.error('wa gemini', e);
+            reply = e instanceof GeminiBusy
+              ? 'ה-AI לא זמין כבר כמה דקות, אז לא ביצעתי כלום כדי לא לטעות. כדאי לשלוח שוב בעוד כמה דקות.'
+              : 'משהו השתבש ולא ביצעתי את הבקשה. אפשר לנסח שוב?';
+          }
+        }
       }
     } catch (e) {
       console.error('wa receipt', e);
-      reply = 'לא הצלחתי לקרוא את הקבלה. אפשר לשלוח תמונה ברורה יותר או קישור אחר.';
+      reply = e instanceof GeminiBusy ? 'ה-AI לא זמין כבר כמה דקות ולא הספקתי לקרוא את הקבלה. אפשר לשלוח אותה שוב בעוד כמה דקות.' : 'לא הצלחתי לקרוא את הקבלה. אפשר לשלוח תמונה ברורה יותר או קישור אחר.';
     }
     await sendWhatsApp(from, reply);
     await sb.from('gd_records').insert({ id: `${logId}-r`, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'out', text: reply, at: new Date().toISOString(), to: from } });
   }
-  res.json({ ok: true });
-});
+}
+

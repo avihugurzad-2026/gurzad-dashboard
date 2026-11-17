@@ -4,18 +4,39 @@ import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../.
 const MODELS = () => [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
 const endpoint = (model: string) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
+const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+
+/** Thrown when Gemini stayed busy/over quota for the whole retry window — callers must not invent an answer. */
+export class GeminiBusy extends Error {}
+
+let onBusy: (() => Promise<void> | void) | null = null;
+/** Run fn; the first time Gemini turns out to be busy, notify() is called once (e.g. "one moment…"). */
+export async function whileBusy<T>(notify: () => Promise<void> | void, fn: () => Promise<T>): Promise<T> {
+  let told = false;
+  onBusy = async () => { if (!told) { told = true; await notify(); } };
+  try { return await fn(); } finally { onBusy = null; }
+}
+
 async function call(body: unknown) {
-  // Each try is capped at 9s; when the main model is busy (429/503) or slow, fall back to the next one.
+  // Busy (503), over the per-minute quota (429) or slow: wait and try again, alternating models, for up to ~3 minutes.
+  const deadline = Date.now() + 180_000;
   let last = '';
-  for (const model of MODELS()) {
+  for (let attempt = 0; Date.now() < deadline; attempt++) {
+    const model = MODELS()[attempt % MODELS().length];
     try {
-      const r = await fetch(endpoint(model), { method: 'POST', signal: AbortSignal.timeout(9000), headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
+      const r = await fetch(endpoint(model), { method: 'POST', signal: AbortSignal.timeout(25000), headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
       if (r.ok) return r.json() as Promise<any>;
       last = `Gemini ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`;
-      if (r.status !== 503 && r.status !== 429 && r.status !== 404) break;
-    } catch (e) { last = `Gemini ${model}: ${(e as Error).message}`; }
+      if (![429, 500, 503, 504].includes(r.status)) throw new Error(last);
+    } catch (e) {
+      if (!(e instanceof Error) || !/aborted|timeout|fetch failed|ECONN/i.test(e.message)) throw e;
+      last = `Gemini ${model}: ${e.message}`;
+    }
+    console.warn('gemini retry', attempt, last.slice(0, 120));
+    await onBusy?.();
+    await sleep(Math.min(4000 * 2 ** Math.floor(attempt / 2), 30000));
   }
-  throw new Error(last);
+  throw new GeminiBusy(last);
 }
 
 /** Free-text → tool calls → Hebrew reply. Max 4 tool rounds. */
