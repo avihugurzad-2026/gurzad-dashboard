@@ -11,7 +11,7 @@ const appUrl = (host?: string) => (env('APP_URL') || `https://${host}`).replace(
 export const redirectUri = (host?: string) => `${appUrl(host)}/api/google?action=callback`;
 export const backTo = (host: string | undefined, status: string) => `${appUrl(host)}/planner?google=${status}`;
 
-const key = () => createHash('sha256').update('gd-google-token:' + (env('GOOGLE_TOKEN_KEY') || env('GOOGLE_CLIENT_SECRET'))).digest();
+const key = () => createHash('sha256').update('gd-google-token:' + (env('GOOGLE_TOKEN_KEY') || env('CALENDAR_TOKEN_KEY') || env('GOOGLE_CLIENT_SECRET'))).digest();
 function seal(text: string) {
   const iv = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', key(), iv);
