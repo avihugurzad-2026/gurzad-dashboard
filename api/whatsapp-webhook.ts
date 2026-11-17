@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
-import { env, handler, has, HttpError, recordsData, sbAdmin } from './_lib/server.js';
+import { env, handler, has, HttpError, recordsData, requireMember, sbAdmin } from './_lib/server.js';
 import { geminiAgentReply } from './_lib/gemini.js';
 import { ruleBasedReply } from '../shared/agent.js';
 
@@ -13,8 +13,17 @@ async function rawBody(req: VercelRequest): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
+/** The webhook secret: KAPSO_WEBHOOK_SECRET if set, otherwise derived from the service-role key (never leaves the server). */
+function webhookSecret() {
+  if (has('KAPSO_WEBHOOK_SECRET')) return env('KAPSO_WEBHOOK_SECRET');
+  if (!has('SUPABASE_SERVICE_ROLE_KEY')) return '';
+  return crypto.createHmac('sha256', env('SUPABASE_SERVICE_ROLE_KEY')).update('gd-kapso-webhook-v1').digest('hex');
+}
+
 function verify(raw: Buffer, signature: string) {
-  const expected = crypto.createHmac('sha256', env('KAPSO_WEBHOOK_SECRET')).update(raw).digest('hex');
+  const secret = webhookSecret();
+  if (!secret) return false;
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
   const a = Buffer.from(expected), b = Buffer.from(signature || '');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
@@ -28,9 +37,37 @@ async function sendWhatsApp(to: string, body: string) {
   if (!r.ok) console.error('Kapso send failed', r.status, (await r.text()).slice(0, 300));
 }
 
+const KAPSO_HOOKS = () => `https://api.kapso.ai/platform/v1/whatsapp/phone_numbers/${env('KAPSO_PHONE_NUMBER_ID')}/webhooks`;
+const hookUrl = (req: VercelRequest) => `${(env('APP_URL') || `https://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/$/, '')}/api/whatsapp-webhook`;
+
+async function kapso(url: string, init: RequestInit = {}) {
+  const r = await fetch(url, { ...init, headers: { 'X-API-Key': env('KAPSO_API_KEY'), 'content-type': 'application/json', ...(init.headers || {}) } });
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok) { console.error('Kapso', r.status, JSON.stringify(j).slice(0, 300)); throw new HttpError(502, `Kapso החזיר שגיאה (${r.status})`); }
+  return j;
+}
+
+/** Owner-only: GET ?action=setup shows whether our webhook is registered in Kapso; POST ?action=setup registers it. */
+async function setup(req: VercelRequest, res: any) {
+  const me = await requireMember(req);
+  if (me.role !== 'owner') throw new HttpError(403, 'רק הבעלים');
+  if (!has('KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID')) throw new HttpError(503, 'Kapso לא מוגדר');
+  const url = hookUrl(req);
+  const list = await kapso(KAPSO_HOOKS());
+  const hooks: any[] = list.data ?? list.whatsapp_webhooks ?? (Array.isArray(list) ? list : []);
+  const mine = hooks.find((h) => (h.url ?? h.attributes?.url) === url);
+  if (req.method === 'POST' && !mine) {
+    await kapso(KAPSO_HOOKS(), { method: 'POST', body: JSON.stringify({ whatsapp_webhook: { url, events: ['whatsapp.message.received'], secret_key: webhookSecret(), active: true } }) });
+    res.json({ registered: true, created: true, url });
+    return;
+  }
+  res.json({ registered: !!mine, url });
+}
+
 export default handler(async (req, res) => {
+  if (req.query?.action === 'setup') return setup(req, res);
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
-  if (!has('KAPSO_WEBHOOK_SECRET', 'KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID')) throw new HttpError(503, 'Kapso לא מוגדר');
+  if (!has('KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID') || !webhookSecret()) throw new HttpError(503, 'Kapso לא מוגדר');
 
   const raw = await rawBody(req);
   if (!verify(raw, String(req.headers['x-webhook-signature'] || ''))) throw new HttpError(401, 'חתימה לא תקינה');
