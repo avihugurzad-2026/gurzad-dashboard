@@ -38,7 +38,12 @@ async function sendWhatsApp(to: string, body: string) {
 }
 
 const KAPSO_HOOKS = () => `https://api.kapso.ai/platform/v1/whatsapp/phone_numbers/${env('KAPSO_PHONE_NUMBER_ID')}/webhooks`;
-const hookUrl = (req: VercelRequest) => `${(env('APP_URL') || `https://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/$/, '')}/api/whatsapp-webhook`;
+// Previews sit behind Vercel Deployment Protection; Kapso gets through with the automation bypass secret (if the owner enabled it).
+const hookUrl = (req: VercelRequest) => {
+  const base = `https://${req.headers['x-forwarded-host'] || req.headers.host}`.replace(/\/$/, '');
+  const bypass = env('VERCEL_AUTOMATION_BYPASS_SECRET');
+  return `${base}/api/whatsapp-webhook${bypass ? `?x-vercel-protection-bypass=${encodeURIComponent(bypass)}` : ''}`;
+};
 
 async function kapso(url: string, init: RequestInit = {}) {
   const r = await fetch(url, { ...init, headers: { 'X-API-Key': env('KAPSO_API_KEY'), 'content-type': 'application/json', ...(init.headers || {}) } });
@@ -55,13 +60,18 @@ async function setup(req: VercelRequest, res: any) {
   const url = hookUrl(req);
   const list = await kapso(KAPSO_HOOKS());
   const hooks: any[] = list.data ?? list.whatsapp_webhooks ?? (Array.isArray(list) ? list : []);
-  const mine = hooks.find((h) => (h.url ?? h.attributes?.url) === url);
+  const urlOf = (h: any) => String(h.url ?? h.attributes?.url ?? '');
+  const mine = hooks.find((h) => urlOf(h) === url);
   if (req.method === 'POST' && !mine) {
+    // Replace an older registration of this same endpoint (e.g. without the bypass parameter).
+    for (const h of hooks.filter((h) => urlOf(h).split('?')[0] === url.split('?')[0])) {
+      await fetch(`${KAPSO_HOOKS()}/${h.id}`, { method: 'DELETE', headers: { 'X-API-Key': env('KAPSO_API_KEY') } }).catch(() => null);
+    }
     await kapso(KAPSO_HOOKS(), { method: 'POST', body: JSON.stringify({ whatsapp_webhook: { url, events: ['whatsapp.message.received'], secret_key: webhookSecret(), active: true } }) });
-    res.json({ registered: true, created: true, url });
+    res.json({ registered: true, created: true, url: url.split('?')[0] });
     return;
   }
-  res.json({ registered: !!mine, url });
+  res.json({ registered: !!mine, url: url.split('?')[0], bypass: has('VERCEL_AUTOMATION_BYPASS_SECRET') });
 }
 
 /** Last few WhatsApp turns, oldest first, so the agent can follow a conversation ("כן", "תוסיף גם…"). */
