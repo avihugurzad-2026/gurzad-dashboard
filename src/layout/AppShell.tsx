@@ -10,6 +10,7 @@ import { useDerived } from '../data/store';
 import { spring, easeOut } from '../ui/kit';
 import { Sheet } from '../ui/overlay';
 import { useCrud } from '../ui/crud';
+import { InstallSteps } from '../pages/Notifications';
 import { dismissInstall, haptic, isIOS, promptInstall, setBadge, useInstall } from '../lib/pwa';
 
 const AREAS = [
@@ -37,6 +38,7 @@ export function AppShell() {
   const [bell, setBell] = useState(false);
   const [more, setMore] = useState(false);
   const [quick, setQuick] = useState(false);
+  const [how, setHow] = useState(false);
   const list = useDerived(() => alerts());
   const bellRef = useRef<HTMLDivElement>(null);
   const inst = useInstall();
@@ -140,7 +142,7 @@ export function AppShell() {
             <div className="install-bar show-sm-flex">
               <span className="brand-mark" style={{ width: 40, height: 40, borderRadius: 13, flexShrink: 0 }}><span style={{ width: 12, height: 12 }} /></span>
               <span className="li-main"><b>להתקין כאפליקציה</b><span className="li-meta">מסך מלא והתראות לטלפון</span></span>
-              <button className="btn btn-primary btn-sm" onClick={() => (inst.canPrompt ? void promptInstall() : nav('/notifications'))}>{inst.canPrompt ? 'התקנה' : 'איך?'}</button>
+              <button className="btn btn-primary btn-sm" onClick={() => (inst.canPrompt ? void promptInstall() : setHow(true))}>{inst.canPrompt ? 'התקנה' : 'איך?'}</button>
               <button className="icon-btn" style={{ width: 36, height: 36, boxShadow: 'none', background: 'transparent', border: 0 }} aria-label="סגירה" onClick={dismissInstall}><X size={16} /></button>
             </div>
           )}
@@ -184,6 +186,13 @@ export function AppShell() {
               <span className="li-icon"><LogOut size={18} /></span><span className="li-main li-title">יציאה</span>
             </button>
           </div>
+        </div>
+      </Sheet>
+
+      <Sheet open={how} onClose={() => setHow(false)} title="התקנה כאפליקציה">
+        <div className="sheet-body">
+          <p className="muted" style={{ marginBottom: 16 }}>שלושה צעדים, פעם אחת. אחר כך הדשבורד נפתח מהאייקון במסך מלא ואפשר להפעיל בו התראות.</p>
+          <InstallSteps />
         </div>
       </Sheet>
 
