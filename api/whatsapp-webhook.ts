@@ -29,7 +29,7 @@ function verify(raw: Buffer, signature: string) {
 }
 
 async function sendWhatsApp(to: string, body: string) {
-  const r = await fetch(`https://api.kapso.ai/meta/whatsapp/${env('KAPSO_PHONE_NUMBER_ID')}/messages`, {
+  const r = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${env('KAPSO_PHONE_NUMBER_ID')}/messages`, {
     method: 'POST',
     headers: { 'X-API-Key': env('KAPSO_API_KEY'), 'content-type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body } }),

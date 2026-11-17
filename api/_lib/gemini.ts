@@ -5,9 +5,14 @@ const endpoint = () =>
   `https://generativelanguage.googleapis.com/v1beta/models/${env('GEMINI_MODEL') || 'gemini-3.8-flash'}:generateContent`;
 
 async function call(body: unknown) {
-  const r = await fetch(endpoint(), { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  return r.json() as Promise<any>;
+  // Busy (429/503): wait briefly and retry, up to 3 tries.
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(endpoint(), { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') }, body: JSON.stringify(body) });
+    if (r.ok) return r.json() as Promise<any>;
+    const text = (await r.text()).slice(0, 300);
+    if ((r.status === 503 || r.status === 429) && attempt < 2) { await new Promise((ok) => setTimeout(ok, 1200 * (attempt + 1))); continue; }
+    throw new Error(`Gemini ${r.status}: ${text}`);
+  }
 }
 
 /** Free-text → tool calls → Hebrew reply. Max 4 tool rounds. */
