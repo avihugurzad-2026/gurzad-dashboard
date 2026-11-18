@@ -12,7 +12,7 @@ import { saveReminderSettings, useReminderSettings } from '../lib/reminders';
 import { api } from '../lib/api';
 import { CATEGORY_NAMES, GOOGLE_CATEGORY, PLAN_COLLECTIONS, TEMPLATE_VARS, catVar, categoryOf, dateOf, fillTemplate, type PlanCollection, type ReminderSettings, type TemplateVars } from '../../shared/planner';
 import { useCrud } from '../ui/crud';
-import { Badge, Card, CardHead, CheckBox, Empty, PageHead, PillTabs, Stagger, Toggle, easeOut } from '../ui/kit';
+import { Badge, Card, CardHead, CheckBox, Empty, PageHead, PillTabs, Toggle, easeOut } from '../ui/kit';
 import { toggleTask } from '../ui/lists';
 import { Sheet, useToast } from '../ui/overlay';
 
@@ -45,7 +45,6 @@ export function Planner() {
   const [anchor, setAnchor] = useState(() => (/^\d{4}-\d{2}-\d{2}$/.test(sp.get('d') ?? '') ? sp.get('d')! : today()));
   const [hidden, setHidden] = useState<string[]>([]);
   const [adding, setAdding] = useState<string | null>(null);
-  const [remOpen, setRemOpen] = useState(false);
   const [bizId, setBizId] = useState('');
   const businesses = useCollection('businesses');
   const properties = useCollection('properties');
@@ -164,12 +163,6 @@ export function Planner() {
         <Card className="soft" style={{ marginTop: 16 }}><Empty icon={CalendarDays} title="אין נתונים עדיין" text="אין משימות או אירועים בתקופה הזו. לחץ ״חדש״ כדי להוסיף." /></Card>
       )}
 
-      <div style={{ height: 20 }} />
-      <Stagger className="grid">
-        <GoogleCard g={google} />
-        <RemindersCard onEdit={() => setRemOpen(true)} />
-      </Stagger>
-
       <Sheet open={!!adding} onClose={() => setAdding(null)} title={adding ? `הוספה · ${relDay(adding) || shortDate(adding)}` : 'הוספה'}>
         <div className="sheet-body">
           <div className="list no-top inset">
@@ -187,7 +180,6 @@ export function Planner() {
           </div>
         </div>
       </Sheet>
-      <ReminderSheet open={remOpen} onClose={() => setRemOpen(false)} />
       {crud.home_tasks.sheet}{crud.biz_tasks.sheet}{crud.prop_tasks.sheet}{crud.events.sheet}
     </>
   );
@@ -348,7 +340,7 @@ function MonthView({ start, first, byDay, onPick }: { start: string; first: stri
 }
 
 /* ---------------- Google Calendar ---------------- */
-function GoogleCard({ g }: { g: ReturnType<typeof useGoogle> }) {
+export function GoogleCard({ g }: { g: ReturnType<typeof useGoogle> }) {
   const toast = useToast();
   const s = g.status;
   return (
@@ -388,7 +380,7 @@ function GoogleCard({ g }: { g: ReturnType<typeof useGoogle> }) {
 }
 
 /* ---------------- email reminders ---------------- */
-function RemindersCard({ onEdit }: { onEdit: () => void }) {
+export function RemindersCard({ onEdit }: { onEdit: () => void }) {
   const s = useReminderSettings();
   const pending = useDerived(() => PLAN_COLLECTIONS.flatMap((c) => store.all(c).filter((r) => r.assignee_email && !r.done && daysUntil(dateOf(c, r)) >= 0 && daysUntil(dateOf(c, r)) <= 7)).length, []);
   const when = s.days_before === 0 ? 'ביום עצמו' : s.days_before === 1 ? 'יום לפני' : `${s.days_before} ימים לפני`;

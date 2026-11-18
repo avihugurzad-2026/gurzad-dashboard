@@ -3,7 +3,7 @@ import { DEMO, DEMO_OTP } from '../lib/config';
 import { supabase } from '../lib/supabase';
 import { ls } from '../lib/safeStorage';
 
-type User = { id: string; email: string; name: string };
+type User = { id: string; email: string; name: string; avatar?: string };
 type Ctx = {
   user: User | null;
   loading: boolean;
@@ -31,12 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     supabase!.auth.getSession().then(({ data }) => {
       const u = data.session?.user;
-      setUser(u ? { id: u.id, email: u.email!, name: (u.user_metadata?.name as string) || nameFrom(u.email!) } : null);
+      setUser(u ? { id: u.id, email: u.email!, name: (u.user_metadata?.name as string) || nameFrom(u.email!), avatar: (u.user_metadata?.avatar as string) || undefined } : null);
       setLoading(false);
     });
     const { data: sub } = supabase!.auth.onAuthStateChange((_e, s) => {
       const u = s?.user;
-      setUser(u ? { id: u.id, email: u.email!, name: (u.user_metadata?.name as string) || nameFrom(u.email!) } : null);
+      setUser(u ? { id: u.id, email: u.email!, name: (u.user_metadata?.name as string) || nameFrom(u.email!), avatar: (u.user_metadata?.avatar as string) || undefined } : null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Users, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays } from 'lucide-react';
+import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
@@ -24,7 +24,6 @@ const TOOLS = [
   { to: '/notifications', label: 'התראות', icon: Bell },
   { to: '/whatsapp', label: 'וואטסאפ', icon: MessageCircle },
   { to: '/status', label: 'סטטוס מערכות', icon: Activity },
-  { to: '/team', label: 'צוות ושיתוף', icon: Users },
   { to: '/settings', label: 'הגדרות וחיבורים', icon: Settings },
 ];
 
@@ -118,7 +117,7 @@ export function AppShell() {
             </AnimatePresence>
           </div>
           <div className="user-chip">
-            <span className="avatar">{(user?.name || '?').slice(0, 1)}</span>
+            <span className="avatar">{user?.avatar ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: 'inherit', objectFit: 'cover' }} /> : (user?.name || '?').slice(0, 1)}</span>
             <span className="who"><b>{user?.name}</b><span className="ltr">{user?.email}</span></span>
           </div>
         </div>

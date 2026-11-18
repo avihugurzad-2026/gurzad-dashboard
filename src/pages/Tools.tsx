@@ -8,7 +8,9 @@ import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
-import { clock, shortDate, today } from '../lib/format';
+import { addDays, clock, shortDate, today } from '../lib/format';
+import { useGoogle } from '../lib/google';
+import { GoogleCard, RemindersCard, ReminderSheet } from './Planner';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
 import { AddButton, useCrud } from '../ui/crud';
 import { Badge, Card, CardHead, Empty, Kpi, PageHead, Stagger, Toggle, easeOut } from '../ui/kit';
@@ -43,8 +45,6 @@ const conn = (ok?: boolean) => ok ? <Badge kind="pos">מחובר</Badge> : <Badg
 /* ================= WhatsApp ================= */
 export function WhatsApp() {
   const msgs = useCollection('wa_messages');
-  const health = useHealth();
-  const hook = useKapsoHook();
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -106,15 +106,6 @@ export function WhatsApp() {
         </Card>
 
         <div className="stack lg-5 md-12">
-          <Card>
-            <CardHead title="חיבור Kapso">{health === undefined ? <span className="meta">בודק…</span> : conn(health?.kapso && health?.kapso_webhook)}</CardHead>
-            <div className="list no-top inset">
-              <div className="li"><span className="li-icon"><KeyRound size={18} /></span><div className="li-main"><div className="li-title">מפתח API ומספר</div><div className="li-meta ltr">KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID</div></div>{conn(health?.kapso)}</div>
-              <div className="li"><span className="li-icon"><Webhook size={18} /></span><div className="li-main"><div className="li-title">Webhook נכנס</div><div className="li-meta">{hook.err || (hook.st?.registered ? 'רשום ב-Kapso, הודעות מגיעות לסוכן' : 'עוד לא רשום ב-Kapso')}</div></div>{hook.st?.registered ? conn(true) : hook.st ? <button className="btn btn-primary" style={{ height: 36, padding: '0 14px' }} disabled={hook.busy} onClick={hook.register}>{hook.busy ? 'רושם…' : 'חבר'}</button> : conn(false)}</div>
-              <div className="li"><span className="li-icon"><ShieldCheck size={18} /></span><div className="li-main"><div className="li-title">מספרים מורשים</div><div className="li-meta">רק מספרים ברשימה יכולים לדבר עם הסוכן</div></div><Badge>{health?.allowed_numbers ?? 0}</Badge></div>
-              <div className="li"><span className="li-icon"><Bot size={18} /></span><div className="li-main"><div className="li-title">מוח הסוכן (Gemini)</div><div className="li-meta">בלי מפתח הסוכן עובד לפי פקודות קבועות</div></div>{conn(health?.gemini)}</div>
-            </div>
-          </Card>
           <Card className="soft">
             <CardHead title="מה הסוכן יודע לעשות" />
             <dl className="kv" style={{ gridTemplateColumns: '64px 1fr' }}>
@@ -215,7 +206,7 @@ export function Status() {
 const ROLE: Record<Role, string> = { owner: 'בעלים', editor: 'עורך', viewer: 'צופה' };
 const AREAS: [Area, string][] = [['home', 'בית'], ['business', 'עסקים'], ['invest', 'השקעות']];
 
-export function Team() {
+export function Team({ embedded = false }: { embedded?: boolean }) {
   const members = useCollection('members');
   const { user } = useAuth();
   const toast = useToast();
@@ -248,7 +239,7 @@ export function Team() {
 
   return (
     <>
-      <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו."><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></PageHead>
+      {!embedded && <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו."><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></PageHead>}
       <Stagger>
         <Card className="flush lg-8 md-12">
           <div className="list">
@@ -296,9 +287,74 @@ export function Team() {
 }
 
 /* ================= Settings ================= */
+async function fileToAvatar(f: File): Promise<string> {
+  const bmp = await createImageBitmap(f);
+  const side = Math.min(bmp.width, bmp.height);
+  const size = 192;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  c.getContext('2d')!.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+
+function ProfileCard() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [name, setName] = useState(user?.name ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [photo, setPhoto] = useState<string | undefined>(user?.avatar);
+  const [busy, setBusy] = useState(false);
+
+  const pick = async (f?: File) => {
+    if (!f) return;
+    try { setPhoto(await fileToAvatar(f)); } catch { toast('התמונה לא נטענה'); }
+  };
+  const save = async () => {
+    if (!supabase) { toast('במצב הדגמה השינויים לא נשמרים'); return; }
+    const newEmail = email.trim().toLowerCase();
+    if (!name.trim()) { toast('צריך שם'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(newEmail)) { toast('כתובת המייל לא תקינה'); return; }
+    setBusy(true);
+    try {
+      const attrs: { email?: string; data: Record<string, unknown> } = { data: { name: name.trim(), avatar: photo ?? null } };
+      if (newEmail !== user?.email) attrs.email = newEmail;
+      const { error } = await supabase.auth.updateUser(attrs);
+      if (error) throw error;
+      toast(attrs.email ? 'נשלח אישור למייל החדש. המייל יתעדכן אחרי האישור' : 'הפרופיל נשמר');
+    } catch (e) { toast((e as Error).message || 'השמירה נכשלה'); } finally { setBusy(false); }
+  };
+
+  return (
+    <Card className="lg-12">
+      <CardHead title="הפרופיל שלי" sub="השם, המייל והתמונה שרואים אחרים בדשבורד" />
+      <div className="row wrap" style={{ gap: 18, alignItems: 'center' }}>
+        <span className="avatar" style={{ width: 72, height: 72, fontSize: 26, overflow: 'hidden' }}>
+          {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (name || '?').slice(0, 1)}
+        </span>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <label className="btn btn-soft btn-sm" style={{ cursor: 'pointer' }}>
+            <ScanLine size={15} />העלאת תמונה
+            <input type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
+          </label>
+          {photo && <button className="btn btn-ghost btn-sm" onClick={() => setPhoto(undefined)}><Trash2 size={14} />הסרה</button>}
+        </div>
+      </div>
+      <div className="form" style={{ marginTop: 16 }}>
+        <label className="field"><span>שם</span><input className="input" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="field"><span>מייל</span><input className="input ltr" type="email" dir="ltr" style={{ textAlign: 'right' }} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+      </div>
+      <p className="meta" style={{ marginTop: 10 }}>שינוי מייל דורש אישור ממייל החדש. הכניסה נשארת בקוד חד-פעמי למייל, בלי סיסמה.</p>
+      <div style={{ marginTop: 14 }}><button className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'שומר…' : 'שמירה'}</button></div>
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const prefs = usePrefs();
   const health = useHealth();
+  const hook = useKapsoHook();
+  const google = useGoogle(today(), addDays(today(), 30));
+  const [remOpen, setRemOpen] = useState(false);
   const toast = useToast();
   const dark = isDark();
   const rows = [
@@ -312,6 +368,9 @@ export function SettingsPage() {
   return (
     <>
       <PageHead tag="מערכת" tone="var(--ink-2)" title="הגדרות וחיבורים" />
+      <Stagger className="grid">
+        <ProfileCard />
+      </Stagger>
       <Stagger>
         <Card className="flush lg-8 md-12">
           <div className="card-head" style={{ padding: '20px 20px 4px', marginBottom: 0 }}><div><h2>חיבורים</h2><div className="sub">מפתחות מוגדרים כמשתני סביבה בשרת (Vercel), לא נשמרים בדפדפן</div></div></div>
@@ -342,6 +401,29 @@ export function SettingsPage() {
           )}
         </div>
       </Stagger>
+
+      <div className="card-head" style={{ marginTop: 28, marginBottom: 12, padding: '0 4px' }}><div><h2>יומן ותזכורות</h2><div className="sub">היומן של Google, והמיילים שנשלחים לאנשים שצוותו למשימות</div></div></div>
+      <Stagger className="grid">
+        <GoogleCard g={google} />
+        <RemindersCard onEdit={() => setRemOpen(true)} />
+      </Stagger>
+      <ReminderSheet open={remOpen} onClose={() => setRemOpen(false)} />
+
+      <div className="card-head" style={{ marginTop: 28, marginBottom: 12, padding: '0 4px' }}><div><h2>וואטסאפ · Kapso</h2><div className="sub">חיבור הסוכן לוואטסאפ, והמספרים שמורשים לדבר איתו</div></div></div>
+      <Stagger className="grid">
+        <Card className="lg-12">
+          <CardHead title="חיבור Kapso">{health === undefined ? <span className="meta">בודק…</span> : conn(health?.kapso && health?.kapso_webhook)}</CardHead>
+          <div className="list no-top inset">
+            <div className="li"><span className="li-icon"><KeyRound size={18} /></span><div className="li-main"><div className="li-title">מפתח API ומספר</div><div className="li-meta ltr">KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID</div></div>{conn(health?.kapso)}</div>
+            <div className="li"><span className="li-icon"><Webhook size={18} /></span><div className="li-main"><div className="li-title">Webhook נכנס</div><div className="li-meta">{hook.err || (hook.st?.registered ? 'רשום ב-Kapso, הודעות מגיעות לסוכן' : 'עוד לא רשום ב-Kapso')}</div></div>{hook.st?.registered ? conn(true) : hook.st ? <button className="btn btn-primary" style={{ height: 36, padding: '0 14px' }} disabled={hook.busy} onClick={hook.register}>{hook.busy ? 'רושם…' : 'חבר'}</button> : conn(false)}</div>
+            <div className="li"><span className="li-icon"><ShieldCheck size={18} /></span><div className="li-main"><div className="li-title">מספרים מורשים</div><div className="li-meta">רק מספרים ברשימה יכולים לדבר עם הסוכן</div></div><Badge>{health?.allowed_numbers ?? 0}</Badge></div>
+            <div className="li"><span className="li-icon"><Bot size={18} /></span><div className="li-main"><div className="li-title">מוח הסוכן (Gemini)</div><div className="li-meta">בלי מפתח הסוכן עובד לפי פקודות קבועות</div></div>{conn(health?.gemini)}</div>
+          </div>
+        </Card>
+      </Stagger>
+
+      <div className="card-head" style={{ marginTop: 28, marginBottom: 12, padding: '0 4px' }}><div><h2>שיתוף</h2><div className="sub">בחר מי רואה מה: בית, עסקים או השקעות, לכל אחד בנפרד</div></div></div>
+      <Team embedded />
     </>
   );
 }
