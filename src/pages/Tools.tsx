@@ -217,6 +217,22 @@ export function Team({ embedded = false }: { embedded?: boolean }) {
   const [areas, setAreas] = useState<Area[]>(['home']);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const me = members.find((m) => m.email === user?.email);
+  const isOwner = DEMO || me?.role === 'owner';
+
+  const resend = async (m: Rec) => {
+    try {
+      if (!DEMO) await api('/api/invite', { body: { email: m.email, name: m.name, role: m.role, areas: m.areas } });
+      toast(`ההזמנה נשלחה שוב אל ${m.email}`);
+    } catch (x: any) { toast(x.message); }
+  };
+  const revoke = async (m: Rec) => {
+    try {
+      // the server removes the invite, the membership and the card, so access is really gone
+      if (DEMO) store.remove('members', m.id); else await api('/api/invite', { method: 'DELETE', body: { email: m.email } });
+      toast(`הגישה של ${m.name || m.email} הוסרה`);
+    } catch (x: any) { toast(x.message); }
+  };
 
   const invite = async (e: FormEvent) => {
     e.preventDefault();
@@ -226,11 +242,7 @@ export function Team({ embedded = false }: { embedded?: boolean }) {
     if (!areas.length) { setErr('בחר לפחות תחום אחד'); return; }
     setBusy(true); setErr('');
     try {
-      if (!DEMO) {
-        const { data } = await supabase!.auth.getSession();
-        const r = await fetch('/api/invite', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${data.session?.access_token}` }, body: JSON.stringify({ email: mail, name, role, areas }) });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'שליחת ההזמנה נכשלה');
-      }
+      if (!DEMO) await api('/api/invite', { body: { email: mail, name, role, areas } });
       store.add('members', { email: mail, name: name || mail.split('@')[0], role, areas, status: 'invited', invited_at: today() });
       toast(DEMO ? 'ההזמנה נרשמה (במצב הדגמה לא נשלח מייל)' : `הזמנה נשלחה אל ${mail}`);
       setOpen(false); setEmail(''); setName('');
@@ -239,7 +251,8 @@ export function Team({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <>
-      {!embedded && <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו."><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></PageHead>}
+      {!embedded && <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו.">{isOwner && <button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button>}</PageHead>}
+      {embedded && isOwner && <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-4px 0 12px' }}><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></div>}
       <Stagger>
         <Card className="flush lg-8 md-12">
           <div className="list">
@@ -250,12 +263,13 @@ export function Team({ embedded = false }: { embedded?: boolean }) {
                   <div className="chips" style={{ marginTop: 6 }}>{AREAS.filter(([a]) => m.areas?.includes(a)).map(([a, l]) => <span key={a} className="badge">{l}</span>)}</div></div>
                 <div className="li-end">
                   {m.status === 'invited' ? <Badge kind="warn">הזמנה ממתינה</Badge> : <Badge kind={m.role === 'owner' ? 'info' : 'none'} icon={false}>{ROLE[m.role as Role]}</Badge>}
-                  {m.role !== 'owner' && <button className="icon-btn bare" aria-label={`הסרת ${m.name}`} onClick={() => { const undo = store.remove('members', m.id); toast('הגישה הוסרה', undo); }}><Trash2 size={15} /></button>}
+                  {isOwner && m.status === 'invited' && <button className="icon-btn bare" aria-label={`שליחה חוזרת אל ${m.name}`} title="שליחת ההזמנה שוב" onClick={() => void resend(m)}><Send size={15} /></button>}
+                  {isOwner && m.role !== 'owner' && <button className="icon-btn bare" aria-label={`הסרת ${m.name}`} onClick={() => void revoke(m)}><Trash2 size={15} /></button>}
                 </div>
               </div>
             ))}
           </div>
-          {members.length <= 1 && <Empty icon={Users} title="רק אתה כאן בינתיים" text="הזמן בן/בת זוג לניהול הבית, רואה חשבון לעסקים או מנהל נכסים להשקעות." />}
+          {members.length <= 1 && <Empty icon={Users} title="רק אתה כאן בינתיים" text="הזמן בן/בת זוג לניהול הבית, רואה חשבון לעסקים או מנהל נכסים להשקעות." action={isOwner ? <button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button> : undefined} />}
         </Card>
         <Card className="soft lg-4 md-12" style={{ alignSelf: 'start' }}>
           <CardHead title="הרשאות" />
@@ -264,7 +278,7 @@ export function Team({ embedded = false }: { embedded?: boolean }) {
             <dt>עורך</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>הוספה ועריכה בתחומים שנפתחו לו</dd>
             <dt>צופה</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>קריאה בלבד</dd>
           </dl>
-          <p className="meta" style={{ marginTop: 14 }}>המוזמן מקבל מייל עם קישור, ונכנס עם קוד חד־פעמי למייל. בלי סיסמאות.</p>
+          <p className="meta" style={{ marginTop: 14 }}>המוזמן מקבל מייל עם קישור, ונכנס עם קוד חד־פעמי למייל. בלי סיסמאות. אחרי הכניסה כל אחד מחבר את היומן של Google שלו בהגדרות.</p>
         </Card>
       </Stagger>
 
