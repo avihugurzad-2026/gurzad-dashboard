@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays, Megaphone } from 'lucide-react';
+import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays, Megaphone, Users } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
 import { alerts } from '../data/derive';
-import { refreshStore, useDerived } from '../data/store';
+import { canSee, getAccess, refreshStore, useDerived } from '../data/store';
 import { useChromeState, usePullToRefresh, useSwipeNav } from '../lib/gestures';
 import { spring, easeOut } from '../ui/kit';
 import { Sheet } from '../ui/overlay';
@@ -14,27 +14,36 @@ import { useCrud } from '../ui/crud';
 import { InstallSteps } from '../pages/Notifications';
 import { dismissInstall, haptic, isIOS, promptInstall, setBadge, useInstall } from '../lib/pwa';
 
-const AREAS = [
+// `area`: shown only to someone who was given that area. `owner`: shown only to the owner.
+const ALL_AREAS = [
   { to: '/', label: 'סקירה', icon: LayoutGrid, end: true },
-  { to: '/home', label: 'בית', icon: Home },
-  { to: '/business', label: 'עסקים', icon: Briefcase },
-  { to: '/invest', label: 'השקעות', icon: Building2 },
-  { to: '/marketing', label: 'שיווק', icon: Megaphone, desktopOnly: true },
+  { to: '/home', label: 'בית', icon: Home, area: 'home' },
+  { to: '/business', label: 'עסקים', icon: Briefcase, area: 'business' },
+  { to: '/invest', label: 'השקעות', icon: Building2, area: 'invest' },
+  { to: '/marketing', label: 'שיווק', icon: Megaphone, desktopOnly: true, area: 'business' },
   { to: '/planner', label: 'יומן', icon: CalendarDays },
 ];
-const TOOLS = [
-  { to: '/marketing', label: 'שיווק · מטא ואתרים', icon: Megaphone, mobileOnly: true },
+const ALL_TOOLS = [
+  { to: '/team', label: 'שיתוף ומשתמשים', icon: Users, owner: true },
+  { to: '/marketing', label: 'שיווק · מטא ואתרים', icon: Megaphone, mobileOnly: true, area: 'business' },
   { to: '/notifications', label: 'התראות', icon: Bell },
-  { to: '/whatsapp', label: 'וואטסאפ', icon: MessageCircle },
-  { to: '/status', label: 'סטטוס מערכות', icon: Activity },
+  { to: '/whatsapp', label: 'וואטסאפ', icon: MessageCircle, owner: true },
+  { to: '/status', label: 'סטטוס מערכות', icon: Activity, owner: true },
   { to: '/settings', label: 'הגדרות וחיבורים', icon: Settings },
 ];
+const allowed = <T extends { area?: string; owner?: boolean }>(xs: T[]) =>
+  xs.filter((x) => (!x.owner || getAccess().role === 'owner') && (!x.area || canSee(x.area)));
+// The store is loaded before the shell renders, so access is known here.
+let AREAS = ALL_AREAS;
+let TOOLS = ALL_TOOLS;
 
 const refreshCb = () => refreshStore();
 
 const activeArea = (path: string) => AREAS.slice(1).find((a) => path.startsWith(a.to))?.to ?? (path === '/' ? '/' : '');
 
 export function AppShell() {
+  AREAS = allowed(ALL_AREAS);
+  TOOLS = allowed(ALL_TOOLS);
   const { user, signOut } = useAuth();
   const loc = useLocation();
   const nav = useNavigate();

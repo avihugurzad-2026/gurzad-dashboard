@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Briefcase, Building2, CalendarDays, ChevronLeft, CircleAlert, CircleCheck, Home, Wallet } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { alerts, bizSummary, homeMonth, homeTrend, portfolio, upcoming } from '../data/derive';
-import { useCollection, useDerived } from '../data/store';
+import { canSee, useCollection, useDerived } from '../data/store';
 import { greeting, money, moneyRaw, percent, relDay, shortDate } from '../lib/format';
 import { usePrefs } from '../lib/prefs';
 import { Card, DotNum, Empty, Kpi, Meter, PageHead, Stagger, Badge } from '../ui/kit';
@@ -101,13 +101,13 @@ export function Overview() {
         </Card>
 
         {/* One card per area */}
-        <Card className="lg-4 md-6" to="/home">
+        {canSee('home') && <Card className="lg-4 md-6" to="/home">
           <Kpi label="בית · הוצאות החודש" icon={Home} tone={TONE.home} value={money(d.hm.spent)}
             foot={d.hm.budget ? <>מתוך תקציב {money(d.hm.budget)}</> : 'לא הוגדר תקציב'} />
           <div style={{ marginTop: 14 }}><Meter value={d.hm.spent} max={d.hm.budget || d.hm.spent || 1} tone={TONE.home} /></div>
-        </Card>
+        </Card>}
 
-        <Card className="lg-4 md-6" to="/business">
+        {canSee('business') && <Card className="lg-4 md-6" to="/business">
           <div className="spread" style={{ alignItems: 'flex-start' }}>
             <Kpi label="עסקים · הרווח שלי החודש" icon={Briefcase} tone={TONE.business} value={businesses.length ? money(d.bizProfit) : 'אין נתונים עדיין'}
               delta={d.bizProfitPrev ? (d.bizProfit - d.bizProfitPrev) / Math.abs(d.bizProfitPrev) : null} foot="מול חודש קודם" />
@@ -116,13 +116,13 @@ export function Overview() {
           <div className="chips" style={{ marginTop: 14 }}>
             {d.biz.map(({ b, s }) => <Badge key={b.id} kind={s.overdue.length ? 'warn' : 'none'}>{b.name}{s.overdue.length ? ` · ${s.overdue.length} באיחור` : ''}</Badge>)}
           </div>
-        </Card>
+        </Card>}
 
-        <Card className="lg-4 md-12" to="/invest">
+        {canSee('invest') && <Card className="lg-4 md-12" to="/invest">
           <Kpi label="נכסים · שכירות שנגבתה החודש" icon={Building2} tone={TONE.invest} value={d.pf.props.length ? money(d.pf.collected) : 'אין נתונים עדיין'}
             foot={<>מתוך {money(d.pf.expected)} · תפוסה {percent(d.pf.occupancy)}</>} />
           <div style={{ marginTop: 14 }}><Meter value={d.pf.collected} max={d.pf.expected || 1} tone={TONE.invest} /></div>
-        </Card>
+        </Card>}
 
         {/* Upcoming */}
         <Card className="flush lg-12">

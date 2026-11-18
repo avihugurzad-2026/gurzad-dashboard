@@ -23,6 +23,11 @@ const EMPTY: Rec[] = [];
 let db: DB = {};
 let ready = false;
 let workspaceId: string | null = null;
+/** What the signed-in person may see: the owner sees everything, a member only the areas opened to her. */
+export type Access = { role: 'owner' | 'editor' | 'viewer'; areas: string[] };
+let access: Access = { role: 'owner', areas: ['home', 'business', 'invest'] };
+export const getAccess = () => access;
+export const canSee = (area: string) => access.role === 'owner' || access.areas.includes(area);
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
@@ -43,8 +48,9 @@ const demoAdapter = {
 const sbAdapter = {
   async load(): Promise<DB> {
     const sb = supabase!;
-    const { data: m } = await sb.from('gd_memberships').select('workspace_id').limit(1).maybeSingle();
+    const { data: m } = await sb.from('gd_memberships').select('workspace_id, role, areas').limit(1).maybeSingle();
     workspaceId = m?.workspace_id ?? null;
+    access = m ? { role: m.role, areas: m.areas ?? [] } : { role: 'viewer', areas: [] };
     if (!workspaceId) return {};
     const out: DB = {};
     // paginate in case the workspace grows

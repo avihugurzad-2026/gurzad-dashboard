@@ -148,8 +148,13 @@ async function processEvents(raw: Buffer, idemKey: string) {
     const link = body.match(/https?:\/\/\S+/)?.[0];
     const media = msg.type === 'image' ? msg.image : msg.type === 'document' ? msg.document : null;
     try {
-      const { data: pend } = await sb.from('gd_records').select('data').eq('id', pendingId).maybeSingle();
-      const pending = pend?.data as Receipt | undefined;
+      const { data: pend } = await sb.from('gd_records').select('data, updated_at').eq('id', pendingId).maybeSingle();
+      // A receipt waits for its answer for 2 hours. After that, or when the message is a full request
+      // ("שים לי משימה בבית מחר…") rather than a short answer ("כן", "1", "בית"), it goes to the agent instead.
+      const fresh = !!pend && Date.now() - new Date(pend.updated_at).getTime() < 2 * 3600e3;
+      if (pend && !fresh) await sb.from('gd_records').delete().eq('id', pendingId);
+      const shortAnswer = body.trim().split(/\s+/).length <= 3 && body.trim().length <= 30;
+      const pending = fresh && shortAnswer ? (pend!.data as Receipt) : undefined;
       if (media?.id || (link && /קבל|חשבונ|receipt|invoice|pdf|jpg|png/i.test(body + link)) || (link && body.trim() === link)) {
         // A new receipt: keep a copy, read it, ask where it belongs.
         if (media?.id) await sendWhatsApp(from, 'קיבלתי, קורא את הקבלה… ⏳');

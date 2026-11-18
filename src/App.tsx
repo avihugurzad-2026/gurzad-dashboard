@@ -13,7 +13,7 @@ import { HomeArea } from './pages/home/HomeArea';
 import { BusinessArea } from './pages/business/BusinessArea';
 import { MarketingArea } from './pages/marketing/MarketingArea';
 import { AlertRules, InvestArea, Property } from './pages/invest/InvestArea';
-import { SettingsPage, Status, WhatsApp } from './pages/Tools';
+import { SettingsPage, Status, Team, WhatsApp } from './pages/Tools';
 import { ToastProvider, useToast } from './ui/overlay';
 
 const Router = import.meta.env.VITE_HASH_ROUTER ? HashRouter : BrowserRouter;
@@ -46,7 +46,7 @@ function Gate() {
         <Route path="planner/:view?" element={<Planner />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="status" element={<Status />} />
-        <Route path="team" element={<Navigate to="/settings" replace />} />
+        <Route path="team" element={<Team />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
