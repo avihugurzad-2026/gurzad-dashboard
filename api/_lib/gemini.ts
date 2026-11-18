@@ -19,7 +19,7 @@ export async function whileBusy<T>(notify: () => Promise<void> | void, fn: () =>
 
 async function call(body: unknown) {
   // Busy (503), over the per-minute quota (429) or slow: wait and try again, alternating models, for up to ~3 minutes.
-  const deadline = Date.now() + 180_000;
+  const deadline = Date.now() + 45_000; // stay inside the function time limit so the reply is always sent
   let last = '';
   for (let attempt = 0; Date.now() < deadline; attempt++) {
     const model = MODELS()[attempt % MODELS().length];

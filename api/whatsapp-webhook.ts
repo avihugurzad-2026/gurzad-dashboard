@@ -8,6 +8,7 @@ import { ruleBasedReply } from '../shared/agent.js';
 
 // Kapso → this endpoint (event: whatsapp.message.received). Docs: https://docs.kapso.ai/docs/platform/webhooks/overview
 export const config = { api: { bodyParser: false } }; // raw body is needed for the signature
+export const maxDuration = 60; // seconds; the background reply must finish inside this
 
 async function rawBody(req: VercelRequest): Promise<Buffer> {
   const chunks: Buffer[] = [];
