@@ -180,7 +180,7 @@ async function processEvents(raw: Buffer, idemKey: string) {
         if (r.file_path) await sb.from('gd_records').update({ data: { ...inLog, text: msg[msg.type]?.caption ?? (media ? '' : inLog.text), media_path: r.file_path, media_type: media ? msg.type : 'link' } }).eq('id', logId);
         await sb.from('gd_records').upsert({ id: pendingId, workspace_id: ws.id, collection: 'wa_pending', data: r });
         reply = question(r, await targets(db));
-      } else if (pending && body) {
+      } else if (pending && body && body.trim().split(/\s+/).length <= 4 && body.length <= 40) { // a short answer to "where does it go?"; longer messages are new requests for the agent
         if (/^\s*(בטל|ביטול|cancel)\s*$/i.test(body)) { await sb.from('gd_records').delete().eq('id', pendingId); reply = 'בוטל, הקבלה לא נרשמה.'; }
         else {
           const ts = await targets(db);

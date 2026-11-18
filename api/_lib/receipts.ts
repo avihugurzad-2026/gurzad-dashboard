@@ -130,7 +130,7 @@ export function pickTarget(text: string, ts: Target[], r: Receipt): Target | nul
   if (n >= 1 && n <= ts.length) return ts[n - 1];
   const low = t.toLowerCase();
   if (!low) return null;
-  return ts.find((x) => { const k = String(x.name ?? x.label).toLowerCase(); return low.includes(k) || k.includes(low); }) ?? (/בית/.test(t) ? ts[0] : null);
+  return ts.find((x) => { const k = String(x.name ?? x.label).toLowerCase(); return low.includes(k) || k.includes(low); }) ?? (/^בית$/.test(t) ? ts[0] : null);
 }
 
 export async function saveExpense(db: AgentData, r: Receipt, t: Target): Promise<string> {
