@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
 import { alerts } from '../data/derive';
-import { useDerived } from '../data/store';
+import { refreshStore, useDerived } from '../data/store';
+import { useChromeState, usePullToRefresh, useSwipeNav } from '../lib/gestures';
 import { spring, easeOut } from '../ui/kit';
 import { Sheet } from '../ui/overlay';
 import { useCrud } from '../ui/crud';
@@ -26,6 +27,8 @@ const TOOLS = [
   { to: '/status', label: 'סטטוס מערכות', icon: Activity },
   { to: '/settings', label: 'הגדרות וחיבורים', icon: Settings },
 ];
+
+const refreshCb = () => refreshStore();
 
 const activeArea = (path: string) => AREAS.slice(1).find((a) => path.startsWith(a.to))?.to ?? (path === '/' ? '/' : '');
 
@@ -50,7 +53,22 @@ export function AppShell() {
   const shopCrud = useCrud('shopping');
   const eventCrud = useCrud('events');
 
-  useEffect(() => { setBell(false); setMore(false); setQuick(false); window.scrollTo(0, 0); }, [loc.pathname]);
+  // back/forward returns to where you were on that screen; a new screen starts at the top
+  const navType = useNavigationType();
+  const scrollPos = useRef(new Map<string, number>());
+  useEffect(() => {
+    setBell(false); setMore(false); setQuick(false);
+    const y = navType === 'POP' ? scrollPos.current.get(loc.key) ?? 0 : 0;
+    requestAnimationFrame(() => window.scrollTo(0, y));
+    const key = loc.key;
+    const save = () => { scrollPos.current.set(key, window.scrollY); };
+    window.addEventListener('scroll', save, { passive: true });
+    return () => window.removeEventListener('scroll', save);
+  }, [loc.pathname, loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useSwipeNav();
+  useChromeState();
+  usePullToRefresh(refreshCb);
   useEffect(() => {
     if (!bell) return;
     const h = (e: MouseEvent) => { if (!bellRef.current?.contains(e.target as Node)) setBell(false); };
@@ -157,7 +175,8 @@ export function AppShell() {
         {AREAS.map((a) => {
           const on = cur === a.to;
           return (
-            <NavLink key={a.to} to={a.to} end={a.end} className="tab" aria-current={on ? 'page' : undefined}>
+            <NavLink key={a.to} to={a.to} end={a.end} className="tab" aria-current={on ? 'page' : undefined}
+              onClick={(e) => { haptic(4); if (on && loc.pathname === a.to) { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }}>
               {on && <motion.span layoutId="tab-pill" className="tab-bg" transition={spring} />}
               <a.icon size={20} /><span>{a.label}</span>
             </NavLink>

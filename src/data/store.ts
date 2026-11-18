@@ -119,6 +119,15 @@ function startLiveSync() {
 }
 export const isReady = () => ready;
 
+/** Re-read everything from the server (pull-to-refresh). Demo mode just re-renders. */
+export async function refreshStore() {
+  if (!ready) return;
+  if (DEMO) { emit(); return; }
+  lastLoad = Date.now();
+  db = await adapter.load();
+  emit();
+}
+
 export function resetDemo() {
   if (!DEMO) return;
   db = buildSeed();

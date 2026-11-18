@@ -547,3 +547,24 @@ fieldset.stack { display: flex; }
   .schedule-today { border-inline-end: 0; border-bottom: 1px solid var(--line); }
 }
 @media (max-width: 899px) { .weekmini .month-cell { min-height: 0; } .schedule-today, .schedule-week { padding: 16px; } }
+
+/* ================= v3.4 mobile app feel: gestures, scroll-aware chrome ================= */
+/* pull-to-refresh indicator */
+.ptr { position: fixed; top: calc(env(safe-area-inset-top) + var(--topbar-h) - 4px); left: 50%; z-index: 35; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface); color: var(--ink-2); box-shadow: var(--shadow-pop); opacity: 0; transform: translate(-50%, -56px); pointer-events: none; }
+.ptr.ready { background: var(--lime); color: var(--on-lime); }
+.ptr.spin svg { animation: ptr-spin .7s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 767px), (min-width: 768px) and (max-width: 1023px) and (pointer: coarse) {
+  /* top bar: transparent at rest, glass edge once content slides under it */
+  .topbar { transition: box-shadow var(--t-fast) ease, background-color var(--t-fast) ease; }
+  html.scrolled .topbar { background: color-mix(in srgb, var(--bg) 72%, transparent); box-shadow: 0 1px 0 var(--line), 0 10px 24px -20px rgb(20 40 50 / .35); }
+  /* FAB tucks away while scrolling down so it never hides a row, returns on the way up */
+  .fab { transition: transform .28s cubic-bezier(.32,.72,0,1), opacity .2s ease; }
+  html.scroll-down .fab { transform: translateY(calc(var(--tabbar-h) + 40px)) scale(.9); opacity: 0; pointer-events: none; }
+  /* keyboard up: the fixed bars would sit on top of the input, native apps hide them */
+  html.kb-open .tabbar, html.kb-open .fab { transform: translateY(160%); opacity: 0; pointer-events: none; }
+  .tabbar { transition: transform .28s cubic-bezier(.32,.72,0,1), opacity .2s ease; }
+}
+@media (prefers-reduced-motion: reduce) { .ptr.spin svg { animation: none; } }

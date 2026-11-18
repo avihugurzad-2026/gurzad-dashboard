@@ -130,9 +130,9 @@ export function Planner() {
         <button className="btn btn-ghost btn-sm" onClick={() => setAnchor(today())} disabled={anchor === today()}>היום</button>
       </div>
       <div className="pl-nav">
-        <button className="icon-btn" onClick={() => step(-1)} aria-label="הקודם"><ChevronRight size={18} /></button>
+        <button className="icon-btn" onClick={() => step(-1)} aria-label="הקודם" data-swipe="prev"><ChevronRight size={18} /></button>
         <span className="pl-title">{title}</span>
-        <button className="icon-btn" onClick={() => step(1)} aria-label="הבא"><ChevronLeft size={18} /></button>
+        <button className="icon-btn" onClick={() => step(1)} aria-label="הבא" data-swipe="next"><ChevronLeft size={18} /></button>
         <span className="grow" />
         {view !== 'day' && totalOpen > 0 && (
           <div className="catbar hide-sm" style={{ width: 220 }} role="img" aria-label="חלוקה לפי סיווג">
