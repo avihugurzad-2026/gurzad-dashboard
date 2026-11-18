@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays } from 'lucide-react';
+import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays, Megaphone } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
@@ -19,9 +19,11 @@ const AREAS = [
   { to: '/home', label: 'בית', icon: Home },
   { to: '/business', label: 'עסקים', icon: Briefcase },
   { to: '/invest', label: 'השקעות', icon: Building2 },
+  { to: '/marketing', label: 'שיווק', icon: Megaphone, desktopOnly: true },
   { to: '/planner', label: 'יומן', icon: CalendarDays },
 ];
 const TOOLS = [
+  { to: '/marketing', label: 'שיווק · מטא ואתרים', icon: Megaphone, mobileOnly: true },
   { to: '/notifications', label: 'התראות', icon: Bell },
   { to: '/whatsapp', label: 'וואטסאפ', icon: MessageCircle },
   { to: '/status', label: 'סטטוס מערכות', icon: Activity },
@@ -143,7 +145,7 @@ export function AppShell() {
 
       <aside className="rail" aria-label="כלים">
         <div className="rail-group">
-          {TOOLS.map((t) => (
+          {TOOLS.filter((t) => !('mobileOnly' in t)).map((t) => (
             <NavLink key={t.to} to={t.to} className="rail-btn" aria-label={t.label}>
               <t.icon size={19} /><span className="tip">{t.label}</span>
             </NavLink>
@@ -172,7 +174,7 @@ export function AppShell() {
       {/* ---- mobile ---- */}
       <button className="fab" aria-label="הוספה מהירה" onClick={() => { haptic(); setQuick(true); }}><Plus size={24} /></button>
       <nav className="tabbar" aria-label="ניווט ראשי">
-        {AREAS.map((a) => {
+        {AREAS.filter((a) => !('desktopOnly' in a)).map((a) => {
           const on = cur === a.to;
           return (
             <NavLink key={a.to} to={a.to} end={a.end} className="tab" aria-current={on ? 'page' : undefined}
@@ -182,8 +184,8 @@ export function AppShell() {
             </NavLink>
           );
         })}
-        <button className="tab" onClick={() => setMore(true)} aria-current={cur === '' ? 'page' : undefined}>
-          {cur === '' && <motion.span layoutId="tab-pill" className="tab-bg" transition={spring} />}
+        <button className="tab" onClick={() => setMore(true)} aria-current={cur === '' || cur === '/marketing' ? 'page' : undefined}>
+          {(cur === '' || cur === '/marketing') && <motion.span layoutId="tab-pill" className="tab-bg" transition={spring} />}
           <MoreHorizontal size={20} /><span>עוד</span>
         </button>
       </nav>

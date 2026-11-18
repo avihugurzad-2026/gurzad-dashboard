@@ -242,6 +242,8 @@ export const SCHEMAS: Partial<Record<Collection, { title: string; singular: stri
       { key: 'url', label: 'כתובת לבדיקה', type: 'url', required: true },
       { key: 'kind', label: 'סוג', type: 'select', options: ['אתר', 'מערכת', 'API'], default: 'אתר', half: true },
       { key: 'owner', label: 'שייך ל', type: 'text', half: true, placeholder: 'עדן, הספא…' },
+      { key: 'ga_property', label: 'Google Analytics (מזהה נכס GA4)', type: 'text', half: true, placeholder: '123456789', hint: 'לנתוני כניסות בעמוד שיווק › אתרים' },
+      { key: 'gsc_site', label: 'Search Console (לא חובה)', type: 'text', half: true, placeholder: 'sc-domain:example.co.il', hint: 'ריק = לפי כתובת האתר' },
     ],
   },
 };

@@ -11,6 +11,7 @@ import { Notifications } from './pages/Notifications';
 import { Planner } from './pages/Planner';
 import { HomeArea } from './pages/home/HomeArea';
 import { BusinessArea } from './pages/business/BusinessArea';
+import { MarketingArea } from './pages/marketing/MarketingArea';
 import { AlertRules, InvestArea, Property } from './pages/invest/InvestArea';
 import { SettingsPage, Status, WhatsApp } from './pages/Tools';
 import { ToastProvider, useToast } from './ui/overlay';
@@ -41,6 +42,7 @@ function Gate() {
         <Route path="invest" element={<InvestArea />} />
         <Route path="invest/alerts" element={<AlertRules />} />
         <Route path="invest/:propId/:tab?" element={<Property />} />
+        <Route path="marketing/:tab?" element={<MarketingArea />} />
         <Route path="planner/:view?" element={<Planner />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="status" element={<Status />} />
