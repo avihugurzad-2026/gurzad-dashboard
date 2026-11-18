@@ -1,10 +1,20 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { PLAN_COLLECTIONS } from '../../shared/planner';
 import type { Collection, Rec } from './types';
 import { buildSeed } from './seed';
 import { DEMO } from '../lib/config';
 import { ls } from '../lib/safeStorage';
 import { supabase } from '../lib/supabase';
 import { uid } from '../lib/format';
+
+// A change to a task/event is sent to the user's Google Calendar a few seconds later (one send for a burst of edits).
+const PLAN = new Set<string>(PLAN_COLLECTIONS);
+let pushTimer: ReturnType<typeof setTimeout> | undefined;
+function pushSoon(c: string) {
+  if (!PLAN.has(c)) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => { void import('../lib/api').then(({ api }) => api('/api/google?action=sync', { body: {} })).catch(() => null); }, 4000);
+}
 
 type DB = Record<string, Rec[]>;
 const KEY = 'gurzad-v3.3-demo';
@@ -54,10 +64,12 @@ const sbAdapter = {
     void created_at;
     const { error } = await supabase!.from('gd_records').upsert({ id, workspace_id: workspaceId, collection: c, data });
     if (error) throw error;
+    pushSoon(c);
   },
-  async del(_c: string, id: string) {
+  async del(c: string, id: string) {
     const { error } = await supabase!.from('gd_records').delete().eq('id', id);
     if (error) throw error;
+    pushSoon(c);
   },
 };
 

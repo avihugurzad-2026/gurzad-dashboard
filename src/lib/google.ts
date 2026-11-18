@@ -15,6 +15,7 @@ const DEMO_EVENTS = (): GoogleEvent[] => [
   { id: 'g4', title: 'כנס שיווק דיגיטלי', date: addDays(today(), 11), time: '09:00', place: 'תל אביב' },
 ];
 
+let lastAuto = 0;
 export function useGoogle(from: string, to: string) {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [events, setEvents] = useState<GoogleEvent[]>([]);
@@ -37,6 +38,25 @@ export function useGoogle(from: string, to: string) {
   }, [from, to]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Pull from Google again every 5 minutes while the app is open, and whenever the app comes back to the screen.
+  useEffect(() => {
+    if (DEMO) return;
+    const again = () => { if (document.visibilityState === 'visible') void refresh(); };
+    const t = setInterval(again, 5 * 60e3);
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('focus', again);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', again); window.removeEventListener('focus', again); };
+  }, [refresh]);
+
+  // Send dashboard changes to Google automatically: when the last send is over 30 minutes old (at most once per 30 minutes).
+  useEffect(() => {
+    if (DEMO || !status?.connected || status.push === false) return;
+    const last = status.synced_at ? Date.parse(status.synced_at) : 0;
+    if (Date.now() - last < 30 * 60e3 || Date.now() - lastAuto < 30 * 60e3) return;
+    lastAuto = Date.now();
+    void api('/api/google?action=sync', { body: {} }).catch(() => null);
+  }, [status]);
 
   const connect = async () => {
     if (DEMO) { demoConnected = true; try { localStorage.setItem('gd-demo-google', '1'); } catch { /* */ } await refresh(); return; }
