@@ -5,6 +5,7 @@ import { waitUntil } from '@vercel/functions';
 import { GeminiBusy, geminiAgentReply, whileBusy } from './_lib/gemini.js';
 import { downloadMedia, ingest, pickTarget, question, saveExpense, targets, type Receipt } from './_lib/receipts.js';
 import { ruleBasedReply } from '../shared/agent.js';
+import { notifyEvent } from './_lib/push.js';
 
 // Kapso → this endpoint (event: whatsapp.message.received). Docs: https://docs.kapso.ai/docs/platform/webhooks/overview
 export const config = { api: { bodyParser: false } }; // raw body is needed for the signature
@@ -207,6 +208,8 @@ async function processEvents(raw: Buffer, idemKey: string) {
     }
     await sendWhatsApp(from, reply);
     await sb.from('gd_records').insert({ id: `${logId}-r`, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'out', text: reply, at: new Date().toISOString(), to: from } });
+    // Phone alert every time the agent answers, like a chat app.
+    await notifyEvent(ws.id, { id: `agent-${logId}`, level: 'info', area: 'home', title: 'הסוכן ענה', detail: reply.slice(0, 140), to: '/whatsapp', sort: -50 }).catch((e) => console.error('agent push', e));
   }
 }
 
