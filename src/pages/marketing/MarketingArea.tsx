@@ -93,7 +93,7 @@ function MetaReach({ days }: { days: number }) {
 
       <Card className="hero hero-pink lg-5 md-12">
         <div className="spread"><span className="hero-label"><Eye size={16} />חשיפה כוללת</span><span className="hero-chip">{Math.round(paidShare * 100)}% ממומן</span></div>
-        <div className="hero-num"><DotNum value={big(total)} label={`${cnt(total)} אנשים`} /></div>
+        <div className="hero-num">{p || d.facebook?.reach != null || d.instagram?.reach != null ? <DotNum value={big(total)} label={`${cnt(total)} אנשים`} /> : <span style={{ fontSize: 28 }}>אין נתונים עדיין</span>}</div>
         <div className="hero-sub">ממומן {big(p?.reach ?? 0)} · אורגני {big(organic)}<br />{shortDate(d.range.since)} עד {shortDate(d.range.until)}</div>
         <div className="hero-ticks" role="img" aria-label="חשיפה לפי יום">
           {series.slice(-30).map((v, i) => <i key={i} className="on" style={{ height: `${12 + (v / smax) * 88}%` }} />)}

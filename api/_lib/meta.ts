@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { env, has, HttpError } from './server.js';
 
 // Meta (Facebook + Instagram) reach for one business: paid from the ad account, organic from the Page and its Instagram account.
@@ -5,12 +6,16 @@ import { env, has, HttpError } from './server.js';
 // Needed permissions: ads_read, read_insights, pages_read_engagement, pages_show_list, instagram_basic, instagram_manage_insights.
 export const metaReady = () => has('META_ACCESS_TOKEN') && (has('META_AD_ACCOUNT_ID') || has('META_PAGE_ID'));
 export const metaMissing = () => ['META_ACCESS_TOKEN', 'META_AD_ACCOUNT_ID', 'META_PAGE_ID'].filter((k) => !has(k));
+// Read-only by design: the owner asked that the dashboard take no action on Meta (no POST/DELETE) until he says otherwise.
 
 const V = () => env('META_GRAPH_VERSION') || 'v23.0';
 const G = 'https://graph.facebook.com';
 
 async function graph(path: string, params: Record<string, string> = {}, token = env('META_ACCESS_TOKEN')): Promise<any> {
   const q = new URLSearchParams({ ...params, access_token: token });
+  // Apps with "Require App Secret" on reject server calls without appsecret_proof = HMAC-SHA256(token, app secret)
+  const secret = env('META_APP_SECRET');
+  if (secret) q.set('appsecret_proof', createHmac('sha256', secret).update(token).digest('hex'));
   const r = await fetch(`${G}/${V()}/${path}?${q}`, { signal: AbortSignal.timeout(15000) });
   const j: any = await r.json().catch(() => ({}));
   if (!r.ok || j.error) {
