@@ -1,7 +1,8 @@
-import { type ReactNode, type CSSProperties, createContext, useContext, useEffect, useId, useRef } from 'react';
+import { type ReactNode, type CSSProperties, createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowDownRight, ArrowUpRight, Check, Minus, AlertTriangle, CircleAlert, CircleCheck, Info, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { cameBySwipe } from '../lib/gestures';
 
 export const spring = { type: 'spring', stiffness: 420, damping: 34 } as const;
 export const easeOut = [0.22, 1, 0.36, 1] as const;
@@ -32,8 +33,10 @@ export function TabBody({ id, children }: { id: string; children: ReactNode }) {
 }
 export function Stagger({ children, className = 'grid' }: { children: ReactNode; className?: string }) {
   const quick = useContext(QuickCtx);
+  // arrived by swiping: the whole page slides in, so its cards must already be there (no cascade)
+  const [swiped] = useState(cameBySwipe);
   return (
-    <motion.div className={className} initial="hidden" animate={quick ? 'quick' : 'show'}
+    <motion.div className={className} initial={swiped ? false : 'hidden'} animate={quick ? 'quick' : 'show'}
       variants={{ show: { transition: { staggerChildren: 0.04, delayChildren: 0.02 } }, quick: {} }}>
       {children}
     </motion.div>
@@ -117,7 +120,7 @@ export function Badge({ kind = 'none', children, icon = true }: { kind?: 'pos' |
 /* ---------- Meter ---------- */
 export function Meter({ value, max, tone, small, label = 'ניצול' }: { value: number; max: number; tone?: string; small?: boolean; label?: string }) {
   const ratio = max > 0 ? value / max : 0;
-  const quick = useContext(QuickCtx); // switching tabs is frequent: show the bar filled, don't replay the fill
+  const ctxQuick = useContext(QuickCtx); const [swiped] = useState(cameBySwipe); const quick = ctxQuick || swiped; // switching tabs is frequent: show the bar filled, don't replay the fill
   return (
     <div className={`meter ${ratio > 1 ? 'over' : ''} ${small ? 'sm' : ''}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100} style={{ '--tone': tone } as CSSProperties}>
       <motion.i initial={quick ? false : { scaleX: 0 }} animate={{ scaleX: Math.min(1, ratio) }} transition={{ duration: 0.4, ease: easeOut, delay: 0.06 }} style={{ width: '100%' }} />

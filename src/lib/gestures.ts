@@ -3,6 +3,11 @@
 import { useEffect } from 'react';
 import { haptic } from './pwa';
 
+/** Time of the last page change made by a swipe. Content that would cascade in on first paint
+ *  (Stagger) shows at once instead, so the page slides in whole rather than card by card. */
+export const swipeNav = { at: 0 };
+export const cameBySwipe = () => performance.now() - swipeNav.at < 900;
+
 const phone = () => matchMedia('(max-width: 1023px) and (pointer: coarse)').matches;
 const root = () => document.documentElement;
 
@@ -106,25 +111,49 @@ export function useSwipePager(neighbor: Neighbor, dots: () => { count: number; i
       if (!el.style.transform && !el.style.opacity) return;
       animate(el, '', '', 200, EASE, () => { el.style.transform = ''; el.style.opacity = ''; });
     };
-    const enter = (dir: Dir) => {
-      requestAnimationFrame(() => {
-        const el = page(); if (!el) return;
-        el.classList.remove('dragging');
-        el.style.transition = 'none';
-        el.style.transform = reduce() ? '' : `translate3d(${dir === 'next' ? -0.24 * W() : 0.24 * W()}px,0,0)`;
-        el.style.opacity = reduce() ? '0.3' : '0.4';
-        void el.offsetWidth;
-        animate(el, '', '', reduce() ? 160 : 260, 'cubic-bezier(.22,1,.36,1)');
-        showDots(false);
-      });
+    // The new screen is rendered by React after go(), sometimes a few frames later (lazy chunk,
+    // heavy area). Hold the page hidden at its start offset until the new content is in the DOM,
+    // then slide it in, so the old screen never flashes back and nothing appears half-built.
+    const enter = (dir: Dir, mo: MutationObserver, changed: () => boolean) => {
+      const el = page(); if (!el) { mo.disconnect(); return; }
+      const t0 = performance.now();
+      const ready = () => {
+        const waited = performance.now() - t0;
+        if (waited > 1500) return true;
+        if (page()?.querySelector('.page-loading')) return false;
+        return changed() || waited > 300;
+      };
+      const tick = () => {
+        if (!ready()) { requestAnimationFrame(tick); return; }
+        mo.disconnect();
+        requestAnimationFrame(() => {   // one more frame so the new content has painted once
+          const cur = page() ?? el;
+          cur.style.transition = 'none';
+          cur.style.transform = reduce() ? '' : `translate3d(${dir === 'next' ? -0.24 * W() : 0.24 * W()}px,0,0)`;
+          cur.style.opacity = reduce() ? '0.3' : '0.4';
+          void cur.offsetWidth;
+          animate(cur, '', '', reduce() ? 160 : 260, 'cubic-bezier(.22,1,.36,1)');
+          showDots(false);
+        });
+      };
+      requestAnimationFrame(tick);
     };
     const commit = (dir: Dir, v: number) => {
       const go = target[dir]; if (!go) return;
       haptic(6);
       const el = page();
-      if (!el) { go(); return; }
+      if (!el) { swipeNav.at = performance.now(); go(); return; }
       el.classList.remove('dragging');
-      const finish = () => { el.style.transition = 'none'; el.style.transform = ''; el.style.opacity = ''; go(); enter(dir); };
+      const finish = () => {
+        // keep the old screen hidden off to the side while React swaps in the new one
+        el.style.transition = 'none'; el.style.opacity = '0';
+        let dirty = false;
+        const mo = new MutationObserver(() => { dirty = true; });
+        mo.observe(el, { childList: true, subtree: true });
+        swipeNav.at = performance.now();
+        go();
+        enter(dir, mo, () => dirty);
+      };
       if (reduce()) { animate(el, el.style.transform, '0', 120, 'ease', finish); return; }
       // keep the finger's speed: an ease-out starts at ~2x its average speed
       const cur = new DOMMatrixReadOnly(getComputedStyle(el).transform === 'none' ? undefined : getComputedStyle(el).transform).m41;
