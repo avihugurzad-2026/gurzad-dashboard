@@ -70,7 +70,7 @@ const RECEIPT_SCHEMA = {
     merchant: { type: 'STRING', nullable: true, description: 'שם העסק/הספק' },
     total: { type: 'NUMBER', nullable: true, description: 'סה״כ לתשלום כולל מע״מ' },
     vat: { type: 'NUMBER', nullable: true, description: 'סכום המע״מ' },
-    date: { type: 'STRING', nullable: true, description: 'YYYY-MM-DD' },
+    date: { type: 'STRING', nullable: true, description: 'תאריך הקבלה בפורמט YYYY-MM-DD. בקבלות ישראליות התאריך מודפס יום/חודש/שנה (למשל 19/11/26 = 2026-11-19)' },
     category: { type: 'STRING', nullable: true, description: 'קטגוריית הוצאה בעברית' },
     invoice_number: { type: 'STRING', nullable: true },
     payment_method: { type: 'STRING', nullable: true },
@@ -81,6 +81,7 @@ const RECEIPT_SCHEMA = {
 const receiptPrompt = (targets: string[], cats: string[]) =>
   `זו קבלה או חשבונית. חלץ את כל הפרטים: ספק, תאריך, סה״כ, מע״מ, אמצעי תשלום ורשימת מוצרים/שירותים עם כמות ומחיר.
 אם שדה לא מופיע בבירור, החזר null ואל תנחש.
+date: קבלות בישראל מדפיסות תאריך בסדר יום/חודש/שנה, לרוב עם שנה בשתי ספרות (19/11/26 הוא 19 בנובמבר 2026, לא 2019). היום ${new Date(Date.now() + 2 * 3600e3).toISOString().slice(0, 10)}, וקבלה היא כמעט תמיד מהימים או מהשבועות האחרונים.
 category: בחר אחת מ: ${cats.join(', ')}.
 suggested_target: בחר מהרשימה לאן ההוצאה הכי סבירה שייכת: ${targets.join(' | ')}.`;
 

@@ -84,7 +84,8 @@ async function recentHistory(wsId: string, phone: string) {
   return (data ?? []).map((r) => r.data as any)
     .filter((d) => d.from === phone || d.to === phone)
     .slice(0, 8).reverse()
-    .map((d) => ({ role: d.direction === 'in' ? 'user' as const : 'model' as const, text: String(d.text || '') }));
+    // Photos/PDFs are handled by the receipt flow, not by the agent: say so, so the agent doesn't answer "I couldn't read the image".
+    .map((d) => ({ role: d.direction === 'in' ? 'user' as const : 'model' as const, text: /^\[(image|document)\]$/.test(String(d.text)) ? '[נשלחה קבלה. מערכת הקבלות קוראת אותה ותשלח את הפרטים בנפרד, אין צורך להגיב עליה]' : String(d.text || '') }));
 }
 
 /** Signed-in members: the in-app chat talks to the same Gemini agent (POST ?action=chat {text, history}). */
@@ -144,6 +145,7 @@ async function processEvents(raw: Buffer, idemKey: string) {
     const history = await recentHistory(ws.id, from).catch(() => []);
     let reply: string;
     const pendingId = `wa-pending-${ws.id}-${from}`;
+    const busyId = `wa-busy-${ws.id}-${from}`; // a receipt is being read right now (it can take up to a minute)
     const body: string = msg.text?.body ?? '';
     const link = body.match(/https?:\/\/\S+/)?.[0];
     const media = msg.type === 'image' ? msg.image : msg.type === 'document' ? msg.document : null;
@@ -155,11 +157,20 @@ async function processEvents(raw: Buffer, idemKey: string) {
       if (pend && !fresh) await sb.from('gd_records').delete().eq('id', pendingId);
       const shortAnswer = body.trim().split(/\s+/).length <= 3 && body.trim().length <= 30;
       const pending = fresh && shortAnswer ? (pend!.data as Receipt) : undefined;
-      if (media?.id || (link && /קבל|חשבונ|receipt|invoice|pdf|jpg|png/i.test(body + link)) || (link && body.trim() === link)) {
+      const { data: busy } = await sb.from('gd_records').select('updated_at').eq('id', busyId).maybeSingle();
+      const reading = !!busy && Date.now() - new Date(busy.updated_at).getTime() < 90e3;
+      if (reading && !media?.id && shortAnswer) {
+        // "קיבלת?" while the photo is still being read: don't send it to the agent (it would guess), just say we're on it.
+        reply = 'כן, קיבלתי את הקבלה ואני עדיין קורא אותה. עוד רגע אשלח את הפרטים ⏳';
+      } else if (media?.id || (link && /קבל|חשבונ|receipt|invoice|pdf|jpg|png/i.test(body + link)) || (link && body.trim() === link)) {
         // A new receipt: keep a copy, read it, ask where it belongs.
-        if (media?.id) await sendWhatsApp(from, 'קיבלתי, קורא את הקבלה… ⏳');
-        const src = media?.id ? await downloadMedia(media.id) : { url: link! };
-        const r = await whileBusy(() => sendWhatsApp(from, 'ה-AI עמוס כרגע, ממשיך לנסות לקרוא את הקבלה ⏳'), () => ingest(db, ws.id, src));
+        await sb.from('gd_records').upsert({ id: busyId, workspace_id: ws.id, collection: 'wa_pending', data: { reading: true }, updated_at: new Date().toISOString() });
+        let r: Receipt;
+        try {
+          if (media?.id) await sendWhatsApp(from, 'קיבלתי, קורא את הקבלה… ⏳');
+          const src = media?.id ? await downloadMedia(media.id) : { url: link! };
+          r = await whileBusy(() => sendWhatsApp(from, 'ה-AI עמוס כרגע, ממשיך לנסות לקרוא את הקבלה ⏳'), () => ingest(db, ws.id, src));
+        } finally { await sb.from('gd_records').delete().eq('id', busyId); }
         await sb.from('gd_records').upsert({ id: pendingId, workspace_id: ws.id, collection: 'wa_pending', data: r });
         reply = question(r, await targets(db));
       } else if (pending && body) {
