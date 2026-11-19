@@ -568,3 +568,14 @@ fieldset.stack { display: flex; }
   .tabbar { transition: transform .28s cubic-bezier(.32,.72,0,1), opacity .2s ease; }
 }
 @media (prefers-reduced-motion: reduce) { .ptr.spin svg { animation: none; } }
+
+/* receipt copies (WhatsApp agent) */
+.receipt-thumb { flex: none; display: grid; place-items: center; overflow: hidden; border-radius: 12px; background: var(--surface-2, #f1f1f3); border: 1px solid var(--line); color: var(--ink-2); padding: 0; cursor: zoom-in; }
+.receipt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.receipt-thumb.wide { width: min(220px, 60vw); aspect-ratio: 3 / 4; margin-bottom: 6px; }
+.receipt-thumb.wide:has(svg) { aspect-ratio: auto; padding: 12px; gap: 8px; display: flex; cursor: pointer; }
+.receipt-thumb-ph { width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(0,0,0,.05), transparent); }
+.bubble .receipt-thumb.wide { display: block; }
+.receipt-viewer { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 10, 12, .88); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); cursor: zoom-out; }
+.receipt-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; cursor: default; }
+.receipt-viewer .icon-btn { position: absolute; inset-block-start: max(16px, env(safe-area-inset-top)); inset-inline-end: 16px; background: rgba(255,255,255,.14); color: #fff; }

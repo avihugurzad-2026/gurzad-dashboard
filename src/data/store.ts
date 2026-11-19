@@ -235,3 +235,15 @@ export function useDerived<T>(fn: () => T, deps: unknown[] = []): T {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(fn, [snap, ...deps]);
 }
+
+/* ---------- receipt copies (written by the WhatsApp agent, bucket gd-receipts) ---------- */
+const receiptUrls = new Map<string, Promise<string>>();
+export function signedReceiptUrl(path: string): Promise<string> {
+  if (DEMO || !path) return Promise.resolve('');
+  if (!receiptUrls.has(path)) {
+    receiptUrls.set(path, supabase!.storage.from('gd-receipts').createSignedUrl(path, 60 * 60 * 6)
+      .then(({ data }) => data?.signedUrl ?? '')
+      .catch(() => { receiptUrls.delete(path); return ''; }));
+  }
+  return receiptUrls.get(path)!;
+}

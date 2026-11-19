@@ -1,3 +1,4 @@
+import { ReceiptThumb } from './receipt';
 import { useState, type CSSProperties, type ReactNode, type FormEvent } from 'react';
 import { catVar, categoryOf } from '../../shared/planner';
 import { AnimatePresence, motion } from 'motion/react';
@@ -104,7 +105,7 @@ export function RecordList({ collection, rows, scope, icon: Icon, title, meta, e
             {rows.map((r) => (
               <motion.div key={r.id} layout="position" {...rowAnim} style={{ overflow: 'hidden' }}>
                 <div className="li clickable" onClick={() => crud.openEdit(r)} tabIndex={0} role="button" onKeyDown={(e) => { if (e.key === 'Enter') crud.openEdit(r); }}>
-                  <span className="li-icon"><Icon size={18} /></span>
+                  {r.receipt_path ? <ReceiptThumb path={r.receipt_path} /> : <span className="li-icon"><Icon size={18} /></span>}
                   <div className="li-main"><div className="li-title">{title(r)}</div>{meta && <div className="li-meta">{meta(r)}</div>}</div>
                   <div className="li-end">
                     {end?.(r)}

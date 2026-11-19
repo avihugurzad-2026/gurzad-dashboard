@@ -1,3 +1,4 @@
+import { ReceiptThumb } from '../ui/receipt';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Activity, BellRing, Bot, Check, Clock, Eye, EyeOff, Globe, KeyRound, Mail, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
@@ -90,7 +91,7 @@ export function WhatsApp() {
             <AnimatePresence initial={false}>
               {sorted.map((m) => (
                 <motion.div key={m.id} className={`bubble ${m.direction === 'in' ? 'out' : 'in'}`} initial={{ opacity: 0, y: 8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.22, ease: easeOut }} style={{ transformOrigin: m.direction === 'in' ? 'bottom left' : 'bottom right' }}>
-                  <bdi>{m.text}</bdi><time>{shortDate(m.at.slice(0, 10))} · {clock(m.at)}</time>
+                  {m.media_path && <ReceiptThumb path={m.media_path} wide />}{(!m.media_path || !/^\[(image|document)\]$/.test(m.text)) && m.text && <bdi>{m.text}</bdi>}<time>{shortDate(m.at.slice(0, 10))} · {clock(m.at)}</time>
                 </motion.div>
               ))}
               {typing && <motion.div key="typing" className="bubble in muted" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>מקליד…</motion.div>}

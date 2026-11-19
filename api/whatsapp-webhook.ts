@@ -139,7 +139,8 @@ async function processEvents(raw: Buffer, idemKey: string) {
     const msgId = msg.id || msg.wamid || msg.kapso?.id || ev.id || idemKey || crypto.randomUUID();
     const logId = `wa-${msgId}`;
     console.log('wa: in', msg.type, 'id?', !!msg.id, 'keys', Object.keys(msg).join(','));
-    const { error: dup } = await sb.from('gd_records').insert({ id: logId, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'in', text: msg.text?.body ?? `[${msg.type}]`, at: new Date().toISOString(), from } });
+    const inLog = { direction: 'in', text: msg.text?.body ?? `[${msg.type}]`, at: new Date().toISOString(), from };
+    const { error: dup } = await sb.from('gd_records').insert({ id: logId, workspace_id: ws.id, collection: 'wa_messages', data: inLog });
     if (dup) { console.log('wa: log insert failed / duplicate', dup.message); continue; }
 
     const history = await recentHistory(ws.id, from).catch(() => []);
@@ -171,6 +172,8 @@ async function processEvents(raw: Buffer, idemKey: string) {
           const src = media?.id ? await downloadMedia(media.id) : { url: link! };
           r = await whileBusy(() => sendWhatsApp(from, 'ה-AI עמוס כרגע, ממשיך לנסות לקרוא את הקבלה ⏳'), () => ingest(db, ws.id, src));
         } finally { await sb.from('gd_records').delete().eq('id', busyId); }
+        // Show the photo itself in the dashboard's WhatsApp log instead of "[image]".
+        if (r.file_path) await sb.from('gd_records').update({ data: { ...inLog, text: msg[msg.type]?.caption ?? (media ? '' : inLog.text), media_path: r.file_path, media_type: media ? msg.type : 'link' } }).eq('id', logId);
         await sb.from('gd_records').upsert({ id: pendingId, workspace_id: ws.id, collection: 'wa_pending', data: r });
         reply = question(r, await targets(db));
       } else if (pending && body) {

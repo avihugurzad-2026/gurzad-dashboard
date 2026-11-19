@@ -1,3 +1,4 @@
+import { ReceiptThumb } from '../../ui/receipt';
 import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
@@ -230,8 +231,8 @@ function Budget() {
           <div className="list">
             {list.map((t) => (
               <div key={t.id} className="li clickable" onClick={() => txCrud.openEdit(t)}>
-                <span className="li-icon" style={t.kind === 'הכנסה' ? { background: 'var(--pos-bg)', color: 'var(--pos)' } : undefined}>{t.kind === 'הכנסה' ? <ArrowDownLeft size={18} /> : <Receipt size={18} />}</span>
-                <div className="li-main"><div className="li-title">{t.title}</div><div className="li-meta">{t.category} · {shortDate(t.date)}{t.source === 'whatsapp' ? ' · דרך וואטסאפ' : ''}</div></div>
+                {t.receipt_path ? <ReceiptThumb path={t.receipt_path} /> : <span className="li-icon" style={t.kind === 'הכנסה' ? { background: 'var(--pos-bg)', color: 'var(--pos)' } : undefined}>{t.kind === 'הכנסה' ? <ArrowDownLeft size={18} /> : <Receipt size={18} />}</span>}
+                <div className="li-main"><div className="li-title">{t.title}</div><div className="li-meta">{t.category} · {shortDate(t.date)}{String(t.source || '').startsWith('whatsapp') ? ' · דרך וואטסאפ' : ''}</div></div>
                 <span className={`li-amount ${t.kind === 'הכנסה' ? 'pos' : ''}`}>{t.kind === 'הכנסה' ? '+' : '−'}{money(t.amount)}</span>
               </div>
             ))}
