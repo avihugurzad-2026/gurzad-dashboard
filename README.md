@@ -43,7 +43,7 @@ src/            אפליקציית React (Vite + TS)
   pages/        Overview · home/ · business/ · invest/ · Tools (וואטסאפ, סטטוס, צוות, הגדרות) · Login
 shared/agent.ts ליבת סוכן הוואטסאפ: כלים + מנוע פקודות (משותף לדפדפן ולשרת)
 api/            פונקציות Vercel: auth/send-otp, auth/verify-otp, invite, whatsapp-webhook,
-                status-check, gemini/scan-receipt, sync-invoices (placeholder), health,
+                status-check, health,
                 push (רישום מכשירים), notify (cron התראות)
 supabase/       migrations
 legacy/         v2

@@ -27,7 +27,7 @@
   --line-strong: #C4C6CB;
   --ink: #17181A;
   --ink-2: #53555B;
-  --ink-3: #74767D;
+  --ink-3: #62646B; /* ≥ 5:1 on --surface-2 (was #74767D, 4.27:1) */
   --accent: #17181A;
   --on-accent: #FFFFFF;
   --link: #17181A;

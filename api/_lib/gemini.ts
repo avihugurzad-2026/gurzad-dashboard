@@ -1,4 +1,4 @@
-import { env } from './server.js';
+import { env, israelDay } from './server.js';
 import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent.js';
 
 const MODELS = () => [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
@@ -81,7 +81,7 @@ const RECEIPT_SCHEMA = {
 const receiptPrompt = (targets: string[], cats: string[]) =>
   `זו קבלה או חשבונית. חלץ את כל הפרטים: ספק, תאריך, סה״כ, מע״מ, אמצעי תשלום ורשימת מוצרים/שירותים עם כמות ומחיר.
 אם שדה לא מופיע בבירור, החזר null ואל תנחש.
-date: קבלות בישראל מדפיסות תאריך בסדר יום/חודש/שנה, לרוב עם שנה בשתי ספרות (19/11/26 הוא 19 בנובמבר 2026, לא 2019). היום ${new Date(Date.now() + 2 * 3600e3).toISOString().slice(0, 10)}, וקבלה היא כמעט תמיד מהימים או מהשבועות האחרונים.
+date: קבלות בישראל מדפיסות תאריך בסדר יום/חודש/שנה, לרוב עם שנה בשתי ספרות (19/11/26 הוא 19 בנובמבר 2026, לא 2019). היום ${israelDay()}, וקבלה היא כמעט תמיד מהימים או מהשבועות האחרונים.
 category: בחר אחת מ: ${cats.join(', ')}.
 suggested_target: בחר מהרשימה לאן ההוצאה הכי סבירה שייכת: ${targets.join(' | ')}.`;
 

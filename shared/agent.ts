@@ -9,8 +9,10 @@ export interface AgentData {
 }
 
 const ils = (n: number) => '₪' + Math.round(n).toLocaleString('he-IL');
-const todayIso = () => new Date(Date.now() + 2 * 3600e3).toISOString().slice(0, 10); // Asia/Jerusalem (approx.)
-const addDays = (n: number) => new Date(Date.now() + 2 * 3600e3 + n * 864e5).toISOString().slice(0, 10);
+// Dates in Israel time, summer time included (a fixed UTC+2 put "tomorrow" on the wrong day after 21:00 in summer).
+const israelDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(d);
+const todayIso = () => israelDay();
+const addDays = (n: number) => { const d = new Date(todayIso() + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const dd = (iso?: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '');
 
 /* ---------- tool declarations (Gemini function calling format) ---------- */

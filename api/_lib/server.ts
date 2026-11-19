@@ -1,9 +1,19 @@
+import crypto from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { AgentData, Row } from '../../shared/agent.js';
 
 /** Env value, trimmed and without wrapping quotes (values pasted into Vercel often carry them). */
 export const env = (k: string) => (process.env[k] || '').trim().replace(/^(['"])(.*)\1$/, '$2');
+/** Constant-time string comparison (secrets, hashes). */
+export function safeEqual(a: string, b: string) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+/** Vercel cron calls carry `Authorization: Bearer <CRON_SECRET>`. */
+export const isCron = (auth?: string) => !!env('CRON_SECRET') && safeEqual(auth || '', `Bearer ${env('CRON_SECRET')}`);
+/** Today's date in Israel (handles summer time), YYYY-MM-DD. */
+export const israelDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(d);
 export const has = (...keys: string[]) => keys.every((k) => !!process.env[k]);
 
 let admin: SupabaseClient | null = null;

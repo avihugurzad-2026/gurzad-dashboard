@@ -48,8 +48,8 @@ export function Overview() {
         <span className="stat"><b>{d.list.length - urgent}</b><span className="badge">למעקב</span></span>
         <span className="stat"><b>{urgent}</b><span className="badge">דחוף</span></span>
       </div>
-      <div className="daystrip" role="img" aria-label={`30 הימים הקרובים: ${d.up30.length} אירועים, מתוכם ${week} השבוע`}>
-        <div className="days">
+      <div className="daystrip">
+        <div className="days" role="img" aria-label={`30 הימים הקרובים: ${d.up30.length} אירועים, מתוכם ${week} השבוע`}>
           {days.map((evs, i) => (
             <span key={i} className={`day ${i === 0 ? 'today' : ''}`}>
               {evs.length === 0 ? <i /> : evs.map((u) => <i key={u.id} className={u.area === 'home' ? 'ok' : u.area === 'business' ? 'p' : 'a'} />)}

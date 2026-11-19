@@ -1,5 +1,5 @@
 import { ReceiptThumb } from '../ui/receipt';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, Fragment } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Activity, BellRing, Bot, Check, Clock, Eye, EyeOff, Globe, KeyRound, Mail, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
 import { ruleBasedReply } from '../../shared/agent';
@@ -110,7 +110,7 @@ export function WhatsApp() {
           <Card className="soft">
             <CardHead title="מה הסוכן יודע לעשות" />
             <dl className="kv" style={{ gridTemplateColumns: '64px 1fr' }}>
-              {can.map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt>{k}</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>{v}</dd></div>)}
+              {can.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>{v}</dd></Fragment>)}
             </dl>
           </Card>
         </div>
@@ -378,7 +378,7 @@ export function SettingsPage() {
     { icon: MessageCircle, name: 'Kapso · WhatsApp', desc: 'קבלה ושליחה של הודעות וואטסאפ לסוכן', env: 'KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID · KAPSO_WEBHOOK_SECRET', ok: !!health?.kapso },
     { icon: BellRing, name: 'התראות פוש', desc: 'התראות לטלפון מהאפליקציה המותקנת, כל בוקר ובזמן אמת כשאתר נופל', env: 'VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · CRON_SECRET', ok: !!health?.push && !!health?.cron },
     { icon: ScanLine, name: 'Gemini', desc: 'הבנת שפה חופשית לסוכן, ובהמשך סריקת קבלות', env: 'GEMINI_API_KEY', ok: !!health?.gemini },
-    { icon: Plus, name: 'מערכת חשבוניות', desc: 'משיכת חשבוניות לכל עסק. נבחר ספק בהמשך', env: 'api/sync-invoices.ts', ok: false },
+    { icon: Plus, name: 'מערכת חשבוניות', desc: 'משיכת חשבוניות לכל עסק. נבחר ספק בהמשך', env: 'בהמשך', ok: false },
   ];
   return (
     <>

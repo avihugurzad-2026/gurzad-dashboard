@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell, Building2, Briefcase, Eye, EyeOff, Home, LayoutGrid, LogOut, MessageCircle, Moon, MoreHorizontal, Plus, Activity, Settings, ShoppingBasket, Sun, Receipt, ListChecks, AlertTriangle, CircleAlert, ChevronLeft, X, CalendarDays, Megaphone, Users } from 'lucide-react';
@@ -7,7 +7,7 @@ import { DEMO } from '../lib/config';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
 import { alerts } from '../data/derive';
 import { canSee, getAccess, refreshStore, useDerived } from '../data/store';
-import { useChromeState, usePullToRefresh, useSwipeNav } from '../lib/gestures';
+import { subTabStep, useChromeState, usePullToRefresh, useSwipePager, type Dir } from '../lib/gestures';
 import { spring, easeOut } from '../ui/kit';
 import { Sheet } from '../ui/overlay';
 import { useCrud } from '../ui/crud';
@@ -77,7 +77,19 @@ export function AppShell() {
     return () => window.removeEventListener('scroll', save);
   }, [loc.pathname, loc.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useSwipeNav();
+  // Swipe pager (phone): sub-tabs first, then the neighbouring main area. Same order as the tab bar.
+  const here = useRef({ path: loc.pathname, cur }); here.current = { path: loc.pathname, cur };
+  const strip = () => AREAS.filter((a) => !('desktopOnly' in a)).map((a) => a.to);
+  const neighbor = useCallback((dir: Dir) => {
+    const sub = subTabStep(dir);
+    if (sub) return sub;
+    const s = strip(), i = s.indexOf(here.current.cur);
+    if (i < 0) return null; // tools pages (settings, WhatsApp…) are not part of the strip
+    const to = s[dir === 'next' ? i + 1 : i - 1];
+    return to ? () => nav(to) : null;
+  }, [nav]);
+  const dots = useCallback(() => { const s = strip(), i = s.indexOf(here.current.cur); return i < 0 ? null : { count: s.length, index: i }; }, []);
+  useSwipePager(neighbor, dots);
   useChromeState();
   usePullToRefresh(refreshCb);
   useEffect(() => {
@@ -176,7 +188,7 @@ export function AppShell() {
               <button className="icon-btn" style={{ width: 36, height: 36, boxShadow: 'none', background: 'transparent', border: 0 }} aria-label="סגירה" onClick={dismissInstall}><X size={16} /></button>
             </div>
           )}
-          <Outlet />
+          <Suspense fallback={<div className="page-loading" aria-busy="true" aria-label="טוען" />}><Outlet /></Suspense>
         </div>
       </main>
 

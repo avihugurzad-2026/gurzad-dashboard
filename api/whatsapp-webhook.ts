@@ -92,6 +92,9 @@ async function recentHistory(wsId: string, phone: string) {
 async function chat(req: VercelRequest, res: any) {
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   const me = await requireMember(req);
+  // The agent works with the server key on the whole workspace, so only the owner may talk to it
+  // (a member with home-only access must not reach business or investment data through the chat).
+  if (me.role !== 'owner') throw new HttpError(403, 'רק הבעלים');
   const body = JSON.parse((await rawBody(req)).toString('utf8') || '{}');
   const text = String(body.text || '').slice(0, 2000);
   if (!text) throw new HttpError(400, 'הודעה ריקה');

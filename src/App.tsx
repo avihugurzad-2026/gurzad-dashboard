@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { lazy, useEffect, useRef, type ComponentType } from 'react';
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { initPwa } from './lib/pwa';
 import { MotionConfig } from 'motion/react';
@@ -7,13 +7,26 @@ import { initStore, onStoreError, useStoreReady } from './data/store';
 import { AppShell } from './layout/AppShell';
 import { Login } from './pages/Login';
 import { Overview } from './pages/Overview';
-import { Notifications } from './pages/Notifications';
-import { Planner } from './pages/Planner';
-import { HomeArea } from './pages/home/HomeArea';
-import { BusinessArea } from './pages/business/BusinessArea';
-import { MarketingArea } from './pages/marketing/MarketingArea';
-import { AlertRules, InvestArea, Property } from './pages/invest/InvestArea';
-import { SettingsPage, Status, Team, WhatsApp } from './pages/Tools';
+// Every area loads on first visit, so the app opens with only the overview's code (was one 550KB file).
+const page = <K extends string>(load: () => Promise<Record<K, ComponentType<any>>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
+const Notifications = page(() => import('./pages/Notifications'), 'Notifications');
+const Planner = page(() => import('./pages/Planner'), 'Planner');
+const HomeArea = page(() => import('./pages/home/HomeArea'), 'HomeArea');
+const BusinessArea = page(() => import('./pages/business/BusinessArea'), 'BusinessArea');
+const MarketingArea = page(() => import('./pages/marketing/MarketingArea'), 'MarketingArea');
+const InvestArea = page(() => import('./pages/invest/InvestArea'), 'InvestArea');
+const AlertRules = page(() => import('./pages/invest/InvestArea'), 'AlertRules');
+const Property = page(() => import('./pages/invest/InvestArea'), 'Property');
+const SettingsPage = page(() => import('./pages/Tools'), 'SettingsPage');
+const Status = page(() => import('./pages/Tools'), 'Status');
+const Team = page(() => import('./pages/Tools'), 'Team');
+const WhatsApp = page(() => import('./pages/Tools'), 'WhatsApp');
+/** After the first screen is up, fetch the other areas in the background so swiping to them is instant. */
+let prefetched = false;
+const prefetch = () => {
+  if (prefetched) return; prefetched = true;
+  for (const l of [() => import('./pages/home/HomeArea'), () => import('./pages/business/BusinessArea'), () => import('./pages/invest/InvestArea'), () => import('./pages/Planner')]) void l().catch(() => null); };
 import { ToastProvider, useToast } from './ui/overlay';
 
 const Router = import.meta.env.VITE_HASH_ROUTER ? HashRouter : BrowserRouter;
@@ -26,12 +39,13 @@ function Gate() {
   const navRef = useRef(nav); navRef.current = nav;
   useEffect(() => { initPwa((url) => navRef.current(url)); }, []);
 
-  useEffect(() => { onStoreError(() => toast('השמירה נכשלה. בדוק את החיבור ונסה שוב.')); }, [toast]);
+  useEffect(() => { onStoreError(() => toast('השמירה נכשלה והשינוי בוטל. בדוק את החיבור ונסה שוב.')); }, [toast]);
   useEffect(() => { if (user) void initStore().catch(() => toast('טעינת הנתונים נכשלה')); }, [user, toast]);
 
   if (loading) return <Splash />;
   if (!user) return <Login />;
   if (!ready) return <Splash />;
+  if (!prefetched) setTimeout(prefetch, 1500);
 
   return (
     <Routes>

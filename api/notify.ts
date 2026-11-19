@@ -1,4 +1,4 @@
-import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
+import { isCron, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
 import { notifyWorkspace, pushReady } from './_lib/push.js';
 import { mailAssigned, mailDueReminders, mailReady, mailTest } from './_lib/reminders.js';
 import { pushAll } from './_lib/google.js';
@@ -23,7 +23,7 @@ export default handler(async (req, res) => {
     throw new HttpError(400, 'פעולה לא מוכרת');
   }
 
-  if (!env('CRON_SECRET') || req.headers.authorization !== `Bearer ${env('CRON_SECRET')}`) throw new HttpError(401, 'לא מורשה');
+  if (!isCron(req.headers.authorization)) throw new HttpError(401, 'לא מורשה');
   const sb = sbAdmin();
   const { data: wss } = await sb.from('gd_workspaces').select('id');
   const out: Record<string, unknown> = {};

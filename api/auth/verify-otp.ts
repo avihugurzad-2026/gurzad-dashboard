@@ -1,4 +1,4 @@
-import { env, handler, HttpError, sbAdmin } from '../_lib/server.js';
+import { env, safeEqual, handler, HttpError, sbAdmin } from '../_lib/server.js';
 import { hashCode, isAllowed } from './send-otp.js';
 
 // POST { email, code } → { token_hash }. The client exchanges token_hash for a Supabase session
@@ -13,7 +13,7 @@ export default handler(async (req, res) => {
   const { data: row } = await sb.from('gd_otp').select('*').eq('email', email).is('used_at', null)
     .gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (!row || row.attempts >= 5) throw new HttpError(400, 'הקוד לא נכון או שפג תוקפו');
-  if (row.code_hash !== hashCode(email, code)) {
+  if (!safeEqual(row.code_hash, hashCode(email, code))) {
     await sb.from('gd_otp').update({ attempts: row.attempts + 1 }).eq('id', row.id);
     throw new HttpError(400, 'הקוד לא נכון');
   }

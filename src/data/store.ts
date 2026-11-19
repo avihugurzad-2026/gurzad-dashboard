@@ -94,6 +94,8 @@ export async function initStore() {
    Coming back to the app after a while re-reads everything, which also covers a dropped socket. */
 let live = false;
 let lastLoad = Date.now();
+const sortKeys = (v: any): any => Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v;
+const stable = (o: object) => JSON.stringify(sortKeys(o));
 function startLiveSync() {
   if (live || !workspaceId) return;
   live = true;
@@ -113,7 +115,7 @@ function startLiveSync() {
       const cur = db[row.collection] ?? [];
       const rec = strip(row);
       const i = cur.findIndex((r) => r.id === rec.id);
-      if (i >= 0 && JSON.stringify(cur[i]) === JSON.stringify(rec)) return; // our own write echoing back
+      if (i >= 0 && stable(cur[i]) === stable(rec)) return; // our own write echoing back (key order differs in jsonb)
       setCol(row.collection, i >= 0 ? cur.map((r) => (r.id === rec.id ? rec : r)) : [rec, ...cur]);
     })
     .subscribe();
@@ -149,23 +151,24 @@ function setCol(c: string, rows: Rec[]) {
 export const store = {
   all(c: Collection): Rec[] { return db[c] ?? EMPTY; },
   get(c: Collection, id: string) { return (db[c] ?? EMPTY).find((r) => r.id === id); },
+  // Changes show at once; if the server refuses one, the screen goes back to what is really saved.
   add(c: Collection, data: Record<string, any>): Rec {
     const rec: Rec = { id: uid(), created_at: new Date().toISOString(), ...data };
     setCol(c, [rec, ...(db[c] ?? [])]);
-    void adapter.put(c, rec).catch(onError);
+    void adapter.put(c, rec).catch((e) => { setCol(c, (db[c] ?? []).filter((r) => r.id !== rec.id)); onError(e); });
     return rec;
   },
   update(c: Collection, id: string, patch: Record<string, any>) {
-    let next: Rec | undefined;
-    setCol(c, (db[c] ?? []).map((r) => (r.id === id ? (next = { ...r, ...patch }) : r)));
-    if (next) void adapter.put(c, next).catch(onError);
+    let next: Rec | undefined, prev: Rec | undefined;
+    setCol(c, (db[c] ?? []).map((r) => (r.id === id ? ((prev = r), (next = { ...r, ...patch })) : r)));
+    if (next) void adapter.put(c, next).catch((e) => { setCol(c, (db[c] ?? []).map((r) => (r.id === id && r === next ? prev! : r))); onError(e); });
   },
   remove(c: Collection, id: string): () => void {
     const prev = db[c] ?? [];
     const idx = prev.findIndex((r) => r.id === id);
     const rec = prev[idx];
     setCol(c, prev.filter((r) => r.id !== id));
-    void adapter.del(c, id).catch(onError);
+    void adapter.del(c, id).catch((e) => { if (rec && !(db[c] ?? []).some((r) => r.id === id)) setCol(c, [rec, ...(db[c] ?? [])]); onError(e); });
     return () => {
       if (!rec) return;
       const cur = [...(db[c] ?? [])];

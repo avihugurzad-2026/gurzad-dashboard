@@ -49,11 +49,11 @@ export function BusinessArea() {
       </PageHead>
 
       {/* business switcher */}
-      <div className="chips" style={{ marginBottom: 14 }} role="tablist" aria-label="בחירת עסק">
+      <div className="chips" style={{ marginBottom: 14 }} role="group" aria-label="בחירת עסק">
         {businesses.map((b) => {
           const on = b.id === biz.id;
           return (
-            <button key={b.id} role="tab" aria-selected={on} className="chip" aria-pressed={on} style={{ position: 'relative', background: on ? 'transparent' : undefined, borderColor: on ? 'transparent' : undefined }} onClick={() => nav(`/business/${b.id}${tab !== 'overview' ? '/' + tab : ''}`)}>
+            <button key={b.id} aria-pressed={on} className="chip" style={{ position: 'relative', background: on ? 'transparent' : undefined, borderColor: on ? 'transparent' : undefined }} onClick={() => nav(`/business/${b.id}${tab !== 'overview' ? '/' + tab : ''}`)}>
               {on && <motion.span layoutId="biz-chip" transition={spring} style={{ position: 'absolute', inset: -1, borderRadius: 999, background: 'var(--accent)' }} />}
               <span style={{ position: 'relative' }}>{b.name}</span>
             </button>
@@ -304,7 +304,7 @@ function Connections({ biz }: { biz: Rec }) {
           <li>סנכרון מושך חשבוניות והוצאות לתוך אותם מסכים שכבר קיימים כאן.</li>
           <li>רשומות שהגיעו מסנכרון מסומנות, והזנה ידנית ממשיכה לעבוד לצדן.</li>
         </ol>
-        <p className="meta" style={{ marginTop: 14 }}>עדיין לא מחובר לאף ספק. נקודת הכניסה מוכנה: <span className="ltr">api/sync-invoices.ts</span>.</p>
+        <p className="meta" style={{ marginTop: 14 }}>עדיין לא מחובר לאף ספק חשבוניות.</p>
       </Card>
       {crud.sheet}
     </Stagger>

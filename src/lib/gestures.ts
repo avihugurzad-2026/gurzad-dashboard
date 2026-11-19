@@ -18,40 +18,147 @@ function ownsGesture(el: EventTarget | null, axis: 'x' | 'y') {
   return false;
 }
 
-/** Horizontal swipe on the page:
- *  - if the page marks [data-swipe="next"|"prev"] buttons (planner days/weeks), it presses them;
- *  - otherwise it moves to the neighbouring sub-tab (בית: סקירה → משימות → קניות ...).
- *  RTL: the "next" item sits to the left, so a finger moving right brings it in. */
-export function useSwipeNav() {
+export type Dir = 'next' | 'prev';
+/** What a swipe in one direction would do on this screen, or null at the first/last screen. */
+export type Neighbor = (dir: Dir) => (() => void) | null;
+
+/** The sub-tabs of the current screen (בית: סקירה → משימות → קניות …), as a step before/after the main areas. */
+export function subTabStep(dir: Dir): (() => void) | null {
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.main .subnav [role="tab"]'));
+  const i = tabs.findIndex((b) => b.getAttribute('aria-selected') === 'true');
+  if (i < 0) return null;
+  const t = tabs[dir === 'next' ? i + 1 : i - 1];
+  return t ? () => t.click() : null;
+}
+
+/** Swipe pager for the phone: one continuous strip of screens.
+ *  Sub-tabs of the current area come first; past the last sub-tab the next main area slides in
+ *  (סקירה → בית → עסקים → השקעות → יומן).
+ *  - The page follows the finger while dragging (transform only, no layout work).
+ *  - It changes screen past 30% of the width, or on a quick flick (≥0.45px/ms over ≥24px).
+ *  - RTL: the next screen sits to the left, so a finger moving right brings it in.
+ *  - At the first and last screen the page stretches a little and springs back (rubber band).
+ *  - Vertical scrolling wins when the finger starts mostly vertical; inputs, sheets, sliders and
+ *    anything that scrolls sideways keep their own gesture. Inside [data-swipe-zone] (planner board)
+ *    a swipe presses that zone's [data-swipe] buttons instead (previous / next week).
+ *  - prefers-reduced-motion: no dragging movement; the screen simply changes with a short fade. */
+export function useSwipePager(neighbor: Neighbor, dots: () => { count: number; index: number } | null) {
   useEffect(() => {
-    let x0 = 0, y0 = 0, t0 = 0, armed = false;
+    const page = () => document.querySelector<HTMLElement>('.main .page');
+    const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let dotsEl: HTMLDivElement | null = null;
+    let dotsTimer = 0;
+    const showDots = (on: boolean) => {
+      const d = dots();
+      if (!d) return;
+      if (!dotsEl) { dotsEl = document.createElement('div'); dotsEl.className = 'pager-dots'; dotsEl.setAttribute('aria-hidden', 'true'); document.body.appendChild(dotsEl); }
+      dotsEl.innerHTML = Array.from({ length: d.count }, (_, i) => `<i class="${i === d.index ? 'on' : ''}"></i>`).join('');
+      clearTimeout(dotsTimer);
+      if (on) dotsEl.classList.add('show'); else dotsTimer = window.setTimeout(() => dotsEl?.classList.remove('show'), 700);
+    };
+
+    let x0 = 0, y0 = 0, t0 = 0, lastX = 0, lastT = 0, vx = 0;
+    let mode: 'off' | 'wait' | 'drag' | 'zone' = 'off';
+    let target: { next: (() => void) | null; prev: (() => void) | null } = { next: null, prev: null };
+    let crossed = false;
+    const W = () => window.innerWidth;
+
+    const paint = (dx: number) => {
+      const el = page(); if (!el) return;
+      const dir: Dir = dx > 0 ? 'next' : 'prev';
+      const free = !!target[dir];
+      // rubber band at the ends: the further you pull, the less it moves (max ~56px)
+      const off = free ? dx : Math.sign(dx) * 56 * (1 - Math.exp(-Math.abs(dx) / 160));
+      el.style.transform = `translate3d(${off}px,0,0)`;
+      el.style.opacity = free ? String(1 - Math.min(0.35, Math.abs(dx) / W() * 0.5)) : '';
+      const over = free && Math.abs(dx) > W() * 0.3;
+      if (over !== crossed) { crossed = over; if (over) haptic(6); }
+    };
+    const reset = (animate: boolean) => {
+      const el = page(); if (!el) return;
+      el.classList.remove('dragging');
+      if (animate) { el.classList.add('settle'); setTimeout(() => el.classList.remove('settle'), 280); }
+      el.style.transform = ''; el.style.opacity = '';
+    };
+    const enter = (dir: Dir) => {
+      requestAnimationFrame(() => {
+        const el = page(); if (!el) return;
+        el.classList.remove('enter-from-left', 'enter-from-right');
+        void el.offsetWidth;
+        el.classList.add(dir === 'next' ? 'enter-from-left' : 'enter-from-right');
+        setTimeout(() => el.classList.remove('enter-from-left', 'enter-from-right'), 300);
+        showDots(false);
+      });
+    };
+    const commit = (dir: Dir) => {
+      const go = target[dir]; if (!go) return;
+      haptic(6);
+      const el = page();
+      if (el && !reduce()) {
+        el.classList.remove('dragging'); el.classList.add('settle');
+        el.style.transform = `translate3d(${dir === 'next' ? W() : -W()}px,0,0)`; el.style.opacity = '0';
+        setTimeout(() => { el.classList.remove('settle'); el.style.transform = ''; el.style.opacity = ''; go(); enter(dir); }, 170);
+      } else { reset(false); go(); enter(dir); }
+    };
+
     const start = (e: TouchEvent) => {
-      if (!phone() || e.touches.length !== 1 || ownsGesture(e.target, 'x')) { armed = false; return; }
+      mode = 'off';
+      if (!phone() || e.touches.length !== 1 || document.querySelector('.sheet')) return;
+      if (ownsGesture(e.target, 'x') || (e.target as HTMLElement).closest?.('.tabbar, .fab, .topbar')) return;
       const t = e.touches[0];
-      // leave the screen edges to the system back/forward gesture
-      if (t.clientX < 24 || t.clientX > window.innerWidth - 24) { armed = false; return; }
-      x0 = t.clientX; y0 = t.clientY; t0 = Date.now(); armed = true;
+      if (t.clientX < 20 || t.clientX > W() - 20) return; // screen edges belong to the system back gesture
+      x0 = lastX = t.clientX; y0 = t.clientY; t0 = lastT = e.timeStamp; vx = 0; crossed = false;
+      mode = (e.target as HTMLElement).closest?.('[data-swipe-zone]') ? 'zone' : 'wait';
+    };
+    const move = (e: TouchEvent) => {
+      if (mode === 'off' || mode === 'zone') return;
+      const t = e.touches[0];
+      const dx = t.clientX - x0, dy = t.clientY - y0;
+      if (mode === 'wait') {
+        if (Math.abs(dx) + Math.abs(dy) < 10) return;
+        if (Math.abs(dx) < Math.abs(dy) * 1.2 || window.getSelection()?.toString()) { mode = 'off'; return; }
+        mode = 'drag';
+        target = { next: neighbor('next'), prev: neighbor('prev') };
+        if (!target.next && !target.prev) { mode = 'off'; return; }
+        if (!reduce()) page()?.classList.add('dragging');
+        showDots(true);
+      }
+      if (e.cancelable) e.preventDefault(); // we own this touch now: no vertical scroll while dragging sideways
+      const dt = e.timeStamp - lastT;
+      if (dt > 0) vx = 0.7 * ((t.clientX - lastX) / dt) + 0.3 * vx;
+      lastX = t.clientX; lastT = e.timeStamp;
+      if (!reduce()) paint(dx);
     };
     const end = (e: TouchEvent) => {
-      if (!armed) return;
-      armed = false;
       const t = e.changedTouches[0];
-      const dx = t.clientX - x0, dy = t.clientY - y0, dt = Date.now() - t0;
-      if (dt > 600 || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
-      if (window.getSelection()?.toString()) return;
-      const dir: 'next' | 'prev' = dx > 0 ? 'next' : 'prev';
-      const direct = document.querySelector<HTMLButtonElement>(`.main [data-swipe="${dir}"]:not(:disabled)`);
-      if (direct) { haptic(6); direct.click(); return; }
-      const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.main .subnav [role="tab"]'));
-      const i = tabs.findIndex((b) => b.getAttribute('aria-selected') === 'true');
-      if (i < 0) return;
-      const target = tabs[dir === 'next' ? i + 1 : i - 1];
-      if (target) { haptic(6); target.click(); }
+      const dx = t ? t.clientX - x0 : 0, dy = t ? t.clientY - y0 : 0;
+      if (mode === 'zone') {
+        mode = 'off';
+        if (e.timeStamp - t0 > 600 || Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
+        const b = document.querySelector<HTMLButtonElement>(`.main [data-swipe="${dx > 0 ? 'next' : 'prev'}"]:not(:disabled)`);
+        if (b) { haptic(6); b.click(); }
+        return;
+      }
+      if (mode !== 'drag') { mode = 'off'; return; }
+      mode = 'off';
+      if (e.timeStamp - lastT > 80) vx = 0; // finger stopped before lifting: no flick
+      const dir: Dir = dx > 0 ? 'next' : 'prev';
+      const flick = Math.abs(vx) > 0.45 && Math.abs(dx) > 24 && Math.sign(vx) === Math.sign(dx);
+      if (target[dir] && (Math.abs(dx) > W() * 0.3 || flick)) commit(dir);
+      else { reset(true); showDots(false); }
     };
+    const cancel = () => { if (mode === 'drag') { reset(true); showDots(false); } mode = 'off'; };
+
     document.addEventListener('touchstart', start, { passive: true });
+    document.addEventListener('touchmove', move, { passive: false });
     document.addEventListener('touchend', end, { passive: true });
-    return () => { document.removeEventListener('touchstart', start); document.removeEventListener('touchend', end); };
-  }, []);
+    document.addEventListener('touchcancel', cancel, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', start); document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', end); document.removeEventListener('touchcancel', cancel);
+      dotsEl?.remove();
+    };
+  }, [neighbor, dots]);
 }
 
 /** Pull down at the top of the page to reload data. The browser's own pull-to-refresh

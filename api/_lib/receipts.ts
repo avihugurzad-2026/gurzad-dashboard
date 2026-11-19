@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import sharp from 'sharp';
-import { env, sbAdmin } from './server.js';
+import { env, israelDay, sbAdmin } from './server.js';
 import { scanReceipt, scanReceiptText } from './gemini.js';
 import type { AgentData, Row } from '../../shared/agent.js';
 
@@ -20,7 +20,7 @@ const BUCKET = 'gd-receipts';
 const HOME_CATS = ['סופר ומזון', 'דיור ומשכנתא', 'חשמל מים וגז', 'תחבורה ורכב', 'ילדים וחינוך', 'בריאות', 'בילויים ומסעדות', 'ביגוד', 'תקשורת ומנויים', 'ביטוחים', 'חיסכון והשקעה', 'שונות'];
 const BIZ_CATS = ['שכר', 'שכירות', 'שיווק ופרסום', 'תוכנות', 'חומרים ומלאי', 'רכב', 'מקצועי (רו״ח/עו״ד)', 'אחר'];
 const ils = (n: number) => '₪' + (Math.round(n * 100) / 100).toLocaleString('he-IL');
-const today = () => new Date(Date.now() + 2 * 3600e3).toISOString().slice(0, 10);
+const today = () => israelDay();
 
 const DAY = 86400e3;
 /**

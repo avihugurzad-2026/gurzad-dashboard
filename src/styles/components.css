@@ -508,7 +508,7 @@ body { background: var(--bg-wash) no-repeat, var(--bg); }
 .month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .month .dow { text-align: center; font-size: 12px; color: var(--ink-3); padding-bottom: 4px; }
 .month-cell { aspect-ratio: 1 / 1; border-radius: 16px; background: color-mix(in srgb, var(--surface) 75%, transparent); border: 1px solid var(--card-edge); padding: 6px; display: flex; flex-direction: column; align-items: stretch; gap: 3px; min-width: 0; overflow: hidden; text-align: start; color: var(--ink); }
-.month-cell.out { opacity: .38; }
+.month-cell.out { color: var(--ink-3); background: transparent; } /* days outside the month: muted text, not opacity (contrast) */
 .month-cell.today { box-shadow: inset 0 0 0 1.5px var(--ink); background: var(--surface); }
 .month-cell b { font-size: 14px; font-weight: 500; line-height: 1.2; }
 .month-cell .dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: auto; }
@@ -541,7 +541,7 @@ fieldset.stack { display: flex; }
 .schedule-today, .schedule-week { padding: 20px; min-width: 0; }
 .schedule-today { border-inline-end: 1px solid var(--line); }
 .weekmini .month-cell { min-height: 150px; }
-.weekmini .month-cell.out { opacity: .5; }
+.weekmini .month-cell.out { color: var(--ink-3); } /* past days: muted colour, not opacity (contrast ≥4.5:1) */
 @media (max-width: 1199px) {
   .schedule-grid { grid-template-columns: 1fr; }
   .schedule-today { border-inline-end: 0; border-bottom: 1px solid var(--line); }
@@ -579,3 +579,39 @@ fieldset.stack { display: flex; }
 .receipt-viewer { position: fixed; inset: 0; z-index: 1000; background: rgba(10, 10, 12, .88); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); cursor: zoom-out; }
 .receipt-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; cursor: default; }
 .receipt-viewer .icon-btn { position: absolute; inset-block-start: max(16px, env(safe-area-inset-top)); inset-inline-end: 16px; background: rgba(255,255,255,.14); color: #fff; }
+
+/* ================= v3.5 audit fixes (AUDIT.md) ================= */
+/* long notes in a badge wrap instead of pushing the page sideways (was 20px horizontal scroll on /marketing) */
+.badge { max-width: 100%; }
+.grid > div > .badge:only-child { white-space: normal; height: auto; min-height: 26px; padding-block: 4px; line-height: 1.35; }
+/* a long task or expense name shows on two lines before it is cut */
+.li .li-title, .task .li-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+/* planner card: the title area is the keyboard button */
+.pl-open { all: unset; flex: 1; min-width: 0; cursor: pointer; display: block; }
+.pl-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+/* press feedback on every tappable row and pill (buttons and cards already had it) */
+a.li:active, button.li:active { transform: scale(.985); }
+.pill:active { transform: scale(.96); }
+.li, .pill { transition: transform 120ms var(--ease-out, ease), background-color 150ms ease; }
+/* while a lazy area loads (first visit only, usually <150ms) */
+.page-loading { min-height: 60dvh; }
+
+/* ---- swipe pager between main screens (src/lib/gestures.ts) ---- */
+.main .page { touch-action: pan-y pinch-zoom; }
+.page.dragging { will-change: transform; transition: none !important; }
+.page.settle { transition: transform 260ms cubic-bezier(.32,.72,0,1), opacity 260ms ease; }
+.page.enter-from-left { animation: page-in-left 240ms cubic-bezier(.22,1,.36,1); }
+.page.enter-from-right { animation: page-in-right 240ms cubic-bezier(.22,1,.36,1); }
+@keyframes page-in-left { from { transform: translateX(-28%); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes page-in-right { from { transform: translateX(28%); opacity: .4; } to { transform: none; opacity: 1; } }
+/* where you are: dots above the tab bar, only while swiping */
+.pager-dots { position: fixed; inset-inline: 0; bottom: calc(var(--tabbar-h) + 22px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 6px; pointer-events: none; opacity: 0; transition: opacity 180ms ease; z-index: 40; }
+.pager-dots.show { opacity: 1; }
+.pager-dots i { width: 6px; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--ink) 28%, transparent); transition: width 200ms cubic-bezier(.22,1,.36,1), background-color 200ms ease; }
+.pager-dots i.on { width: 18px; background: var(--ink); }
+.pager-dots i.gap { width: 2px; background: transparent; }
+@media (min-width: 1024px), (pointer: fine) { .pager-dots { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .page.settle, .page.enter-from-left, .page.enter-from-right { animation: page-fade 160ms ease; transition: none; transform: none !important; }
+  @keyframes page-fade { from { opacity: .3; } to { opacity: 1; } }
+}

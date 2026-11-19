@@ -26,13 +26,13 @@ export function InvestArea() {
 
   return (
     <>
-      <PageHead tag="ניהול השקעות" tone={TONE} title="הנכסים" sub={`${props.length} נכסים · שווי משוער ${money(d.pf.value)}`}>
+      <PageHead tag="ניהול השקעות" tone={TONE} title="הנכסים" sub={props.length ? `${props.length} נכסים · שווי משוער ${money(d.pf.value)}` : 'אין נתונים עדיין'}>
         <Link to="/invest/alerts" className="btn btn-ghost"><BellRing size={15} />חוקי התראה</Link>
         <AddButton label="נכס חדש" onClick={() => crud.openNew()} />
       </PageHead>
 
       <Stagger>
-        <Card className="hero hero-violet lg-5 md-12">
+        {props.length > 0 && <Card className="hero hero-violet lg-5 md-12">
           <div className="spread"><span className="hero-label"><KeyRound size={16} />שכירות חודשית</span><span className="hero-chip">תפוסה {percent(d.pf.occupancy)}</span></div>
           <div className="hero-num"><DotNum value={prefs.hide ? '•••' : money(d.pf.rent).replace(/\s/g, '')} label={money(d.pf.rent)} /></div>
           <div className="hero-sub">אחרי משכנתאות: {money(d.pf.rent - d.pf.mortgage)} בחודש</div>
@@ -40,9 +40,9 @@ export function InvestArea() {
             <div className="spread" style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}><span>נגבה החודש</span><span className="num">{money(d.pf.collected)} / {money(d.pf.expected)}</span></div>
             <div className="meter" style={{ background: 'rgb(255 255 255 / .22)' }}><motion.i initial={{ scaleX: 0 }} animate={{ scaleX: d.pf.expected ? Math.min(1, d.pf.collected / d.pf.expected) : 0 }} transition={{ duration: 0.7, ease: easeOut, delay: 0.15 }} style={{ width: '100%', background: '#F9FCF8' }} /></div>
           </div>
-        </Card>
+        </Card>}
 
-        <Card className="flush lg-7 md-12">
+        <Card className={`flush ${props.length ? 'lg-7' : 'lg-12'} md-12`}>
           <div className="card-head" style={{ padding: '20px 20px 0', marginBottom: 6 }}><div><h2>התראות נכסים</h2><div className="sub">לפי החוקים שהגדרת</div></div><Link className="card-link" to="/invest/alerts">עריכת חוקים<ChevronLeft size={14} /></Link></div>
           {d.list.length === 0 ? <Empty icon={Check} title="הכול תקין" text="אין תשלומים באיחור, חוזים שמסתיימים או משימות תקועות." /> : (
             <div className="list">{d.list.slice(0, 5).map((a) => (

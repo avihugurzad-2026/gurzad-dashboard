@@ -1,9 +1,9 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
-import { env, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
+import { israelDay, isCron, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
 import { notifyEvent } from './_lib/push.js';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => israelDay();
 
 function isPrivate(ip: string) {
   if (net.isIPv6(ip)) return ip === '::1' || /^f[cd]|^fe80|^::ffff:/i.test(ip);
@@ -30,7 +30,7 @@ async function check(raw: string): Promise<{ ok: boolean; ms: number; status?: n
 // GET ?url=…            → one check, for a signed-in member (the "check now" button)
 // GET (Vercel cron)     → checks every monitor and appends to its 30-day history
 export default handler(async (req, res) => {
-  const cron = !!env('CRON_SECRET') && req.headers.authorization === `Bearer ${env('CRON_SECRET')}`;
+  const cron = isCron(req.headers.authorization);
   if (!cron) {
     await requireMember(req);
     const url = String(req.query.url || '');

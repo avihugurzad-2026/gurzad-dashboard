@@ -110,11 +110,12 @@ export function Badge({ kind = 'none', children, icon = true }: { kind?: 'pos' |
 }
 
 /* ---------- Meter ---------- */
-export function Meter({ value, max, tone, small }: { value: number; max: number; tone?: string; small?: boolean }) {
+export function Meter({ value, max, tone, small, label = 'ניצול' }: { value: number; max: number; tone?: string; small?: boolean; label?: string }) {
   const ratio = max > 0 ? value / max : 0;
+  const quick = useContext(QuickCtx); // switching tabs is frequent: show the bar filled, don't replay the fill
   return (
-    <div className={`meter ${ratio > 1 ? 'over' : ''} ${small ? 'sm' : ''}`} role="progressbar" aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100} style={{ '--tone': tone } as CSSProperties}>
-      <motion.i initial={{ scaleX: 0 }} animate={{ scaleX: Math.min(1, ratio) }} transition={{ duration: 0.5, ease: easeOut, delay: 0.08 }} style={{ width: '100%' }} />
+    <div className={`meter ${ratio > 1 ? 'over' : ''} ${small ? 'sm' : ''}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100} style={{ '--tone': tone } as CSSProperties}>
+      <motion.i initial={quick ? false : { scaleX: 0 }} animate={{ scaleX: Math.min(1, ratio) }} transition={{ duration: 0.5, ease: easeOut, delay: 0.08 }} style={{ width: '100%' }} />
     </div>
   );
 }
@@ -142,7 +143,7 @@ export function Empty({ icon: Icon, title, text, action }: { icon: LucideIcon; t
 
 /* ---------- Dot-matrix hero number ---------- */
 export function DotNum({ value, label, size }: { value: string; label?: string; size?: number }) {
-  return <span className="dot ltr" aria-label={label ?? value} style={size ? { fontSize: size } : undefined}><span aria-hidden>{value}</span></span>;
+  return <span className="dot ltr" role="img" aria-label={label ?? value} style={size ? { fontSize: size } : undefined}><span aria-hidden>{value}</span></span>;
 }
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {

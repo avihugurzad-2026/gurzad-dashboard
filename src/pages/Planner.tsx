@@ -152,6 +152,7 @@ export function Planner() {
         </div>
       </div>
 
+      <div data-swipe-zone>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={view + range.start} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.1 } }} transition={{ duration: 0.22, ease: easeOut }}>
           {view === 'day' && <DayView anchor={anchor} setAnchor={setAnchor} items={visible} byDay={byDay} onOpen={open} onToggle={toggle} onAdd={() => setAdding(anchor)} />}
@@ -159,6 +160,7 @@ export function Planner() {
           {view === 'month' && <MonthView start={range.start} first={range.first} byDay={byDay} onPick={(d) => { setAnchor(d); nav('/planner/day', { replace: true }); }} />}
         </motion.div>
       </AnimatePresence>
+      </div>
       {inRange.length === 0 && view !== 'day' && (
         <Card className="soft" style={{ marginTop: 16 }}><Empty icon={CalendarDays} title="אין נתונים עדיין" text="אין משימות או אירועים בתקופה הזו. לחץ ״חדש״ כדי להוסיף." /></Card>
       )}
@@ -210,11 +212,11 @@ export function usePlanItems(): Item[] {
 function PlanCard({ i, compact, onOpen, onToggle, draggable }: { i: Item; compact?: boolean; onOpen: (i: Item) => void; onToggle: (i: Item, v: boolean) => void; draggable?: boolean }) {
   const canCheck = i.col !== 'events' && i.col !== 'google';
   return (
-    <div className={`pl-item ${compact ? 'compact' : ''} ${i.done ? 'done' : ''} ${i.late ? 'late' : ''}`} style={catStyle(i.cat)} role="button" tabIndex={0}
-      onClick={() => onOpen(i)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(i); }}
+    <div className={`pl-item ${compact ? 'compact' : ''} ${i.done ? 'done' : ''} ${i.late ? 'late' : ''}`} style={catStyle(i.cat)}
+      onClick={() => onOpen(i)}
       draggable={draggable && i.col !== 'google'} onDragStart={(e: DragEvent) => { e.dataTransfer.setData('text/plain', i.key); e.dataTransfer.effectAllowed = 'move'; }}>
       {canCheck && <CheckBox checked={i.done} onChange={(v) => onToggle(i, v)} label={`סימון: ${i.title}`} />}
-      <div className="li-main">
+      <button type="button" className="li-main pl-open" onClick={(e) => { e.stopPropagation(); onOpen(i); }}>
         {compact && i.time && <div className="pl-time" style={{ marginBottom: 1 }}>{i.time}</div>}
         <div className="li-title">{i.title}</div>
         {!compact && (
@@ -225,7 +227,7 @@ function PlanCard({ i, compact, onOpen, onToggle, draggable }: { i: Item; compac
             {i.late && <span className="neg">באיחור · {relDay(i.date)}</span>}
           </div>
         )}
-      </div>
+      </button>
       {i.time && !compact ? <span className="pl-time">{i.time}{!compact && i.end ? `–${i.end}` : ''}</span> : i.col === 'google' && !compact ? <ExternalLink size={14} className="muted" /> : null}
     </div>
   );
@@ -390,11 +392,11 @@ export function RemindersCard({ onEdit }: { onEdit: () => void }) {
         <Badge kind={s.enabled ? 'pos' : 'none'}>{s.enabled ? 'פעיל' : 'כבוי'}</Badge>
       </CardHead>
       <div className="stack" style={{ gap: 10 }}>
-        <div className="kv">
+        <dl className="kv">
           <dt>כשמצוותים מישהו</dt><dd>{s.enabled && s.on_assign ? 'מייל מיד' : 'לא נשלח'}</dd>
           <dt>תזכורת</dt><dd>{s.enabled ? `${when}, ב־07:10` : 'לא נשלח'}</dd>
           <dt>בשבוע הקרוב</dt><dd>{pending ? `${pending} תזכורות מתוכננות` : 'אין נתונים עדיין'}</dd>
-        </div>
+        </dl>
         <button className="btn btn-soft btn-sm" style={{ alignSelf: 'flex-start' }} onClick={onEdit}><Mail size={15} />עריכת הנוסח וההגדרות</button>
       </div>
     </Card>
