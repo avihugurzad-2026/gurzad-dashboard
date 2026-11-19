@@ -42,8 +42,8 @@ export function BarChart({ data, aLabel, bLabel, height = 190, width = 520 }: { 
           return (
             <g key={d.month} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)} tabIndex={0} style={{ outline: 'none' }} opacity={hover == null || hover === i ? 1 : 0.55}>
               <rect x={cx - slot / 2} y="0" width={slot} height={H} fill="transparent" />
-              <motion.rect x={ax} y={y(d.a)} height={Math.max(0, y(0) - y(d.a))} width={bw} rx="7" fill="var(--chart-1)" style={grow} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.5, ease: easeOut, delay: 0.06 + i * 0.035 }} />
-              {two && <motion.rect x={cx - bw - 2} y={y(d.b!)} height={Math.max(0, y(0) - y(d.b!))} width={bw} rx="7" fill={`url(#h${id})`} style={grow} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.5, ease: easeOut, delay: 0.1 + i * 0.035 }} />}
+              <motion.rect x={ax} y={y(d.a)} height={Math.max(0, y(0) - y(d.a))} width={bw} rx="7" fill="var(--chart-1)" style={grow} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.32, ease: easeOut, delay: 0.04 + i * 0.025 }} />
+              {two && <motion.rect x={cx - bw - 2} y={y(d.b!)} height={Math.max(0, y(0) - y(d.b!))} width={bw} rx="7" fill={`url(#h${id})`} style={grow} initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 0.32, ease: easeOut, delay: 0.06 + i * 0.025 }} />}
               <text x={cx} y={H - 6} textAnchor="middle" style={i === cur ? { fill: 'var(--ink)', fontWeight: 500 } : undefined}>{monthName(d.month)}</text>
             </g>
           );
@@ -62,7 +62,7 @@ export function Spark({ values, width = 96, height = 30 }: { values: number[]; w
   const last = pts[pts.length - 1];
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden style={{ direction: 'ltr', overflow: 'visible' }}>
-      <motion.path d={dPath} fill="none" stroke="var(--chart-2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.8, ease: easeOut, delay: 0.15 }} />
+      <motion.path d={dPath} fill="none" stroke="var(--chart-2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.5, ease: easeOut, delay: 0.1 }} />
       <circle cx={last[0]} cy={last[1]} r="3.2" fill="var(--chart-1)" />
     </svg>
   );

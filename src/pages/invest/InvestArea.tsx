@@ -38,7 +38,7 @@ export function InvestArea() {
           <div className="hero-sub">אחרי משכנתאות: {money(d.pf.rent - d.pf.mortgage)} בחודש</div>
           <div style={{ marginTop: 16 }}>
             <div className="spread" style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}><span>נגבה החודש</span><span className="num">{money(d.pf.collected)} / {money(d.pf.expected)}</span></div>
-            <div className="meter" style={{ background: 'rgb(255 255 255 / .22)' }}><motion.i initial={{ scaleX: 0 }} animate={{ scaleX: d.pf.expected ? Math.min(1, d.pf.collected / d.pf.expected) : 0 }} transition={{ duration: 0.7, ease: easeOut, delay: 0.15 }} style={{ width: '100%', background: '#F9FCF8' }} /></div>
+            <div className="meter" style={{ background: 'rgb(255 255 255 / .22)' }}><motion.i initial={{ scaleX: 0 }} animate={{ scaleX: d.pf.expected ? Math.min(1, d.pf.collected / d.pf.expected) : 0 }} transition={{ duration: 0.4, ease: easeOut, delay: 0.08 }} style={{ width: '100%', background: '#F9FCF8' }} /></div>
           </div>
         </Card>}
 

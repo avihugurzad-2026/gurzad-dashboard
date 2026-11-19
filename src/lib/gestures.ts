@@ -63,42 +63,74 @@ export function useSwipePager(neighbor: Neighbor, dots: () => { count: number; i
     let crossed = false;
     const W = () => window.innerWidth;
 
+    // Motion is inline CSS transitions (not keyframes) so a new touch can catch the page
+    // mid-flight and continue from where it is. Durations come from the release velocity.
+    let base = 0;            // offset the page already had when this touch began (caught mid-flight)
+    let flying = false;      // a release / enter transition is running
+    const EASE = 'cubic-bezier(.32,.72,0,1)';
+    const animate = (el: HTMLElement, tf: string, op: string, ms: number, ease = EASE, done?: () => void) => {
+      flying = true;
+      el.style.transition = `transform ${ms}ms ${ease}, opacity ${Math.min(ms, 200)}ms ease`;
+      el.style.transform = tf; el.style.opacity = op;
+      let fired = false;
+      const fin = () => { if (fired) return; fired = true; el.removeEventListener('transitionend', fin); flying = false; el.style.transition = ''; done?.(); };
+      el.addEventListener('transitionend', fin);
+      setTimeout(fin, ms + 60); // transitionend never fires when nothing changed
+    };
+    const freeze = () => {
+      const el = page(); base = 0;
+      if (!el || !flying) return;
+      const cs = getComputedStyle(el);
+      base = new DOMMatrixReadOnly(cs.transform === 'none' ? undefined : cs.transform).m41;
+      el.style.transition = 'none';
+      el.style.transform = base ? `translate3d(${base}px,0,0)` : '';
+      el.style.opacity = cs.opacity;
+      flying = false;
+    };
+
     const paint = (dx: number) => {
       const el = page(); if (!el) return;
       const dir: Dir = dx > 0 ? 'next' : 'prev';
       const free = !!target[dir];
       // rubber band at the ends: the further you pull, the less it moves (max ~56px)
-      const off = free ? dx : Math.sign(dx) * 56 * (1 - Math.exp(-Math.abs(dx) / 160));
+      const off = free ? base + dx : Math.sign(dx) * 56 * (1 - Math.exp(-Math.abs(dx) / 160));
       el.style.transform = `translate3d(${off}px,0,0)`;
-      el.style.opacity = free ? String(1 - Math.min(0.35, Math.abs(dx) / W() * 0.5)) : '';
-      const over = free && Math.abs(dx) > W() * 0.3;
+      el.style.opacity = free ? String(1 - Math.min(0.35, Math.abs(off) / W() * 0.5)) : '';
+      const over = free && Math.abs(off) > W() * 0.3;
       if (over !== crossed) { crossed = over; if (over) haptic(6); }
     };
-    const reset = (animate: boolean) => {
+    // back to rest: fast, so a cancelled swipe never feels sticky
+    const reset = () => {
       const el = page(); if (!el) return;
       el.classList.remove('dragging');
-      if (animate) { el.classList.add('settle'); setTimeout(() => el.classList.remove('settle'), 280); }
-      el.style.transform = ''; el.style.opacity = '';
+      if (!el.style.transform && !el.style.opacity) return;
+      animate(el, '', '', 200, EASE, () => { el.style.transform = ''; el.style.opacity = ''; });
     };
     const enter = (dir: Dir) => {
       requestAnimationFrame(() => {
         const el = page(); if (!el) return;
-        el.classList.remove('enter-from-left', 'enter-from-right');
+        el.classList.remove('dragging');
+        el.style.transition = 'none';
+        el.style.transform = reduce() ? '' : `translate3d(${dir === 'next' ? -0.24 * W() : 0.24 * W()}px,0,0)`;
+        el.style.opacity = reduce() ? '0.3' : '0.4';
         void el.offsetWidth;
-        el.classList.add(dir === 'next' ? 'enter-from-left' : 'enter-from-right');
-        setTimeout(() => el.classList.remove('enter-from-left', 'enter-from-right'), 300);
+        animate(el, '', '', reduce() ? 160 : 260, 'cubic-bezier(.22,1,.36,1)');
         showDots(false);
       });
     };
-    const commit = (dir: Dir) => {
+    const commit = (dir: Dir, v: number) => {
       const go = target[dir]; if (!go) return;
       haptic(6);
       const el = page();
-      if (el && !reduce()) {
-        el.classList.remove('dragging'); el.classList.add('settle');
-        el.style.transform = `translate3d(${dir === 'next' ? W() : -W()}px,0,0)`; el.style.opacity = '0';
-        setTimeout(() => { el.classList.remove('settle'); el.style.transform = ''; el.style.opacity = ''; go(); enter(dir); }, 170);
-      } else { reset(false); go(); enter(dir); }
+      if (!el) { go(); return; }
+      el.classList.remove('dragging');
+      const finish = () => { el.style.transition = 'none'; el.style.transform = ''; el.style.opacity = ''; go(); enter(dir); };
+      if (reduce()) { animate(el, el.style.transform, '0', 120, 'ease', finish); return; }
+      // keep the finger's speed: an ease-out starts at ~2x its average speed
+      const cur = new DOMMatrixReadOnly(getComputedStyle(el).transform === 'none' ? undefined : getComputedStyle(el).transform).m41;
+      const remaining = Math.max(0, W() - Math.abs(cur));
+      const ms = Math.round(Math.min(280, Math.max(140, (2 * remaining) / Math.max(Math.abs(v), 1))));
+      animate(el, `translate3d(${dir === 'next' ? W() : -W()}px,0,0)`, '0', ms, 'cubic-bezier(.2,.7,.3,1)', finish);
     };
 
     const start = (e: TouchEvent) => {
@@ -108,6 +140,7 @@ export function useSwipePager(neighbor: Neighbor, dots: () => { count: number; i
       const t = e.touches[0];
       if (t.clientX < 20 || t.clientX > W() - 20) return; // screen edges belong to the system back gesture
       x0 = lastX = t.clientX; y0 = t.clientY; t0 = lastT = e.timeStamp; vx = 0; crossed = false;
+      freeze();
       mode = (e.target as HTMLElement).closest?.('[data-swipe-zone]') ? 'zone' : 'wait';
     };
     const move = (e: TouchEvent) => {
@@ -120,34 +153,36 @@ export function useSwipePager(neighbor: Neighbor, dots: () => { count: number; i
         mode = 'drag';
         target = { next: neighbor('next'), prev: neighbor('prev') };
         if (!target.next && !target.prev) { mode = 'off'; return; }
-        if (!reduce()) page()?.classList.add('dragging');
+        page()?.classList.add('dragging');
         showDots(true);
       }
       if (e.cancelable) e.preventDefault(); // we own this touch now: no vertical scroll while dragging sideways
       const dt = e.timeStamp - lastT;
       if (dt > 0) vx = 0.7 * ((t.clientX - lastX) / dt) + 0.3 * vx;
       lastX = t.clientX; lastT = e.timeStamp;
-      if (!reduce()) paint(dx);
+      paint(dx); // direct manipulation stays on under reduced motion: only the release is calmer
     };
     const end = (e: TouchEvent) => {
       const t = e.changedTouches[0];
       const dx = t ? t.clientX - x0 : 0, dy = t ? t.clientY - y0 : 0;
       if (mode === 'zone') {
         mode = 'off';
+        if (base) { reset(); base = 0; }
         if (e.timeStamp - t0 > 600 || Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
         const b = document.querySelector<HTMLButtonElement>(`.main [data-swipe="${dx > 0 ? 'next' : 'prev'}"]:not(:disabled)`);
         if (b) { haptic(6); b.click(); }
         return;
       }
-      if (mode !== 'drag') { mode = 'off'; return; }
+      if (mode !== 'drag') { if (base) reset(); base = 0; mode = 'off'; return; }
       mode = 'off';
       if (e.timeStamp - lastT > 80) vx = 0; // finger stopped before lifting: no flick
       const dir: Dir = dx > 0 ? 'next' : 'prev';
       const flick = Math.abs(vx) > 0.45 && Math.abs(dx) > 24 && Math.sign(vx) === Math.sign(dx);
-      if (target[dir] && (Math.abs(dx) > W() * 0.3 || flick)) commit(dir);
-      else { reset(true); showDots(false); }
+      if (target[dir] && (Math.abs(base + dx) > W() * 0.3 || flick)) commit(dir, vx);
+      else { reset(); showDots(false); }
+      base = 0;
     };
-    const cancel = () => { if (mode === 'drag') { reset(true); showDots(false); } mode = 'off'; };
+    const cancel = () => { if (mode === 'drag' || base) { reset(); showDots(false); } base = 0; mode = 'off'; };
 
     document.addEventListener('touchstart', start, { passive: true });
     document.addEventListener('touchmove', move, { passive: false });
@@ -232,10 +267,15 @@ export function useChromeState() {
       });
     };
     const vv = window.visualViewport;
+    // with interactive-widget=resizes-content (Android) innerHeight shrinks with the keyboard too,
+    // so compare against the tallest height seen in this orientation
+    let tall = window.innerHeight, wide = window.innerWidth;
     const onVV = () => {
       if (!vv) return;
+      if (window.innerWidth !== wide) { wide = window.innerWidth; tall = window.innerHeight; }
+      tall = Math.max(tall, window.innerHeight);
       const typing = document.activeElement?.matches?.('input, textarea, [contenteditable]');
-      root().classList.toggle('kb-open', Boolean(typing) && vv.height < window.innerHeight * 0.78);
+      root().classList.toggle('kb-open', Boolean(typing) && vv.height < tall * 0.78);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     vv?.addEventListener('resize', onVV);

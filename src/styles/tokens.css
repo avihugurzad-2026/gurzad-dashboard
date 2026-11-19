@@ -32,11 +32,11 @@
   --on-accent: #FFFFFF;
   --link: #17181A;
   --focus: #17181A;
-  --pos: #1B7F5A;
+  --pos: #166E4E;
   --pos-bg: #DDF1E6;
   --warn: #9A5B00;
   --warn-bg: #FBEBCB;
-  --neg: #CF2A1D;
+  --neg: #BD2418;
   --neg-bg: #FBE3E0;
   --chart-1: #17181A;
   --chart-2: #5F8A99;
@@ -44,7 +44,7 @@
   --hatch: #C4C6CB;
 
   /* Area tones */
-  --tone-home: #1F8A7A;
+  --tone-home: #18766A;
   --tone-business: #3340D6;
   --tone-invest: #7A5AE0;
 

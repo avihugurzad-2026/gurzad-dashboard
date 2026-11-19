@@ -104,7 +104,7 @@ export function AppShell() {
 
   return (
     <div className="app">
-      <div className="brand"><NavLink to="/" className="brand-mark" aria-label="דף הבית"><span /></NavLink></div>
+      <nav className="brand" aria-label="ראשי"><NavLink to="/" className="brand-mark" aria-label="דף הבית"><span /></NavLink></nav>
 
       <header className="topbar">
         <nav className="pill-nav" aria-label="תחומים">

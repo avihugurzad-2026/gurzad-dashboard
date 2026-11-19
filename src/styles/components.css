@@ -598,12 +598,9 @@ a.li:active, button.li:active { transform: scale(.985); }
 
 /* ---- swipe pager between main screens (src/lib/gestures.ts) ---- */
 .main .page { touch-action: pan-y pinch-zoom; }
-.page.dragging { will-change: transform; transition: none !important; }
-.page.settle { transition: transform 260ms cubic-bezier(.32,.72,0,1), opacity 260ms ease; }
-.page.enter-from-left { animation: page-in-left 240ms cubic-bezier(.22,1,.36,1); }
-.page.enter-from-right { animation: page-in-right 240ms cubic-bezier(.22,1,.36,1); }
-@keyframes page-in-left { from { transform: translateX(-28%); opacity: .4; } to { transform: none; opacity: 1; } }
-@keyframes page-in-right { from { transform: translateX(28%); opacity: .4; } to { transform: none; opacity: 1; } }
+.page.dragging { will-change: transform, opacity; }
+/* release, snap-back and enter motion are inline transitions set from the gesture's
+   velocity (gestures.ts), so they can be caught mid-flight by the next touch */
 /* where you are: dots above the tab bar, only while swiping */
 .pager-dots { position: fixed; inset-inline: 0; bottom: calc(var(--tabbar-h) + 22px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 6px; pointer-events: none; opacity: 0; transition: opacity 180ms ease; z-index: 40; }
 .pager-dots.show { opacity: 1; }
@@ -611,7 +608,11 @@ a.li:active, button.li:active { transform: scale(.985); }
 .pager-dots i.on { width: 18px; background: var(--ink); }
 .pager-dots i.gap { width: 2px; background: transparent; }
 @media (min-width: 1024px), (pointer: fine) { .pager-dots { display: none; } }
-@media (prefers-reduced-motion: reduce) {
-  .page.settle, .page.enter-from-left, .page.enter-from-right { animation: page-fade 160ms ease; transition: none; transform: none !important; }
-  @keyframes page-fade { from { opacity: .3; } to { opacity: 1; } }
-}
+
+/* ── v3.6 break-ui: worst-case content ─────────────────────────── */
+.page-head > * { min-width: 0; }
+.page-head h1 { overflow-wrap: anywhere; }
+.chip .chip-text { position: relative; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi { container-type: inline-size; min-width: 0; }
+.kpi .kpi-value.long { font-size: min(var(--fs-num, 32px), 13.5cqi); }
+@media (max-width: 767px) { .grid > .sm-6 .kpi .kpi-value.long { font-size: min(23px, 13.5cqi); } }

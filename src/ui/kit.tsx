@@ -65,7 +65,12 @@ export function PillTabs<T extends string>({ items, value, onChange, id }: { ite
   const lid = id ?? auto;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    // centre the active tab by scrolling only the strip (scrollIntoView also scrolls the page,
+    // which on a narrow phone could shift the whole screen sideways)
+    const strip = ref.current, on = strip?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!strip || !on || strip.scrollWidth <= strip.clientWidth) return;
+    const a = on.getBoundingClientRect(), b = strip.getBoundingClientRect();
+    strip.scrollBy({ left: a.left + a.width / 2 - (b.left + b.width / 2) });
   }, [value]);
   return (
     <div className="pill-nav" role="tablist" ref={ref}>
@@ -96,7 +101,7 @@ export function Kpi({ label, value, icon: Icon, foot, delta, invert, tone }: { l
   return (
     <div className="kpi" style={{ '--tone': tone } as CSSProperties}>
       <div className="kpi-label">{Icon && <span className="kpi-icon"><Icon size={17} /></span>}{label}</div>
-      <div className="kpi-value">{value}</div>
+      <div className={`kpi-value${typeof value === 'string' && value.replace(/\D/g, '').length > 6 ? ' long' : ''}`}>{value}</div>
       {(foot || delta != null) && <div className="kpi-foot"><Delta value={delta ?? null} invert={invert} />{foot}</div>}
     </div>
   );
@@ -115,7 +120,7 @@ export function Meter({ value, max, tone, small, label = 'ניצול' }: { value
   const quick = useContext(QuickCtx); // switching tabs is frequent: show the bar filled, don't replay the fill
   return (
     <div className={`meter ${ratio > 1 ? 'over' : ''} ${small ? 'sm' : ''}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100} style={{ '--tone': tone } as CSSProperties}>
-      <motion.i initial={quick ? false : { scaleX: 0 }} animate={{ scaleX: Math.min(1, ratio) }} transition={{ duration: 0.5, ease: easeOut, delay: 0.08 }} style={{ width: '100%' }} />
+      <motion.i initial={quick ? false : { scaleX: 0 }} animate={{ scaleX: Math.min(1, ratio) }} transition={{ duration: 0.4, ease: easeOut, delay: 0.06 }} style={{ width: '100%' }} />
     </div>
   );
 }

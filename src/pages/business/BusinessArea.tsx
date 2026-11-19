@@ -55,7 +55,7 @@ export function BusinessArea() {
           return (
             <button key={b.id} aria-pressed={on} className="chip" style={{ position: 'relative', background: on ? 'transparent' : undefined, borderColor: on ? 'transparent' : undefined }} onClick={() => nav(`/business/${b.id}${tab !== 'overview' ? '/' + tab : ''}`)}>
               {on && <motion.span layoutId="biz-chip" transition={spring} style={{ position: 'absolute', inset: -1, borderRadius: 999, background: 'var(--accent)' }} />}
-              <span style={{ position: 'relative' }}>{b.name}</span>
+              <span className="chip-text" title={b.name}>{b.name}</span>
             </button>
           );
         })}
