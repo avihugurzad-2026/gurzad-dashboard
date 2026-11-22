@@ -56,7 +56,7 @@ function Gate() {
         <Route path="invest" element={<InvestArea />} />
         <Route path="invest/alerts" element={<AlertRules />} />
         <Route path="invest/:propId/:tab?" element={<Property />} />
-        <Route path="marketing/:tab?" element={<MarketingArea />} />
+        <Route path="marketing/:tab?/:siteId?" element={<MarketingArea />} />
         <Route path="planner/:view?" element={<Planner />} />
         <Route path="whatsapp" element={<WhatsApp />} />
         <Route path="status" element={<Status />} />

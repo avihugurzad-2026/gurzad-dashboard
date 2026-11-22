@@ -1,7 +1,8 @@
 import { ReceiptThumb } from '../ui/receipt';
 import { useEffect, useRef, useState, type FormEvent, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, BellRing, Bot, Check, Clock, Eye, EyeOff, Globe, KeyRound, Mail, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
+import { Activity, BarChart3, BellRing, Bot, CalendarDays, Check, Clock, Code2, Eye, EyeOff, Globe, KeyRound, Mail, Megaphone, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
 import { ruleBasedReply } from '../../shared/agent';
 import type { Area, Rec, Role } from '../data/types';
 import { resetDemo, store, useCollection } from '../data/store';
@@ -18,7 +19,20 @@ import { Badge, Card, CardHead, Empty, Kpi, PageHead, Stagger, Toggle, easeOut }
 import { Sheet, useToast } from '../ui/overlay';
 
 /* ---------- server config probe ---------- */
-type Health = { supabase: boolean; mail?: boolean; push?: boolean; cron?: boolean; gemini: boolean; kapso: boolean; kapso_webhook: boolean; allowed_numbers: number } | null;
+type Health = {
+  supabase: boolean;
+  mail?: boolean;
+  push?: boolean;
+  cron?: boolean;
+  gemini: boolean;
+  kapso: boolean;
+  kapso_webhook: boolean;
+  allowed_numbers: number;
+  meta?: boolean;
+  google_analytics?: boolean;
+  google_calendar?: boolean;
+  sites_tracker?: boolean;
+} | null;
 function useHealth() {
   const [h, setH] = useState<Health | undefined>(undefined);
   useEffect(() => {
@@ -171,8 +185,10 @@ export function Status() {
           <p style={{ opacity: 0.8, marginTop: 8, fontSize: 13 }}>{withUrl.length} בדיקות פעילות{pending ? ` · ${pending} מחכות לכתובת` : ''}</p>
         </Card>
         <Card className="soft lg-8 md-12">
-          <CardHead title="שיקוף נתונים מהאתרים" sub="השלב הבא" />
-          <p className="muted" style={{ fontSize: 14 }}>כרגע המסך בודק זמינות וזמן תגובה. כשנחבר את האתר של עדן ואת אתר הספא, כל כרטיס יציג גם נתונים מהאתר עצמו (הזמנות, לידים, תנועה). כדי להפעיל בדיקה לאתר, לחץ עליו והוסף כתובת.</p>
+          <CardHead title="שיקוף נתונים והמרות מהאתרים" sub="פעיל">
+            <Link to="/marketing/sites" className="btn btn-soft btn-sm"><BarChart3 size={14} />עמוד האתרים</Link>
+          </CardHead>
+          <p className="muted" style={{ fontSize: 14 }}>המסך בודק זמינות וזמן תגובה, וכל אתר תומך גם בקוד הטמעה עצמאי (<bdi className="ltr">/api/t</bdi>) למעקב תנועה בזמן אמת, דפים, מקורות והמרות, לצד Google Analytics ו־Search Console.</p>
         </Card>
 
         {monitors.map((m) => {
@@ -191,7 +207,14 @@ export function Status() {
               </div>
               <div className="spread meta" style={{ marginTop: 8 }}>
                 <span>{up != null ? `זמינות ${(up * 100).toFixed(up === 1 ? 0 : 1)}%` : 'אין נתונים עדיין'}</span>
-                {p && p !== 'checking' && <span className="row" style={{ gap: 4 }}><Clock size={12} /><span className="ltr num">{p.ms}ms</span></span>}
+                <span className="row" style={{ gap: 8 }}>
+                  {m.kind === 'אתר' && (
+                    <Link to={`/marketing/sites/${m.id}`} className="badge" onClick={(e) => e.stopPropagation()}>
+                      <Code2 size={12} />{m.site_key ? 'אנליטיקס' : 'חיבור קוד'}
+                    </Link>
+                  )}
+                  {p && p !== 'checking' && <span className="row" style={{ gap: 4 }}><Clock size={12} /><span className="ltr num">{p.ms}ms</span></span>}
+                </span>
               </div>
             </Card>
           );
@@ -372,12 +395,18 @@ export function SettingsPage() {
   const [remOpen, setRemOpen] = useState(false);
   const toast = useToast();
   const dark = isDark();
-  const rows = [
+  const monitors = useCollection('monitors');
+  const trackedSites = monitors.filter((m) => m.kind === 'אתר' && m.site_key).length;
+  const rows: { icon: typeof Server; name: string; desc: string; env: string; ok: boolean; to?: string; action?: string }[] = [
     { icon: Server, name: 'Supabase', desc: 'בסיס נתונים, משתמשים והרשאות, אחסון תמונות (טבלאות gd_*)', env: 'VITE_SUPABASE_URL · VITE_SUPABASE_ANON_KEY · SUPABASE_SERVICE_ROLE_KEY', ok: !DEMO },
     { icon: Mail, name: 'Resend', desc: 'שליחת קוד הכניסה (OTP) והזמנות במייל', env: 'RESEND_API_KEY · MAIL_FROM · OWNER_EMAIL', ok: !!health?.mail },
-    { icon: MessageCircle, name: 'Kapso · WhatsApp', desc: 'קבלה ושליחה של הודעות וואטסאפ לסוכן', env: 'KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID · KAPSO_WEBHOOK_SECRET', ok: !!health?.kapso },
-    { icon: BellRing, name: 'התראות פוש', desc: 'התראות לטלפון מהאפליקציה המותקנת, כל בוקר ובזמן אמת כשאתר נופל', env: 'VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · CRON_SECRET', ok: !!health?.push && !!health?.cron },
-    { icon: ScanLine, name: 'Gemini', desc: 'הבנת שפה חופשית לסוכן, ובהמשך סריקת קבלות', env: 'GEMINI_API_KEY', ok: !!health?.gemini },
+    { icon: MessageCircle, name: 'Kapso · WhatsApp', desc: 'קבלה ושליחה של הודעות וואטסאפ לסוכן', env: 'KAPSO_API_KEY · KAPSO_PHONE_NUMBER_ID · KAPSO_WEBHOOK_SECRET', ok: !!health?.kapso, to: '/whatsapp', action: 'וואטסאפ' },
+    { icon: BellRing, name: 'התראות פוש', desc: 'התראות לטלפון מהאפליקציה המותקנת, כל בוקר ובזמן אמת כשאתר נופל', env: 'VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · CRON_SECRET', ok: !!health?.push && !!health?.cron, to: '/notifications', action: 'התראות' },
+    { icon: ScanLine, name: 'Gemini', desc: 'הבנת שפה חופשית לסוכן וסריקת קבלות אוטומטית', env: 'GEMINI_API_KEY', ok: !!health?.gemini },
+    { icon: Megaphone, name: 'Meta · פייסבוק ואינסטגרם', desc: 'חשיפה ממומנת ואורגנית, קמפיינים, קליקים ועוקבים', env: 'META_ACCESS_TOKEN · META_AD_ACCOUNT_ID · META_PAGE_ID · META_APP_SECRET', ok: !!health?.meta, to: '/marketing', action: 'שיווק' },
+    { icon: Code2, name: 'מעקב אתרים והמרות (סקריפט הטמעה)', desc: `תנועה בזמן אמת, דפים, מקורות, מכשירים והמרות בכל אתר${trackedSites ? ` · ${trackedSites} אתרים עם קוד` : ''}`, env: '/api/t?s=<site_key>', ok: DEMO || !!health?.sites_tracker, to: '/marketing/sites', action: 'ניהול אתרים' },
+    { icon: BarChart3, name: 'Google Analytics & Search Console', desc: 'חיפושים בגוגל (קליקים, הופעות, מיקום) ונתוני GA4 משלימים', env: 'GOOGLE_SERVICE_ACCOUNT_JSON', ok: !!health?.google_analytics, to: '/marketing/sites', action: 'אתרים' },
+    { icon: CalendarDays, name: 'Google Calendar', desc: 'סנכרון דו־כיווני של אירועים ומשימות עם היומן האישי', env: 'GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET', ok: !!health?.google_calendar || !!google.status?.connected, to: '/planner', action: 'יומן' },
     { icon: Plus, name: 'מערכת חשבוניות', desc: 'משיכת חשבוניות לכל עסק. נבחר ספק בהמשך', env: 'בהמשך', ok: false },
   ];
   return (
@@ -394,7 +423,10 @@ export function SettingsPage() {
               <div key={r.name} className="li" style={{ alignItems: 'flex-start', paddingBlock: 14 }}>
                 <span className="li-icon"><r.icon size={18} /></span>
                 <div className="li-main"><div className="li-title">{r.name}</div><div className="li-meta">{r.desc}</div><div className="meta ltr" style={{ marginTop: 4, textAlign: 'right', wordBreak: 'break-word' }}>{r.env}</div></div>
-                {conn(r.ok)}
+                <div className="li-end" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  {conn(r.ok)}
+                  {r.to && <Link to={r.to} className="meta" style={{ textDecoration: 'underline' }}>{r.action}</Link>}
+                </div>
               </div>
             ))}
           </div>

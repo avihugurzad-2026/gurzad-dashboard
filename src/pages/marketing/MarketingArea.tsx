@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { AlertTriangle, BarChart3, Clock, ExternalLink, Eye, Globe, Heart, Instagram, Megaphone, MousePointerClick, RefreshCw, Search, Settings2, Users, Wallet, Facebook } from 'lucide-react';
+import { AlertTriangle, BarChart3, Eye, Globe, Heart, Instagram, Megaphone, MousePointerClick, RefreshCw, Users, Wallet, Facebook } from 'lucide-react';
 import { api } from '../../lib/api';
 import { DEMO } from '../../lib/config';
-import { useCollection } from '../../data/store';
 import { usePrefs } from '../../lib/prefs';
 import { shortDate } from '../../lib/format';
-import { useCrud } from '../../ui/crud';
 import { Badge, Card, CardHead, DotNum, Empty, Kpi, PageHead, PillTabs, Stagger, TabBody, easeOut } from '../../ui/kit';
+import { SitesSection } from './SitesSection';
 
 const TONE = '#D64C86';
 const TABS = [
@@ -29,7 +28,7 @@ export function MarketingArea() {
   const { tab = 'meta' } = useParams();
   const nav = useNavigate();
   const [days, setDays] = useState('28');
-  const View = tab === 'sites' ? Sites : MetaReach;
+  const View = tab === 'sites' ? SitesSection : MetaReach;
   return (
     <>
       <PageHead tag="שיווק ונוכחות" tone={TONE} title="שיווק" sub="חשיפה ברשתות ונתוני האתרים">
@@ -223,108 +222,6 @@ function MetaSetup({ missing }: { missing: string[] }) {
   );
 }
 
-/* ================= Sites ================= */
-type SiteReport = {
-  configured: boolean;
-  ga: null | { users: number; sessions: number; views: number; avgSec: number; keyEvents: number; daily: { day: string; users: number }[]; pages: { path: string; views: number }[]; channels: { name: string; sessions: number }[] };
-  search: null | { site: string; clicks: number; impressions: number; ctr: number; position: number; queries: { q: string; clicks: number; impressions: number }[] };
-  warnings: string[];
-};
-
-function Sites({ days }: { days: number }) {
-  const monitors = useCollection('monitors');
-  const sites = monitors.filter((m) => m.kind === 'אתר' && !/vercel\.app|localhost|127\.0\.0\.1/.test(m.url || ''));
-  const [sel, setSel] = useState<string | undefined>();
-  const site = sites.find((s) => s.id === sel) ?? sites[0];
-  const crud = useCrud('monitors');
-  const r = useApi<SiteReport>(site && (site.url || site.ga_property || DEMO) ? `/api/marketing?source=site&id=${site.id}&days=${days}` : null, () => demoSite(days));
-
-  if (!sites.length) return (
-    <Stagger>
-      <Card className="lg-12"><Empty icon={Globe} title="אין עדיין אתרים" text="הוסף את האתר בעמוד סטטוס מערכות (סוג: אתר, עם כתובת), והוא יופיע כאן." action={<button className="btn btn-primary" onClick={() => crud.openNew({ kind: 'אתר' })}>הוספת אתר</button>} /></Card>
-      {crud.sheet}
-    </Stagger>
-  );
-
-  return (
-    <>
-      <div className="chips" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-        {sites.map((s) => <button key={s.id} className="chip" aria-pressed={s.id === site?.id} onClick={() => setSel(s.id)}>{s.name}</button>)}
-      </div>
-      <TabBody id={site.id}>
-        {!site.url && !site.ga_property && !DEMO ? <div className="grid"><Card className="lg-12"><Empty icon={Globe} title="חסרה כתובת לאתר" text="הוסף את כתובת האתר ואת מזהה Google Analytics שלו." action={<button className="btn btn-primary" onClick={() => crud.openEdit(site)}>עריכת האתר</button>} /></Card></div> : r.loading && !r.data ? <Loading /> : r.error ? <ErrorCard text={r.error} onRetry={r.reload} /> : !r.data?.configured ? <SitesSetup /> : <SiteView site={site} d={r.data} onEdit={() => crud.openEdit(site)} />}
-      </TabBody>
-      {crud.sheet}
-    </>
-  );
-}
-
-function SiteView({ site, d, onEdit }: { site: any; d: SiteReport; onEdit: () => void }) {
-  const ga = d.ga, s = d.search;
-  const umax = Math.max(1, ...(ga?.daily.map((x) => x.users) ?? [1]));
-  const mins = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
-  return (
-    <Stagger>
-      {DEMO && <div className="lg-12"><Badge kind="info">נתוני הדגמה</Badge></div>}
-      {d.warnings.length > 0 && (
-        <Card className="lg-12" style={{ background: 'var(--surface-3)', borderColor: 'transparent' }}>
-          <div className="row" style={{ alignItems: 'flex-start' }}><AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} /><div><b style={{ fontWeight: 500 }}>חלק מהנתונים לא נטענו</b><ul className="meta" style={{ margin: '4px 0 0', paddingInlineStart: 18 }}>{d.warnings.map((w) => <li key={w} dir="auto">{w}</li>)}</ul><p className="meta" style={{ marginTop: 4 }}>בדרך כלל זה אומר שחשבון השירות עוד לא נוסף כצופה לנכס.</p></div></div>
-        </Card>
-      )}
-      <Card className="hero hero-slate lg-5 md-12">
-        <div className="spread"><span className="hero-label"><Users size={16} />מבקרים באתר</span>{site.url && <a className="hero-chip" href={site.url} target="_blank" rel="noreferrer"><bdi className="ltr">{hostOf(site.url)}</bdi><ExternalLink size={12} /></a>}</div>
-        <div className="hero-num"><DotNum value={ga ? big(ga.users) : '—'} label={ga ? `${cnt(ga.users)} מבקרים` : 'אין נתונים'} /></div>
-        <div className="hero-sub">{ga ? `${cnt(ga.sessions)} ביקורים · ${cnt(ga.views)} צפיות בעמודים` : 'Google Analytics לא מחובר לאתר הזה'}</div>
-        {ga && <div className="hero-ticks" role="img" aria-label="מבקרים לפי יום">{ga.daily.slice(-30).map((x, i) => <i key={i} className="on" style={{ height: `${12 + (x.users / umax) * 88}%` }} />)}</div>}
-      </Card>
-
-      <Card className="lg-7 md-12">
-        <CardHead title="מאיפה מגיעים" sub="ביקורים לפי ערוץ" >{!site.ga_property && <button className="btn btn-soft btn-sm" onClick={onEdit}><Settings2 size={14} />חיבור Analytics</button>}</CardHead>
-        {ga?.channels.length ? (
-          <div className="stack" style={{ gap: 12 }}>
-            {ga.channels.map((c) => (
-              <div key={c.name}>
-                <div className="spread" style={{ fontSize: 14 }}><bdi>{channelHe(c.name)}</bdi><span className="num">{cnt(c.sessions)}</span></div>
-                <div style={{ height: 6, borderRadius: 6, background: 'var(--surface-3)', marginTop: 6, overflow: 'hidden' }}><motion.i style={{ display: 'block', height: '100%', background: 'var(--ink)', transformOrigin: 'right' }} initial={{ scaleX: 0 }} animate={{ scaleX: c.sessions / (ga.channels[0].sessions || 1) }} transition={{ duration: 0.5, ease: easeOut }} /></div>
-              </div>
-            ))}
-          </div>
-        ) : <Empty icon={BarChart3} title="אין נתונים עדיין" text={site.ga_property ? 'אין ביקורים בטווח הזה.' : 'הוסף לאתר את מזהה נכס GA4 כדי לראות תנועה.'} />}
-      </Card>
-
-      <Card className="lg-3 md-6 sm-6"><Kpi label="זמן ממוצע בביקור" icon={Clock} value={ga ? mins(ga.avgSec) : '—'} /></Card>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="פעולות חשובות" icon={MousePointerClick} value={ga ? cnt(ga.keyEvents) : '—'} foot="לידים, טפסים, וואטסאפ" /></Card>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="קליקים מגוגל" icon={Search} value={s ? cnt(s.clicks) : '—'} foot={s ? `${big(s.impressions)} הופעות בחיפוש` : 'Search Console לא מחובר'} /></Card>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="מיקום ממוצע בגוגל" icon={Search} value={s ? s.position.toFixed(1) : '—'} foot={s ? `CTR ${pctf(s.ctr * 100)}` : undefined} /></Card>
-
-      <Card className="flush lg-6 md-12">
-        <div className="card-head" style={{ padding: '20px 20px 0', marginBottom: 6 }}><h2>עמודים מובילים</h2></div>
-        {ga?.pages.length ? <div className="list">{ga.pages.map((pg) => <div key={pg.path} className="li"><span className="li-main li-title"><bdi className="ltr">{decodeSafe(pg.path)}</bdi></span><span className="li-end num">{cnt(pg.views)}</span></div>)}</div> : <Empty icon={Globe} title="אין נתונים עדיין" />}
-      </Card>
-      <Card className="flush lg-6 md-12">
-        <div className="card-head" style={{ padding: '20px 20px 0', marginBottom: 6 }}><div><h2>מה מחפשים בגוגל</h2>{s && <div className="sub">עד לפני 3 ימים (העיכוב של גוגל)</div>}</div></div>
-        {s?.queries.length ? <div className="list">{s.queries.map((q) => <div key={q.q} className="li"><span className="li-main"><span className="li-title" style={{ display: 'block' }} dir="auto">{q.q}</span><span className="li-meta">{big(q.impressions)} הופעות</span></span><span className="li-end num">{cnt(q.clicks)} קליקים</span></div>)}</div> : <Empty icon={Search} title="אין נתונים עדיין" text="צריך להוסיף את חשבון השירות כמשתמש ב־Search Console של האתר." />}
-      </Card>
-    </Stagger>
-  );
-}
-
-function SitesSetup() {
-  return (
-    <Stagger>
-      <Card className="lg-12">
-        <CardHead title="חיבור נתוני אתרים" sub="Google Analytics 4 ו־Search Console, פעם אחת לכל האתרים" />
-        <ol className="stack" style={{ gap: 10, paddingInlineStart: 20, margin: 0, fontSize: 14 }}>
-          <li>ב־Google Cloud (באותו פרויקט של היומן) הפעל את Google Analytics Data API ואת Search Console API.</li>
-          <li>צור Service Account, הורד מפתח JSON והדבק את כל התוכן במשתנה <bdi className="ltr">GOOGLE_SERVICE_ACCOUNT_JSON</bdi> ב־Vercel.</li>
-          <li>בכל אתר: ב־Analytics › ניהול › גישה לנכס, הוסף את כתובת המייל של חשבון השירות כ"צופה". ב־Search Console › הגדרות › משתמשים, הוסף אותה כמשתמש.</li>
-          <li>בעמוד סטטוס מערכות, פתח את האתר והדבק את מזהה נכס GA4 (מספר בן 9 ספרות).</li>
-        </ol>
-      </Card>
-    </Stagger>
-  );
-}
-
 /* ---------------- bits ---------------- */
 function Loading() {
   return <div className="grid">{[5, 7, 3, 3, 3, 3].map((w, i) => <div key={i} className={`card lg-${w} md-12 skeleton`} style={{ minHeight: i < 2 ? 220 : 110, opacity: 0.55 }} aria-busy="true" />)}</div>;
@@ -332,17 +229,13 @@ function Loading() {
 function ErrorCard({ text, onRetry }: { text: string; onRetry: () => void }) {
   return <div className="grid"><Card className="lg-12"><Empty icon={AlertTriangle} title="לא הצלחנו לטעון" text={text} action={<button className="btn btn-soft" onClick={onRetry}><RefreshCw size={14} />נסה שוב</button>} /></Card></div>;
 }
-const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
-const decodeSafe = (s: string) => { try { return decodeURI(s); } catch { return s; } };
-const CH: Record<string, string> = { 'Organic Search': 'חיפוש אורגני', Direct: 'ישיר', 'Organic Social': 'רשתות חברתיות', 'Paid Social': 'רשתות ממומן', Referral: 'הפניות מאתרים', 'Paid Search': 'חיפוש ממומן', Email: 'מייל', Unassigned: 'לא מסווג', 'Organic Video': 'וידאו', Display: 'באנרים', 'Cross-network': 'קמפיין משולב' };
-const channelHe = (n: string) => CH[n] ?? n;
 
 /* ---------------- demo data (demo mode only) ---------------- */
-function seededDays(days: number, f: (i: number) => Day | { day: string; users: number }) { return Array.from({ length: days }, (_, i) => f(i)); }
+function seededDays(days: number, f: (i: number) => Day) { return Array.from({ length: days }, (_, i) => f(i)); }
 const dayIso = (back: number) => new Date(Date.now() - (back + 1) * 864e5).toISOString().slice(0, 10);
 function demoMeta(days: number): MetaReport {
   const w = (i: number, a: number) => Math.round(a * (0.75 + 0.35 * Math.sin(i * 0.7) + (i % 7 === 5 ? -0.3 : 0)));
-  const daily = seededDays(days, (i) => ({ day: dayIso(days - 1 - i), paid: w(i, 2400), fb: w(i + 2, 380), ig: w(i + 4, 920) })) as Day[];
+  const daily = seededDays(days, (i) => ({ day: dayIso(days - 1 - i), paid: w(i, 2400), fb: w(i + 2, 380), ig: w(i + 4, 920) }));
   const sum = (k: 'paid' | 'fb' | 'ig') => daily.reduce((a, d) => a + (d[k] ?? 0), 0);
   const reach = Math.round(sum('paid') * 0.42);
   return {
@@ -355,16 +248,6 @@ function demoMeta(days: number): MetaReport {
     facebook: { name: 'Eden Rusak', reach: sum('fb'), views: Math.round(sum('fb') * 1.9), engagements: Math.round(sum('fb') * 0.06), followers: 4820 },
     instagram: { username: 'edenrusak', reach: Math.round(sum('ig') * 0.55), views: Math.round(sum('ig') * 2.4), interactions: Math.round(sum('ig') * 0.08), profileViews: Math.round(sum('ig') * 0.05), followers: 12940 },
     daily, warnings: [],
-  };
-}
-function demoSite(days: number): SiteReport {
-  const daily = seededDays(days, (i) => ({ day: dayIso(days - 1 - i), users: Math.round(140 + 50 * Math.sin(i * 0.6)) })) as { day: string; users: number }[];
-  const users = Math.round(daily.reduce((a, d) => a + d.users, 0) * 0.8);
-  return {
-    configured: true,
-    ga: { users, sessions: Math.round(users * 1.3), views: Math.round(users * 2.7), avgSec: 94, keyEvents: Math.round(users * 0.03), daily, pages: [{ path: '/', views: Math.round(users * 1.1) }, { path: '/טיפולים', views: Math.round(users * 0.6) }, { path: '/צור-קשר', views: Math.round(users * 0.3) }], channels: [{ name: 'Paid Social', sessions: Math.round(users * 0.5) }, { name: 'Organic Search', sessions: Math.round(users * 0.35) }, { name: 'Direct', sessions: Math.round(users * 0.25) }, { name: 'Organic Social', sessions: Math.round(users * 0.15) }] },
-    search: { site: 'sc-domain:example.co.il', clicks: Math.round(users * 0.3), impressions: Math.round(users * 6), ctr: 0.05, position: 8.4, queries: [{ q: 'ספא באזור', clicks: 41, impressions: 820 }, { q: 'טיפול פנים מחיר', clicks: 22, impressions: 610 }] },
-    warnings: [],
   };
 }
 
