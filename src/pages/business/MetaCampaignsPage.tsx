@@ -105,6 +105,7 @@ interface AccountItem {
   statusLabel: string;
   winners: AdItem[];
   bleeding: AdItem[];
+  error?: string;
 }
 
 interface AgentRec {
@@ -484,6 +485,19 @@ export function MetaCampaignsPage() {
 
       {d && d.configured && (
         <Stagger>
+          {d.accounts.some((a) => a.error) && (
+            <Card className="lg-12" style={{ background: 'var(--warn-bg)', borderColor: 'transparent', padding: '12px 18px' }}>
+              <div className="row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2, color: 'var(--warn)' }} />
+                <div style={{ fontSize: 13 }}>
+                  <b style={{ fontWeight: 500 }}>חלק מהחשבונות החזירו שגיאה מ־Meta</b>
+                  <div className="meta" dir="auto" style={{ marginTop: 2 }}>
+                    {d.accounts.find((a) => a.error)?.error}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
           {/* Agent summary banner */}
           {d.agentSummary && (
             <Card className="soft lg-12" style={{ padding: '14px 20px' }}>

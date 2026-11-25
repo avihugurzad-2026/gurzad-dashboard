@@ -642,6 +642,23 @@ const AGENT_SCHEMA = {
   required: ['summary', 'recommendations'],
 };
 
+async function callGeminiJson(body: unknown) {
+  const models = [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
+  let lastErr = '';
+  for (const model of models) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (r.ok) return r.json() as Promise<any>;
+    lastErr = `Gemini ${model} (${r.status}): ${(await r.text()).slice(0, 160)}`;
+    if (![404, 429, 500, 503].includes(r.status)) break;
+  }
+  throw new HttpError(502, lastErr || 'שגיאת Gemini');
+}
+
 export async function runMetaDailyAgent(workspaceId: string, days = 7) {
   const overview = await campaignsOverview(workspaceId, { days, force: true });
   if (!overview.configured) throw new HttpError(503, 'META_ADS_ACCESS_TOKEN לא מוגדר');
@@ -667,24 +684,15 @@ export async function runMetaDailyAgent(workspaceId: string, days = 7) {
 
   if (has('GEMINI_API_KEY')) {
     try {
-      const model = env('GEMINI_MODEL') || 'gemini-2.5-flash';
       const prompt = `אתה מנהל מדיה בכיר בסוכנות הפרסום אדיג׳יטל (Adigital). נתח את נתוני הקמפיינים החיים מ-Meta Ads ב-${days} הימים האחרונים והפק סיכום מנהלים קצר + עד 8 המלצות פעולה ממוקדות בעברית (עצירת מודעות שורפות עם targetEntityId מדויק מהנתונים, העלאת תקציב לחשבונות מנצחים עם תדירות נמוכה, ורענון קריאייטיב לחשבונות עם תדירות מעל 4). אל תמציא מספרים או מזהים שלא מופיעים בקלט.\n\nנתונים:\n${JSON.stringify(compactInput)}`;
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA },
-        }),
-        signal: AbortSignal.timeout(30000),
+      const j: any = await callGeminiJson({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: AGENT_SCHEMA },
       });
-      if (r.ok) {
-        const j: any = await r.json();
-        const parsed = JSON.parse(j.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');
-        if (parsed.summary) summary = parsed.summary;
-        if (Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0) {
-          recommendations = parsed.recommendations.map((rec: AgentRecommendation) => ({ ...rec, state: 'pending' }));
-        }
+      const parsed = JSON.parse(j.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');
+      if (parsed.summary) summary = parsed.summary;
+      if (Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0) {
+        recommendations = parsed.recommendations.map((rec: AgentRecommendation) => ({ ...rec, state: 'pending' }));
       }
     } catch (e) {
       console.warn('Gemini Meta agent fallback to deterministic rules:', e);
@@ -1011,20 +1019,12 @@ ${JSON.stringify(
   ];
   while (contents.length > 1 && contents[0].role !== 'user') contents.shift();
 
-  const model = env('GEMINI_MODEL') || 'gemini-2.5-flash';
   for (let round = 0; round < 4; round++) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': env('GEMINI_API_KEY') },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: sysPrompt }] },
-        tools: [{ functionDeclarations: CHAT_TOOLS }],
-        contents,
-      }),
-      signal: AbortSignal.timeout(30000),
+    const out: any = await callGeminiJson({
+      systemInstruction: { parts: [{ text: sysPrompt }] },
+      tools: [{ functionDeclarations: CHAT_TOOLS }],
+      contents,
     });
-    if (!r.ok) throw new HttpError(502, `שגיאת Gemini (${r.status})`);
-    const out: any = await r.json();
     const parts: any[] = out.candidates?.[0]?.content?.parts ?? [];
     const calls = parts.filter((p) => p.functionCall);
     if (!calls.length) {
