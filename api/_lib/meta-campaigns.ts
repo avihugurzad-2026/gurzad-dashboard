@@ -1082,3 +1082,184 @@ ${JSON.stringify(
 
   return { reply: 'הפעולות בוצעו ואומתו מול Meta.', executedReceipts };
 }
+
+
+/* ================= Configurable Daily WhatsApp Report (Yesterday Summary) ================= */
+
+export interface MetaWaSchedule {
+  enabled: boolean;
+  days: number[]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  hour: number; // Israel time hour (e.g. 8 or 9)
+  phone: string; // Optional override; empty = first WHATSAPP_ALLOWED_NUMBERS
+  includeRecommendations: boolean;
+  lastSentDate?: string;
+  lastSentAt?: string;
+}
+
+export const DEFAULT_META_WA_SCHEDULE: MetaWaSchedule = {
+  enabled: true,
+  days: [0, 1, 2, 3, 4, 5], // Sunday to Friday
+  hour: 8,
+  phone: '',
+  includeRecommendations: true,
+};
+
+export async function getMetaWaSchedule(workspaceId: string): Promise<MetaWaSchedule> {
+  try {
+    const { data } = await sbAdmin()
+      .from('gd_records')
+      .select('id, data')
+      .eq('workspace_id', workspaceId)
+      .eq('collection', 'meta_wa_schedule')
+      .limit(1)
+      .maybeSingle();
+    if (data?.data) {
+      return { ...DEFAULT_META_WA_SCHEDULE, ...(data.data as Partial<MetaWaSchedule>) };
+    }
+  } catch { /* fallback to default */ }
+  return { ...DEFAULT_META_WA_SCHEDULE };
+}
+
+export async function saveMetaWaSchedule(workspaceId: string, patch: Partial<MetaWaSchedule>): Promise<MetaWaSchedule> {
+  const sb = sbAdmin();
+  const current = await getMetaWaSchedule(workspaceId);
+  const cleanDays = Array.isArray(patch.days)
+    ? [...new Set(patch.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort()
+    : current.days;
+  const next: MetaWaSchedule = {
+    ...current,
+    enabled: patch.enabled != null ? Boolean(patch.enabled) : current.enabled,
+    days: cleanDays,
+    hour: patch.hour != null ? Math.max(0, Math.min(23, Number(patch.hour))) : current.hour,
+    phone: patch.phone != null ? String(patch.phone).replace(/\D/g, '') : current.phone,
+    includeRecommendations:
+      patch.includeRecommendations != null ? Boolean(patch.includeRecommendations) : current.includeRecommendations,
+    lastSentDate: patch.lastSentDate ?? current.lastSentDate,
+    lastSentAt: patch.lastSentAt ?? current.lastSentAt,
+  };
+
+  const { data: existing } = await sb
+    .from('gd_records')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('collection', 'meta_wa_schedule')
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    await sb.from('gd_records').update({ data: next }).eq('id', existing.id);
+  } else {
+    await sb.from('gd_records').insert({
+      id: crypto.randomUUID(),
+      workspace_id: workspaceId,
+      collection: 'meta_wa_schedule',
+      data: next,
+    });
+  }
+  return next;
+}
+
+function israelWeekday(d = new Date()): number {
+  const w = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' })).getDay();
+  return w; // 0=Sun..6=Sat
+}
+
+async function sendKapsoText(to: string, body: string) {
+  if (!has('KAPSO_API_KEY', 'KAPSO_PHONE_NUMBER_ID')) throw new HttpError(503, 'Kapso WhatsApp לא מוגדר בשרת');
+  const r = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${env('KAPSO_PHONE_NUMBER_ID')}/messages`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(10000),
+    headers: { 'X-API-Key': env('KAPSO_API_KEY'), 'content-type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      text: { preview_url: false, body },
+    }),
+  });
+  if (!r.ok) {
+    const errTxt = (await r.text()).slice(0, 200);
+    throw new HttpError(502, `שליחת וואטסאפ נכשלה (${r.status}): ${errTxt}`);
+  }
+}
+
+export async function sendMetaYesterdayWhatsAppReport(
+  workspaceId: string,
+  opts: { forceTest?: boolean } = {},
+): Promise<{ sent: boolean; skippedReason?: string; to?: string; preview?: string }> {
+  const sched = await getMetaWaSchedule(workspaceId);
+  const today = israelDay();
+
+  if (!opts.forceTest) {
+    if (!sched.enabled) return { sent: false, skippedReason: 'disabled' };
+    const dow = israelWeekday();
+    if (!sched.days.includes(dow)) return { sent: false, skippedReason: `day_${dow}_not_scheduled` };
+    if (sched.lastSentDate === today) return { sent: false, skippedReason: 'already_sent_today' };
+  }
+
+  const fallbackPhone = env('WHATSAPP_ALLOWED_NUMBERS')
+    .split(',')
+    .map((s) => s.replace(/\D/g, ''))
+    .filter(Boolean)[0];
+  const to = sched.phone || fallbackPhone;
+  if (!to) throw new HttpError(400, 'לא הוגדר מספר יעד לוואטסאפ (WHATSAPP_ALLOWED_NUMBERS או בהגדרות)');
+
+  // Fetch yesterday (days: 1) live from Meta Graph API
+  const ov: any = await campaignsOverview(workspaceId, { days: 1, force: true });
+  if (!ov.configured) throw new HttpError(503, 'META_ADS_ACCESS_TOKEN לא מוגדר');
+
+  const yDate = String(ov.range?.since || '');
+  const ddmm = yDate ? `${yDate.slice(8, 10)}/${yDate.slice(5, 7)}` : 'אתמול';
+  const active = (ov.accounts as AccountOverviewItem[]).filter((a) => a.spend > 0).sort((a, b) => b.spend - a.spend);
+
+  const lines: string[] = [];
+  lines.push(`*📊 דוח קמפיינים במטא — אתמול (${ddmm})*`);
+  lines.push(
+    `סה״כ הוצאה: *₪${Math.round(ov.totals.spend).toLocaleString('he-IL')}* · *${ov.totals.leads}* לידים · *${ov.totals.messages}* התכתבויות` +
+      (ov.totals.profileVisits > 0 ? ` · ${ov.totals.profileVisits} ביקורי פרופיל` : ''),
+  );
+  lines.push('');
+
+  if (active.length === 0) {
+    lines.push('לא נרשמה הוצאה פעילה בחשבונות המודעות אתמול.');
+  } else {
+    for (const a of active.slice(0, 14)) {
+      const resParts: string[] = [];
+      if (a.leads > 0) resParts.push(`${a.leads} לידים`);
+      if (a.messages > 0) resParts.push(`${a.messages} שיחות`);
+      if (!resParts.length && a.profileVisits > 0) resParts.push(`${a.profileVisits} ביקורי פרופיל`);
+      const cplStr = a.costPerResult != null ? ` (₪${a.costPerResult.toFixed(0)}/תוצאה)` : '';
+      const alertIcon = a.health === 'alert' ? '⚠️ ' : a.health === 'winner' ? '✅ ' : '';
+      lines.push(`• ${alertIcon}*${a.name}*: ₪${Math.round(a.spend)}${resParts.length ? ` · ${resParts.join(' + ')}${cplStr}` : ''}`);
+    }
+  }
+
+  if (sched.includeRecommendations && ov.recommendations?.length) {
+    lines.push('');
+    lines.push('*⚡ לטיפול היום:*');
+    for (const r of (ov.recommendations as AgentRecommendation[]).slice(0, 4)) {
+      lines.push(`- ${r.title} (${r.reason})`);
+    }
+  }
+
+  lines.push('');
+  lines.push('רוצה שאשהה מודעה או אבדוק לקוח לעומק? פשוט ענה לי כאן.');
+  const text = lines.join('\n').slice(0, 3900);
+
+  await sendKapsoText(to, text);
+
+  try {
+    await sbAdmin().from('gd_records').insert({
+      id: crypto.randomUUID(),
+      workspace_id: workspaceId,
+      collection: 'wa_messages',
+      data: { direction: 'out', text, at: new Date().toISOString(), to, kind: 'meta_daily_report' },
+    });
+    if (!opts.forceTest) {
+      await saveMetaWaSchedule(workspaceId, { lastSentDate: today, lastSentAt: new Date().toISOString() });
+    }
+  } catch { /* non-fatal */ }
+
+  return { sent: true, to, preview: text };
+}

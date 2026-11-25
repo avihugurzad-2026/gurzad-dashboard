@@ -4,10 +4,13 @@ import {
   campaignsAccountDetail,
   campaignsOverview,
   executeVerifiedRecommendation,
+  getMetaWaSchedule,
   listVerifiedActionLogs,
   metaAgentLiveChat,
   metaCampaignsReady,
   runMetaDailyAgent,
+  saveMetaWaSchedule,
+  sendMetaYesterdayWhatsAppReport,
   setMetaEntityStatus,
   updateRecommendationState,
   verifyMetaEntityLive,
@@ -81,6 +84,24 @@ export default handler(async (req, res) => {
       );
       return;
     }
+    if (b.action === 'save_wa_schedule') {
+      if (m.role !== 'owner') throw new HttpError(403, 'רק בעל המערכת רשאי לשנות הגדרות תזמון');
+      res.json(
+        await saveMetaWaSchedule(m.workspaceId, {
+          enabled: b.enabled,
+          days: b.days,
+          hour: b.hour,
+          phone: b.phone,
+          includeRecommendations: b.includeRecommendations,
+        }),
+      );
+      return;
+    }
+    if (b.action === 'send_wa_report_now') {
+      if (m.role !== 'owner') throw new HttpError(403, 'רק בעל המערכת');
+      res.json(await sendMetaYesterdayWhatsAppReport(m.workspaceId, { forceTest: true }));
+      return;
+    }
     throw new HttpError(400, 'פעולה לא מוכרת');
   }
 
@@ -109,6 +130,10 @@ export default handler(async (req, res) => {
   if (source === 'verify_entity') {
     const entityId = String(req.query.entityId || '');
     res.json(await verifyMetaEntityLive(entityId));
+    return;
+  }
+  if (source === 'wa_schedule') {
+    res.json(await getMetaWaSchedule(m.workspaceId));
     return;
   }
   if (source === 'campaigns_account') {

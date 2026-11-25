@@ -2,7 +2,7 @@ import { isCron, handler, HttpError, requireMember, sbAdmin } from './_lib/serve
 import { notifyWorkspace, pushReady, notifyEvent } from './_lib/push.js';
 import { mailAssigned, mailDueReminders, mailReady, mailTest } from './_lib/reminders.js';
 import { pushAll } from './_lib/google.js';
-import { metaCampaignsReady, runMetaDailyAgent } from './_lib/meta-campaigns.js';
+import { metaCampaignsReady, runMetaDailyAgent, sendMetaYesterdayWhatsAppReport } from './_lib/meta-campaigns.js';
 
 // GET  (Vercel cron, daily ~07:10 Israel time, CRON_SECRET): phone pushes for new alerts, email reminders
 //      for tasks/events N days ahead, and the daily dashboard → Google Calendar sync.
@@ -47,6 +47,12 @@ export default handler(async (req, res) => {
             to: '/meta-campaigns',
             sort: -35,
           });
+        }
+        try {
+          r.metaWhatsApp = await sendMetaYesterdayWhatsAppReport(id);
+        } catch (we) {
+          console.error('meta wa daily report failed', id, we);
+          r.metaWhatsApp = { error: true };
         }
       }
     } catch (e) { console.error('meta agent cron failed', id, e); r.metaAgent = { error: true }; }

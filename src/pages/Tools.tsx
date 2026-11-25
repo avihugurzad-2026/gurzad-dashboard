@@ -387,6 +387,152 @@ function ProfileCard() {
   );
 }
 
+function MetaWaReportCard() {
+  const toast = useToast();
+  const [enabled, setEnabled] = useState(true);
+  const [days, setDays] = useState<number[]>([0, 1, 2, 3, 4, 5]);
+  const [hour, setHour] = useState(8);
+  const [phone, setPhone] = useState('');
+  const [includeRecommendations, setIncludeRecommendations] = useState(true);
+  const [lastSentDate, setLastSentDate] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const DOW = [
+    [0, 'א׳'],
+    [1, 'ב׳'],
+    [2, 'ג׳'],
+    [3, 'ד׳'],
+    [4, 'ה׳'],
+    [5, 'ו׳'],
+    [6, 'ש׳'],
+  ] as const;
+
+  useEffect(() => {
+    if (DEMO) return;
+    api<any>('/api/marketing?source=wa_schedule')
+      .then((s) => {
+        if (s && typeof s.enabled === 'boolean') {
+          setEnabled(s.enabled);
+          if (Array.isArray(s.days)) setDays(s.days);
+          if (typeof s.hour === 'number') setHour(s.hour);
+          if (typeof s.phone === 'string') setPhone(s.phone);
+          if (typeof s.includeRecommendations === 'boolean') setIncludeRecommendations(s.includeRecommendations);
+          if (s.lastSentDate) setLastSentDate(s.lastSentDate);
+        }
+      })
+      .catch(() => null);
+  }, []);
+
+  const toggleDay = (d: number) =>
+    setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
+
+  const save = async () => {
+    if (DEMO) { toast('נשמר במצב הדגמה'); return; }
+    setSaving(true);
+    try {
+      await api('/api/marketing', {
+        method: 'POST',
+        body: { action: 'save_wa_schedule', enabled, days, hour, phone, includeRecommendations },
+      });
+      toast('הגדרות דוח הבוקר לוואטסאפ נשמרו');
+    } catch (e: any) {
+      toast(e.message || 'השמירה נכשלה');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendNow = async () => {
+    if (DEMO) { toast('במצב הדגמה לא נשלחת הודעת וואטסאפ אמיתית'); return; }
+    setSending(true);
+    try {
+      const r = await api<{ sent: boolean; to?: string }>('/api/marketing', {
+        method: 'POST',
+        body: { action: 'send_wa_report_now' },
+      });
+      toast(r.sent ? `דוח אתמול נשלח לוואטסאפ (${r.to || 'המספר הראשי'})` : 'הדוח לא נשלח');
+    } catch (e: any) {
+      toast(e.message || 'שליחת הדוח נכשלה');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card className="lg-12">
+      <CardHead title="דוח קמפיינים יומי לוואטסאפ (אדיג׳יטל)" sub="סיכום ביצועי אתמול של כל החשבונות הפעילים במטא + המלצות דחופות ישירות לוואטסאפ">
+        <Badge kind={enabled ? 'pos' : 'none'} icon={false}>{enabled ? 'פעיל' : 'כבוי'}</Badge>
+      </CardHead>
+
+      <div className="stack" style={{ gap: 14 }}>
+        <label className="switch">
+          <span className="row"><Megaphone size={16} />שליחה אוטומטית בבוקר לוואטסאפ</span>
+          <Toggle checked={enabled} onChange={setEnabled} label="שליחה אוטומטית בבוקר לוואטסאפ" />
+        </label>
+
+        <div className="field">
+          <span>ימי שליחה (ברירת מחדל: ראשון עד שישי)</span>
+          <div className="chips">
+            {DOW.map(([num, label]) => (
+              <button
+                key={num}
+                type="button"
+                className="chip"
+                aria-pressed={days.includes(num)}
+                onClick={() => toggleDay(num)}
+              >
+                {days.includes(num) && <Check size={13} />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="form">
+          <label className="field">
+            <span>שעת שליחה מועדפת (שעון ישראל)</span>
+            <select className="select" value={hour} onChange={(e) => setHour(Number(e.target.value))}>
+              {[6, 7, 8, 9, 10, 11, 12].map((h) => (
+                <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+              ))}
+            </select>
+            <small>ה־Cron היומי של השרת רץ בבוקר (סביב 07:10–08:10 שעון ישראל) ושולח אוטומטית בימים שסימנת.</small>
+          </label>
+
+          <label className="field">
+            <span>מספר יעד לוואטסאפ (אופציונלי)</span>
+            <input
+              className="input ltr"
+              dir="ltr"
+              style={{ textAlign: 'right' }}
+              placeholder="97250... (ריק = המספר הראשי ב-Kapso)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <small>השאר ריק כדי לשלוח למספר הראשון ב־WHATSAPP_ALLOWED_NUMBERS.</small>
+          </label>
+        </div>
+
+        <label className="switch">
+          <span className="row"><Bot size={16} />כלול המלצות פעולה דחופות בדוח הבוקר</span>
+          <Toggle checked={includeRecommendations} onChange={setIncludeRecommendations} label="כלול המלצות פעולה דחופות" />
+        </label>
+
+        <div className="row wrap" style={{ gap: 10, marginTop: 4 }}>
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void save()}>
+            {saving ? 'שומר…' : 'שמירת הגדרות'}
+          </button>
+          <button type="button" className="btn btn-soft" disabled={sending} onClick={() => void sendNow()}>
+            <Send size={15} />{sending ? 'מפיק ושולח…' : 'שלח דוח אתמול לוואטסאפ עכשיו'}
+          </button>
+          {lastSentDate && <span className="meta">נשלח אוטומטית לאחרונה: {lastSentDate}</span>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const prefs = usePrefs();
   const health = useHealth();
@@ -458,6 +604,7 @@ export function SettingsPage() {
 
       <div className="card-head" style={{ marginTop: 28, marginBottom: 12, padding: '0 4px' }}><div><h2>וואטסאפ · Kapso</h2><div className="sub">חיבור הסוכן לוואטסאפ, והמספרים שמורשים לדבר איתו</div></div></div>
       <Stagger className="grid">
+        <MetaWaReportCard />
         <Card className="lg-12">
           <CardHead title="חיבור Kapso">{health === undefined ? <span className="meta">בודק…</span> : conn(health?.kapso && health?.kapso_webhook)}</CardHead>
           <div className="list no-top inset">
