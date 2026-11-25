@@ -39,7 +39,10 @@ let TOOLS = ALL_TOOLS;
 
 const refreshCb = () => refreshStore();
 
-const activeArea = (path: string) => AREAS.slice(1).find((a) => path.startsWith(a.to))?.to ?? (path === '/' ? '/' : '');
+const activeArea = (path: string) =>
+  path.startsWith('/meta-campaigns')
+    ? '/business'
+    : AREAS.slice(1).find((a) => path.startsWith(a.to))?.to ?? (path === '/' ? '/' : '');
 
 export function AppShell() {
   AREAS = allowed(ALL_AREAS);

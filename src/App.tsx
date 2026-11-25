@@ -14,6 +14,7 @@ const Notifications = page(() => import('./pages/Notifications'), 'Notifications
 const Planner = page(() => import('./pages/Planner'), 'Planner');
 const HomeArea = page(() => import('./pages/home/HomeArea'), 'HomeArea');
 const BusinessArea = page(() => import('./pages/business/BusinessArea'), 'BusinessArea');
+const MetaCampaignsPage = page(() => import('./pages/business/MetaCampaignsPage'), 'MetaCampaignsPage');
 const MarketingArea = page(() => import('./pages/marketing/MarketingArea'), 'MarketingArea');
 const InvestArea = page(() => import('./pages/invest/InvestArea'), 'InvestArea');
 const AlertRules = page(() => import('./pages/invest/InvestArea'), 'AlertRules');
@@ -52,6 +53,8 @@ function Gate() {
       <Route element={<AppShell />}>
         <Route index element={<Overview />} />
         <Route path="home/:tab?" element={<HomeArea />} />
+        <Route path="business/:bizId/meta-campaigns" element={<MetaCampaignsPage />} />
+        <Route path="meta-campaigns" element={<MetaCampaignsPage />} />
         <Route path="business/:bizId?/:tab?" element={<BusinessArea />} />
         <Route path="invest" element={<InvestArea />} />
         <Route path="invest/alerts" element={<AlertRules />} />

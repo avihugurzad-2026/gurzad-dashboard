@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, Link2, ListChecks, Pencil, Plus, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, Link2, ListChecks, Megaphone, Pencil, Plus, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { isAdigitalBusiness } from './MetaCampaignsPage';
+import { IntegrationsPanel } from './IntegrationsPanel';
 import type { Rec } from '../../data/types';
 import { useCollection, useDerived, store } from '../../data/store';
 import { bizSummary, gross, invoiceState, needsAllocation, vatRate } from '../../data/derive';
@@ -40,11 +42,20 @@ export function BusinessArea() {
     </>
   );
 
+  const isAgency = isAdigitalBusiness(biz);
+  const tabsForBiz = isAgency
+    ? [...TABS.slice(0, 3), { value: 'meta-campaigns' as const, label: 'ניהול קמפיינים במטא', icon: Megaphone }, ...TABS.slice(3)]
+    : [...TABS];
   const View = { overview: BizOverview, invoices: Invoices, clients: Clients, expenses: Expenses, tasks: BizTasks, connections: Connections }[tab as Tab] ?? BizOverview;
 
   return (
     <>
       <PageHead tag="ניהול עסקים" tone={TONE} title={biz.name} sub={<>{biz.kind}{biz.owner_pct != null && biz.owner_pct < 100 ? ` · החלק שלי ${biz.owner_pct}%` : ''}</>}>
+        {isAgency && (
+          <button className="btn btn-primary" onClick={() => nav(`/business/${biz.id}/meta-campaigns`)}>
+            <Megaphone size={15} />ניהול קמפיינים במטא
+          </button>
+        )}
         <button className="btn btn-ghost" onClick={() => bizCrud.openEdit(biz)}><Pencil size={15} />פרטי העסק</button>
       </PageHead>
 
@@ -62,7 +73,7 @@ export function BusinessArea() {
         <button className="chip" onClick={() => bizCrud.openNew()} style={{ borderStyle: 'dashed' }}><Plus size={14} />עסק חדש</button>
       </div>
 
-      <div className="subnav"><PillTabs id="biz" items={[...TABS]} value={tab as Tab} onChange={(v) => nav(`/business/${biz.id}${v === 'overview' ? '' : '/' + v}`)} /></div>
+      <div className="subnav"><PillTabs id="biz" items={tabsForBiz} value={tab as any} onChange={(v) => nav(v === 'meta-campaigns' ? `/business/${biz.id}/meta-campaigns` : `/business/${biz.id}${v === 'overview' ? '' : '/' + v}`)} /></div>
       <TabBody id={biz.id + tab}><View biz={biz} /></TabBody>
       {bizCrud.sheet}
     </>
@@ -291,6 +302,7 @@ function Connections({ biz }: { biz: Rec }) {
   const crud = useCrud('integrations', { business_id: biz.id });
   return (
     <Stagger>
+      <IntegrationsPanel biz={biz} />
       <Card className="flush lg-8 md-12">
         <div className="card-head" style={{ padding: '20px 20px 8px', marginBottom: 0 }}><div><h2>מקורות נתונים של {biz.name}</h2><div className="sub">מערכות חיצוניות שיזינו את העסק אוטומטית</div></div><AddButton small label="חיבור" onClick={() => crud.openNew()} /></div>
         <RecordList collection="integrations" rows={rows} scope={{ business_id: biz.id }} icon={Link2} emptyTitle="אין חיבורים עדיין"

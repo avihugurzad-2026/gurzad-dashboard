@@ -50,7 +50,7 @@ function useIsMobile() {
   return m;
 }
 
-export function Sheet({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
+export function Sheet({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const mobile = useIsMobile();
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
@@ -90,7 +90,7 @@ export function Sheet({ open, onClose, title, children, footer }: { open: boolea
         <>
           <motion.div className="scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.16 } }} transition={{ duration: 0.22 }} />
           <motion.div ref={ref} className="sheet" role="dialog" aria-modal="true" aria-label={title}
-            style={mobile ? undefined : { insetInlineStart: 'auto', left: 12 }}
+            style={mobile ? undefined : { insetInlineStart: 'auto', left: 12, ...(wide ? { width: 'min(780px, calc(100vw - 24px))' } : {}) }}
             initial={from} animate={to} exit={{ ...from, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
             transition={{ duration: mobile ? 0.42 : 0.34, ease: [0.32, 0.72, 0, 1] }}
             drag={mobile && !reduce ? 'y' : false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}

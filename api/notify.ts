@@ -1,8 +1,8 @@
 import { isCron, handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
-import { notifyWorkspace, pushReady } from './_lib/push.js';
+import { notifyWorkspace, pushReady, notifyEvent } from './_lib/push.js';
 import { mailAssigned, mailDueReminders, mailReady, mailTest } from './_lib/reminders.js';
 import { pushAll } from './_lib/google.js';
-import { notifyEvent } from './_lib/push.js';
+import { metaCampaignsReady, runMetaDailyAgent } from './_lib/meta-campaigns.js';
 
 // GET  (Vercel cron, daily ~07:10 Israel time, CRON_SECRET): phone pushes for new alerts, email reminders
 //      for tasks/events N days ahead, and the daily dashboard → Google Calendar sync.
@@ -33,6 +33,23 @@ export default handler(async (req, res) => {
     try { if (pushReady()) r.push = await notifyWorkspace(id); } catch (e) { console.error('notify failed', id, e); r.push = { error: true }; }
     try { if (pushReady() && isFridayIL()) r.weekly = await weeklySpend(id); } catch (e) { console.error('weekly failed', id, e); r.weekly = { error: true }; }
     try { r.mail = await mailDueReminders(id); } catch (e) { console.error('reminders failed', id, e); r.mail = { error: true }; }
+    try {
+      if (metaCampaignsReady()) {
+        const rev = await runMetaDailyAgent(id, 7);
+        r.metaAgent = { count: rev.recommendations.length };
+        if (pushReady() && rev.recommendations.length > 0) {
+          await notifyEvent(id, {
+            id: 'meta-agent-' + rev.date,
+            level: rev.recommendations.some((x) => x.priority === 'high') ? 'warn' : 'info',
+            area: 'business',
+            title: 'סקירת קמפיינים במטא מוכנה',
+            detail: `${rev.recommendations.length} המלצות אופטימיזציה ממתינות לאישור באדיג׳יטל`,
+            to: '/meta-campaigns',
+            sort: -35,
+          });
+        }
+      }
+    } catch (e) { console.error('meta agent cron failed', id, e); r.metaAgent = { error: true }; }
     out[id] = r;
   }
   let google: unknown = null;

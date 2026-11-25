@@ -1,24 +1,121 @@
 import { handler, HttpError, requireMember, sbAdmin } from './_lib/server.js';
 import { metaMissing, metaReady, metaReport } from './_lib/meta.js';
+import {
+  campaignsAccountDetail,
+  campaignsOverview,
+  executeVerifiedRecommendation,
+  listVerifiedActionLogs,
+  metaAgentLiveChat,
+  metaCampaignsReady,
+  runMetaDailyAgent,
+  setMetaEntityStatus,
+  updateRecommendationState,
+  verifyMetaEntityLive,
+} from './_lib/meta-campaigns.js';
 import { serviceEmail, siteReport, sitesReady } from './_lib/analytics.js';
 import { portfolioReport, siteDetailReport } from './_lib/tracker.js';
 
-// GET ?source=meta&days=28                 → Meta reach (paid + organic) for the configured business
-// GET ?source=sites_overview&days=28       → Portfolio view of all sites (first-party tracker)
-// GET ?source=site_detail&id=<id>&days=28  → Single site detail (first-party tracker + optional GA4/GSC)
-// GET ?source=site&id=<monitor>&days=28    → Legacy GA4 + Search Console for one site
-// GET ?source=setup                        → which connections are configured (no data)
+// GET ?source=meta&days=28                                       → Meta reach (paid + organic) for the configured business
+// GET ?source=campaigns_overview&days=7[&since=...&until=...]    → Multi-account Adigital Meta Ads overview + agent queue
+// GET ?source=campaigns_account&accountId=...&days=14            → Single client daily + campaign + ad drill-down
+// GET ?source=sites_overview&days=28                             → Portfolio view of all sites (first-party tracker)
+// GET ?source=site_detail&id=<id>&days=28                        → Single site detail (first-party tracker + optional GA4/GSC)
+// GET ?source=site&id=<monitor>&days=28                          → Legacy GA4 + Search Console for one site
+// GET ?source=setup                                              → which connections are configured (no data)
+// POST { action: 'run_agent' | 'set_entity_status' | 'rec_state' }
 export default handler(async (req, res) => {
   const m = await requireMember(req);
   if (m.role !== 'owner' && !(m.areas ?? []).includes('business')) throw new HttpError(403, 'אין גישה לשיווק');
-  const days = [7, 28, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 28;
+
+  if (req.method === 'POST') {
+    const b = req.body ?? {};
+    if (b.action === 'run_agent') {
+      const days = [1, 3, 7, 14, 28, 30].includes(Number(b.days)) ? Number(b.days) : 7;
+      res.json(await runMetaDailyAgent(m.workspaceId, days));
+      return;
+    }
+    if (b.action === 'rec_state') {
+      const state = ['pending', 'approved', 'skipped', 'executed'].includes(String(b.state)) ? b.state : 'pending';
+      res.json(await updateRecommendationState(m.workspaceId, String(b.recId || ''), state));
+      return;
+    }
+    if (b.action === 'set_entity_status') {
+      if (m.role !== 'owner') throw new HttpError(403, 'רק בעל המערכת רשאי לבצע שינויים בחשבונות המודעות');
+      const status = b.status === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
+      res.json(
+        await executeVerifiedRecommendation(m.workspaceId, {
+          recId: b.recId ? String(b.recId) : undefined,
+          kind: status === 'ACTIVE' ? 'activate_ad' : 'pause_ad',
+          accountId: String(b.accountId || ''),
+          accountName: String(b.accountName || ''),
+          targetEntityId: String(b.entityId || ''),
+          targetEntityName: b.entityName ? String(b.entityName) : undefined,
+        }),
+      );
+      return;
+    }
+    if (b.action === 'execute_rec') {
+      if (m.role !== 'owner') throw new HttpError(403, 'רק בעל המערכת רשאי לבצע שינויים בחשבונות המודעות');
+      const kind = b.kind === 'scale_budget' ? 'scale_budget' : b.kind === 'activate_ad' ? 'activate_ad' : 'pause_ad';
+      res.json(
+        await executeVerifiedRecommendation(m.workspaceId, {
+          recId: b.recId ? String(b.recId) : undefined,
+          kind,
+          accountId: String(b.accountId || ''),
+          accountName: String(b.accountName || ''),
+          targetEntityId: b.targetEntityId ? String(b.targetEntityId) : undefined,
+          targetEntityName: b.targetEntityName ? String(b.targetEntityName) : undefined,
+          deltaPct: b.deltaPct != null ? Number(b.deltaPct) : 20,
+        }),
+      );
+      return;
+    }
+    if (b.action === 'agent_chat') {
+      res.json(
+        await metaAgentLiveChat(
+          m.workspaceId,
+          String(b.message || '').slice(0, 2000),
+          Array.isArray(b.history) ? b.history : [],
+          m.role === 'owner',
+        ),
+      );
+      return;
+    }
+    throw new HttpError(400, 'פעולה לא מוכרת');
+  }
+
+  const days = [1, 3, 7, 14, 28, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 28;
+  const since = req.query.since ? String(req.query.since) : undefined;
+  const until = req.query.until ? String(req.query.until) : undefined;
   const source = String(req.query.source || 'setup');
 
   if (source === 'setup') {
     res.json({
       meta: { ready: metaReady(), missing: metaMissing() },
+      metaCampaigns: { ready: metaCampaignsReady() },
       sites: { ready: sitesReady(), serviceEmail: serviceEmail(), tracker: true },
     });
+    return;
+  }
+  if (source === 'campaigns_overview') {
+    const d = req.query.days ? days : 7;
+    const [ov, actionLogs] = await Promise.all([
+      campaignsOverview(m.workspaceId, { days: d, since, until, force: req.query.force === '1' }),
+      listVerifiedActionLogs(m.workspaceId),
+    ]);
+    res.json({ ...ov, actionLogs });
+    return;
+  }
+  if (source === 'verify_entity') {
+    const entityId = String(req.query.entityId || '');
+    res.json(await verifyMetaEntityLive(entityId));
+    return;
+  }
+  if (source === 'campaigns_account') {
+    const accountId = String(req.query.accountId || '');
+    if (!accountId) throw new HttpError(400, 'חסר מזהה חשבון');
+    const d = req.query.days ? days : 14;
+    res.json(await campaignsAccountDetail(accountId, { days: d, since, until }));
     return;
   }
   if (source === 'meta') {
