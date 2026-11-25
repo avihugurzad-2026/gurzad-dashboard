@@ -605,14 +605,26 @@ export function MetaCampaignsPage() {
             {filteredAccounts.length === 0 ? (
               <Empty icon={BarChart3} title="לא נמצאו חשבונות בסינון הזה" />
             ) : (
-              <div className="list" style={{ maxHeight: 540, overflowY: 'auto' }}>
+              <div className="list" style={{ gap: 8, padding: 10 }}>
                 {filteredAccounts.map((acc) => {
                   const badgeKind = acc.health === 'alert' ? 'neg' : acc.health === 'winner' ? 'pos' : acc.health === 'ok' ? 'info' : 'none';
+                  const metaParts: string[] = [];
+                  if (acc.leads > 0) metaParts.push(`${fmtNum(acc.leads)} לידים`);
+                  if (acc.messages > 0) metaParts.push(`${fmtNum(acc.messages)} התכתבויות`);
+                  if (acc.impressions > 0) metaParts.push(`${fmtBig(acc.impressions)} הופעות`);
+                  if (acc.frequency > 0) metaParts.push(`תדירות ${acc.frequency.toFixed(1)}`);
                   return (
                     <button
                       key={acc.accountId}
                       className="li clickable"
-                      style={{ width: '100%', textAlign: 'start', alignItems: 'center' }}
+                      style={{
+                        width: '100%',
+                        textAlign: 'start',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        height: 'auto',
+                        padding: '12px 14px',
+                      }}
                       onClick={() => setSelectedAccount(acc)}
                     >
                       <span
@@ -620,31 +632,23 @@ export function MetaCampaignsPage() {
                         style={{
                           color: acc.health === 'alert' ? 'var(--neg)' : acc.health === 'winner' ? 'var(--pos)' : 'var(--tone-business)',
                           background: acc.health === 'alert' ? 'var(--neg-bg)' : acc.health === 'winner' ? 'var(--pos-bg)' : 'var(--surface)',
+                          alignSelf: 'flex-start',
+                          marginTop: 2,
                         }}
                       >
                         {acc.health === 'alert' ? <Flame size={18} /> : acc.health === 'winner' ? <TrendingUp size={18} /> : <BarChart3 size={18} />}
                       </span>
 
-                      <span className="li-main">
-                        <span className="li-title" style={{ display: 'block' }}>{acc.name}</span>
-                        <span className="li-meta">
-                          {acc.leads > 0 && <span><b>{fmtNum(acc.leads)}</b> לידים</span>}
-                          {acc.messages > 0 && <span>· <b>{fmtNum(acc.messages)}</b> התכתבויות</span>}
-                          {acc.impressions > 0 && <span>· {fmtBig(acc.impressions)} הופעות</span>}
-                          {acc.profileVisits > 0 && <span className="hide-sm">· {fmtBig(acc.profileVisits)} ביקורי פרופיל</span>}
-                          {acc.frequency > 0 && <span className="hide-sm">· תדירות {acc.frequency.toFixed(2)}</span>}
-                          {acc.spend <= 0 && <span>ללא הוצאה בטווח שנבחר</span>}
+                      <span className="li-main" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className="li-title" style={{ display: 'block', lineHeight: 1.3 }}>{acc.name}</span>
+                        <span className="li-meta" style={{ marginTop: 0, lineHeight: 1.4 }}>
+                          {metaParts.length > 0 ? metaParts.join(' · ') : 'ללא הוצאה בטווח שנבחר'}
                         </span>
                       </span>
 
-                      <span className="li-end" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <span className="li-amount">{fmtMoney(acc.spend, acc.currency, prefs.hide)}</span>
-                        <span className="row" style={{ gap: 6 }}>
-                          {acc.costPerResult != null && (
-                            <span className="meta num hide-sm">{fmtMoney(acc.costPerResult, acc.currency, prefs.hide)} / תוצאה</span>
-                          )}
-                          <Badge kind={badgeKind} icon={false}>{acc.statusLabel}</Badge>
-                        </span>
+                      <span className="li-end" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                        <span className="li-amount" dir="ltr">{fmtMoney(acc.spend, acc.currency, prefs.hide)}</span>
+                        <Badge kind={badgeKind} icon={false}>{acc.statusLabel}</Badge>
                       </span>
                       <ChevronLeft size={16} className="muted hide-sm" />
                     </button>
@@ -673,7 +677,7 @@ export function MetaCampaignsPage() {
             {d.recommendations.length === 0 ? (
               <Empty icon={Check} title="אין המלצות פתוחות" text="כל הקמפיינים הפעילים עובדים בטווח תקין." />
             ) : (
-              <div className="list" style={{ maxHeight: 540, overflowY: 'auto' }}>
+              <div className="list" style={{ gap: 10, padding: 10 }}>
                 {d.recommendations.map((rec, idx) => {
                   const done = rec.state === 'approved' || rec.state === 'executed';
                   const skipped = rec.state === 'skipped';
@@ -685,7 +689,10 @@ export function MetaCampaignsPage() {
                       style={{
                         flexDirection: 'column',
                         alignItems: 'stretch',
-                        gap: 10,
+                        flexShrink: 0,
+                        height: 'auto',
+                        padding: '14px 16px',
+                        gap: 12,
                         opacity: skipped ? 0.5 : 1,
                         border: done ? '1px solid var(--pos)' : undefined,
                       }}
@@ -698,6 +705,7 @@ export function MetaCampaignsPage() {
                             height: 30,
                             fontSize: 13,
                             fontWeight: 700,
+                            flexShrink: 0,
                             background: rec.priority === 'high' ? 'var(--neg-bg)' : 'var(--lime)',
                             color: rec.priority === 'high' ? 'var(--neg)' : 'var(--on-lime)',
                           }}
@@ -705,12 +713,12 @@ export function MetaCampaignsPage() {
                           {idx + 1}
                         </span>
                         <div className="li-main">
-                          <div className="li-title" style={{ fontSize: 14 }}>{rec.title}</div>
-                          <div className="meta" style={{ marginTop: 3, lineHeight: 1.45 }}>{rec.reason}</div>
+                          <div className="li-title" style={{ fontSize: 14, lineHeight: 1.35, whiteSpace: 'normal' }}>{rec.title}</div>
+                          <div className="meta" style={{ marginTop: 4, lineHeight: 1.5 }}>{rec.reason}</div>
                         </div>
                       </div>
 
-                      <div className="spread wrap" style={{ gap: 8, paddingTop: 2 }}>
+                      <div className="spread wrap" style={{ gap: 8, paddingTop: 4, borderTop: '1px solid var(--line)' }}>
                         <span className="badge" style={{ fontSize: 11.5 }}>
                           {rec.kind === 'pause_ad' ? `חיסכון ~₪${fmtNum(rec.impactIls)}` : rec.kind === 'scale_budget' ? 'פוטנציאל צמיחה' : 'רענון קריאייטיב'}
                         </span>
@@ -723,7 +731,7 @@ export function MetaCampaignsPage() {
                           <div className="row" style={{ gap: 6 }}>
                             <button
                               className="btn btn-ghost btn-sm"
-                              style={{ height: 32, paddingInline: 12, fontSize: 12 }}
+                              style={{ height: 34, paddingInline: 12, fontSize: 12.5 }}
                               disabled={busy}
                               onClick={() => handleRecAction(rec, 'skipped')}
                             >
@@ -732,7 +740,7 @@ export function MetaCampaignsPage() {
                             {rec.kind === 'pause_ad' && rec.targetEntityId ? (
                               <button
                                 className="btn btn-primary btn-sm"
-                                style={{ height: 32, paddingInline: 12, fontSize: 12 }}
+                                style={{ height: 34, paddingInline: 14, fontSize: 12.5 }}
                                 disabled={busy}
                                 onClick={() => handleRecAction(rec, 'execute')}
                               >
@@ -741,7 +749,7 @@ export function MetaCampaignsPage() {
                             ) : rec.kind === 'scale_budget' ? (
                               <button
                                 className="btn btn-primary btn-sm"
-                                style={{ height: 32, paddingInline: 12, fontSize: 12 }}
+                                style={{ height: 34, paddingInline: 14, fontSize: 12.5 }}
                                 disabled={busy}
                                 onClick={() => handleRecAction(rec, 'execute')}
                               >
@@ -750,7 +758,7 @@ export function MetaCampaignsPage() {
                             ) : (
                               <button
                                 className="btn btn-primary btn-sm"
-                                style={{ height: 32, paddingInline: 12, fontSize: 12 }}
+                                style={{ height: 34, paddingInline: 14, fontSize: 12.5 }}
                                 disabled={busy}
                                 onClick={() => handleRecAction(rec, 'approved')}
                               >

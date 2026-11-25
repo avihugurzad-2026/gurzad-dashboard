@@ -323,6 +323,13 @@ function buildRuleRecommendations(accounts: AccountOverviewItem[]): AgentRecomme
           state: 'pending',
         });
       } else if (bad.costPerResult != null && acc.costPerResult != null) {
+        const singularMap: Record<string, string> = {
+          'לידים': 'ליד',
+          'התכתבויות': 'התכתבות',
+          'רכישות': 'רכישה',
+          'ביקורי פרופיל': 'ביקור פרופיל',
+        };
+        const unit = singularMap[bad.resultType] || 'תוצאה';
         recs.push({
           id: `rec-${acc.accountId}-${bad.id}`,
           accountId: acc.accountId,
@@ -330,7 +337,7 @@ function buildRuleRecommendations(accounts: AccountOverviewItem[]): AgentRecomme
           kind: 'pause_ad',
           priority: bad.costPerResult > acc.costPerResult * 2 ? 'high' : 'medium',
           title: `עצירת מודעה יקרה · ${acc.name}`,
-          reason: `"${bad.name}" בעלות ₪${bad.costPerResult.toFixed(1)} ל${bad.resultType.slice(0, -2) || 'תוצאה'} (ממוצע חשבון ₪${acc.costPerResult.toFixed(1)}).`,
+          reason: `"${bad.name}" בעלות ₪${bad.costPerResult.toFixed(1)} ל${unit} (ממוצע חשבון ₪${acc.costPerResult.toFixed(1)}).`,
           impactIls: Math.round(bad.spend * 0.65),
           targetEntityId: bad.id,
           targetEntityName: bad.name,
