@@ -1,5 +1,14 @@
 import { env, israelDay } from './server.js';
 import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent.js';
+import {
+  campaignsAccountDetail,
+  campaignsOverview,
+  DEFAULT_AGENCY_ACCOUNTS,
+  executeVerifiedRecommendation,
+  loadAgencyAccounts,
+  metaCampaignsReady,
+  runMetaDailyAgent,
+} from './meta-campaigns.js';
 
 const MODELS = () => [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
 const endpoint = (model: string) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -39,15 +48,163 @@ async function call(body: unknown) {
   throw new GeminiBusy(last);
 }
 
+const META_WA_TOOLS = [
+  {
+    name: 'get_meta_campaigns_overview',
+    description: 'סקירה חיה של כל חשבונות המודעות במטא של אדיג׳יטל (הוצאה, לידים, התכתבויות, התראות שחיקה והמלצות פתוחות)',
+    parameters: { type: 'OBJECT', properties: { days: { type: 'NUMBER', description: 'מספר ימים אחורה (ברירת מחדל 7)' } } },
+  },
+  {
+    name: 'get_meta_client_report',
+    description: 'דוח עומק חי ללקוח ספציפי במטא (לידים, התכתבויות, חשיפה, ביקורי פרופיל, פירוט יומי ומודעות מנצחות ושורפות)',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        client: { type: 'STRING', description: 'שם הלקוח (למשל אוספא, מונה מדיקל, באלנס רחובות, איזי ריזולטס) או מזהה חשבון' },
+        days: { type: 'NUMBER', description: 'מספר ימים אחורה (למשל 1 לאתמול, 7, 14, 30)' },
+      },
+      required: ['client'],
+    },
+  },
+  {
+    name: 'run_meta_daily_review',
+    description: 'מריץ עכשיו את סוכן הסקירה היומית של מטא, שומר המלצות חדשות בדשבורד ומחזיר סיכום',
+    parameters: { type: 'OBJECT', properties: { days: { type: 'NUMBER' } } },
+  },
+  {
+    name: 'pause_or_activate_meta_ad',
+    description: 'השהיה (PAUSED) או הפעלה (ACTIVE) של מודעה/קמפיין במטא עם אימות חי מול שרתי Meta ותיעוד ביומן הביצועים',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        client: { type: 'STRING', description: 'שם הלקוח או מזהה החשבון' },
+        entityId: { type: 'STRING', description: 'מזהה המודעה או הקמפיין המספרי במטא' },
+        entityName: { type: 'STRING', description: 'שם המודעה (אופציונלי)' },
+        status: { type: 'STRING', enum: ['PAUSED', 'ACTIVE'] },
+      },
+      required: ['client', 'entityId', 'status'],
+    },
+  },
+  {
+    name: 'adjust_meta_budget',
+    description: 'העלאה או הורדה של תקציב יומי באחוזים (-50 עד +30) במטא ללקוח, עם אימות חי מול שרתי Meta ותיעוד ביומן',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        client: { type: 'STRING', description: 'שם הלקוח או מזהה החשבון' },
+        deltaPct: { type: 'NUMBER', description: 'אחוז שינוי תקציב (למשל 20 להעלאה ב-20% או -15 להורדה)' },
+        targetEntityId: { type: 'STRING', description: 'מזהה קמפיין/סט מודעות אופציונלי' },
+      },
+      required: ['client', 'deltaPct'],
+    },
+  },
+];
+
+async function resolveMetaAccount(workspaceId: string, query: string) {
+  const list = await loadAgencyAccounts(workspaceId).catch(() => DEFAULT_AGENCY_ACCOUNTS);
+  const q = String(query || '').trim().toLowerCase().replace(/[׳'"״-]/g, ' ');
+  const exact = list.find((a) => a.accountId === q.replace(/^act_/, ''));
+  if (exact) return exact;
+  // Common Hebrew/English aliases
+  const norm = q.replace(/אוספא|או ספא|ספא ראש/, 'ospa').replace(/טוסום/, 'twosome').replace(/קוזי/, 'cozy');
+  return (
+    list.find((a) => `${a.name} ${a.business || ''}`.toLowerCase().replace(/[׳'"״-]/g, ' ').includes(norm)) ??
+    list.find((a) => norm.split(/\s+/).filter((w) => w.length >= 2).some((w) => `${a.name} ${a.business || ''}`.toLowerCase().includes(w)))
+  );
+}
+
+async function execMetaWaTool(workspaceId: string, name: string, args: Record<string, any>): Promise<unknown> {
+  if (name === 'get_meta_campaigns_overview') {
+    const ov: any = await campaignsOverview(workspaceId, { days: Number(args.days) || 7 });
+    if (!ov.configured) return { error: 'חיבור Meta Ads לא מוגדר בשרת' };
+    return {
+      range: ov.range,
+      totals: ov.totals,
+      activeAccounts: (ov.accounts || [])
+        .filter((a: any) => a.spend > 0)
+        .slice(0, 14)
+        .map((a: any) => ({
+          accountId: a.accountId,
+          name: a.name,
+          spend: Math.round(a.spend),
+          leads: a.leads,
+          messages: a.messages,
+          impressions: a.impressions,
+          profileVisits: a.profileVisits,
+          frequency: Number(a.frequency.toFixed(2)),
+          cpl: a.costPerResult ? Number(a.costPerResult.toFixed(1)) : null,
+          status: a.statusLabel,
+        })),
+      topRecommendations: (ov.recommendations || []).slice(0, 6).map((r: any, i: number) => ({
+        num: i + 1,
+        title: r.title,
+        reason: r.reason,
+        kind: r.kind,
+        accountId: r.accountId,
+        targetEntityId: r.targetEntityId,
+        impactIls: r.impactIls,
+      })),
+    };
+  }
+  if (name === 'get_meta_client_report') {
+    const acc = await resolveMetaAccount(workspaceId, String(args.client || ''));
+    if (!acc) return { error: `לא מצאתי חשבון מודעות בשם "${args.client}"` };
+    const det = await campaignsAccountDetail(acc.accountId, { days: Number(args.days) || 7 });
+    return {
+      accountId: det.accountId,
+      name: det.name,
+      range: det.range,
+      summary: det.summary,
+      recentDays: det.daily.slice(-7).map((d) => ({ day: d.day, spend: Math.round(d.spend), leads: d.leads, messages: d.messages, reach: d.reach, impressions: d.impressions, profileVisits: d.profileVisits })),
+      winners: det.winners.map((w) => ({ id: w.id, name: w.name, spend: Math.round(w.spend), results: w.primaryResults, cpl: w.costPerResult ? Number(w.costPerResult.toFixed(1)) : null })),
+      bleeding: det.bleeding.map((b) => ({ id: b.id, name: b.name, spend: Math.round(b.spend), results: b.primaryResults, cpl: b.costPerResult ? Number(b.costPerResult.toFixed(1)) : null })),
+    };
+  }
+  if (name === 'run_meta_daily_review') {
+    const rev = await runMetaDailyAgent(workspaceId, Number(args.days) || 7);
+    return { summary: rev.summary, recommendationsCount: rev.recommendations.length, recommendations: rev.recommendations.slice(0, 6) };
+  }
+  if (name === 'pause_or_activate_meta_ad') {
+    const acc = await resolveMetaAccount(workspaceId, String(args.client || ''));
+    const res = await executeVerifiedRecommendation(workspaceId, {
+      kind: args.status === 'ACTIVE' ? 'activate_ad' : 'pause_ad',
+      accountId: acc?.accountId || String(args.client || ''),
+      accountName: acc?.name || String(args.client || ''),
+      targetEntityId: String(args.entityId || ''),
+      targetEntityName: args.entityName ? String(args.entityName) : undefined,
+    });
+    return res.receipt;
+  }
+  if (name === 'adjust_meta_budget') {
+    const acc = await resolveMetaAccount(workspaceId, String(args.client || ''));
+    if (!acc) return { error: `לא מצאתי חשבון מודעות בשם "${args.client}"` };
+    const res = await executeVerifiedRecommendation(workspaceId, {
+      kind: 'scale_budget',
+      accountId: acc.accountId,
+      accountName: acc.name,
+      targetEntityId: args.targetEntityId ? String(args.targetEntityId) : undefined,
+      deltaPct: Number(args.deltaPct),
+    });
+    return res.receipt;
+  }
+  return { error: 'כלי לא מוכר' };
+}
+
 /** Free-text → tool calls → Hebrew reply. Max 4 tool rounds. */
-export async function geminiAgentReply(text: string, db: AgentData, history: { role: 'user' | 'model'; text: string }[] = []): Promise<string> {
+export async function geminiAgentReply(text: string, db: AgentData, history: { role: 'user' | 'model'; text: string }[] = [], workspaceId?: string): Promise<string> {
   const contents: any[] = [...history.filter((h) => h.text).map((h) => ({ role: h.role, parts: [{ text: h.text }] })), { role: 'user', parts: [{ text }] }];
   // Gemini requires the conversation to start with a user turn.
   while (contents.length > 1 && contents[0].role !== 'user') contents.shift();
+  const metaEnabled = Boolean(workspaceId && metaCampaignsReady());
+  const allTools = metaEnabled ? [...TOOL_DECLARATIONS, ...META_WA_TOOLS] : [...TOOL_DECLARATIONS];
+  const systemText = metaEnabled
+    ? `${SYSTEM_PROMPT}\nבנוסף, אתה מחובר ישירות גם לסוכן ניהול הקמפיינים במטא של אדיג׳יטל: אפשר לבדוק מצב קמפיינים כללי או של לקוח ספציפי (לידים, התכתבויות, חשיפות, ביקורי פרופיל, מודעות מנצחות ושורפות), להריץ סקירה יומית, להשהות/להפעיל מודעות ולשנות תקציבים במטא. אחרי ביצוע פעולה במטא ציין תמיד את האימות שהתקבל (לפני -> אחרי).`
+    : SYSTEM_PROMPT;
+
   for (let round = 0; round < 4; round++) {
     const out = await call({
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+      systemInstruction: { parts: [{ text: systemText }] },
+      tools: [{ functionDeclarations: allTools }],
       contents,
     });
     const parts: any[] = out.candidates?.[0]?.content?.parts ?? [];
@@ -56,8 +213,16 @@ export async function geminiAgentReply(text: string, db: AgentData, history: { r
     contents.push({ role: 'model', parts });
     const results = [];
     for (const c of calls) {
-      const result = await execTool(c.functionCall.name, c.functionCall.args ?? {}, db);
-      results.push({ functionResponse: { name: c.functionCall.name, response: { result } } });
+      const fnName = c.functionCall.name;
+      const fnArgs = c.functionCall.args ?? {};
+      let result: unknown;
+      if (metaEnabled && workspaceId && META_WA_TOOLS.some((t) => t.name === fnName)) {
+        try { result = await execMetaWaTool(workspaceId, fnName, fnArgs); }
+        catch (e: any) { result = { error: e.message || 'שגיאה בפעולת Meta Ads' }; }
+      } else {
+        result = await execTool(fnName, fnArgs, db);
+      }
+      results.push({ functionResponse: { name: fnName, response: { result } } });
     }
     contents.push({ role: 'user', parts: results });
   }

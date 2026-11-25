@@ -102,7 +102,7 @@ async function chat(req: VercelRequest, res: any) {
   const history = (Array.isArray(body.history) ? body.history : []).slice(-8).map((h: any) => ({ role: h.role === 'model' ? 'model' as const : 'user' as const, text: String(h.text || '').slice(0, 2000) }));
   const db = recordsData(me.workspaceId);
   let reply: string;
-  try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(text, db, history) : await ruleBasedReply(text, db); }
+  try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(text, db, history, me.workspaceId) : await ruleBasedReply(text, db); }
   catch (e) { console.error(e); reply = e instanceof GeminiBusy ? 'ה-AI עמוס כרגע ולא ביצעתי כלום. נסה שוב בעוד כמה דקות.' : 'משהו השתבש ולא ביצעתי את הבקשה. אפשר לנסח שוב?'; }
   res.json({ reply, ai: has('GEMINI_API_KEY') });
 }
@@ -193,7 +193,7 @@ async function processEvents(raw: Buffer, idemKey: string) {
       } else {
         if (!has('GEMINI_API_KEY')) reply = await ruleBasedReply(body, db);
         else {
-          try { reply = await whileBusy(() => sendWhatsApp(from, 'רגע, ה-AI עמוס כרגע. אני ממשיך לנסות ואענה ברגע שזה יעבור ⏳'), () => geminiAgentReply(body, db, history.slice(0, -1))); }
+          try { reply = await whileBusy(() => sendWhatsApp(from, 'רגע, ה-AI עמוס כרגע. אני ממשיך לנסות ואענה ברגע שזה יעבור ⏳'), () => geminiAgentReply(body, db, history.slice(0, -1), ws.id)); }
           catch (e) {
             console.error('wa gemini', e);
             reply = e instanceof GeminiBusy
