@@ -50,7 +50,7 @@ async function graphReq(path: string, params: Record<string, string> = {}, metho
   const token = metaAdsToken();
   if (!token) throw new HttpError(503, 'חסר טוקן גישה למטא (META_ADS_ACCESS_TOKEN)');
   const q = new URLSearchParams({ ...params, access_token: token });
-  const secret = env('META_APP_SECRET');
+  const secret = env('META_ADS_ACCESS_TOKEN') ? env('META_ADS_APP_SECRET') : env('META_APP_SECRET');
   if (secret) q.set('appsecret_proof', createHmac('sha256', secret).update(token).digest('hex'));
 
   const url = method === 'GET' ? `${G}/${V()}/${path.replace(/^\//, '')}?${q}` : `${G}/${V()}/${path.replace(/^\//, '')}`;
