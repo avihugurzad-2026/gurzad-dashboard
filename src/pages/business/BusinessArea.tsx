@@ -5,7 +5,7 @@ import { Award, Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, ListChec
 import { isAdigitalBusiness } from './MetaCampaignsPage';
 import { RevenueView } from './IntegrationsPanel';
 import { TeamView } from './TeamView';
-import { externalExpense, externalIncome, useBizOps, useBizRevenue } from '../../lib/bizRevenue';
+import { externalExpense, incomeFor, useBizOps, useBizRevenue } from '../../lib/bizRevenue';
 import type { Rec } from '../../data/types';
 import { useCollection, useDerived, store } from '../../data/store';
 import { bizSummary, gross, invoiceState, needsAllocation, vatRate } from '../../data/derive';
@@ -97,11 +97,11 @@ function BizOverview({ biz }: { biz: Rec }) {
   useEffect(() => setMine(partial), [biz.id, partial]);
   const revs = useBizRevenue(biz.id);
   const ops = useBizOps(biz.id);
-  const ext = useMemo(() => externalIncome(revs, vatRate), [revs]);
+  const ext = useMemo(() => incomeFor(revs, ops, vatRate), [revs, ops]);
   const extExp = useMemo(() => externalExpense(ops), [ops]);
   const s = useDerived(() => bizSummary(biz.id, ext, extExp), [biz.id, prefs.hide, ext, extExp]);
   const k = mine ? (biz.owner_pct ?? 100) / 100 : 1;
-  const src = revs.map((r) => r.name).join(' + ');
+  const src = revs.map((r) => r.name).join(' + ') || (ops ? 'Buyz' : '');
   const synced = revs.map((r) => r.lastSyncAt).filter(Boolean).sort().pop();
   const d = (a: number, b: number) => (b ? (a - b) / Math.abs(b) : null);
   const hasData = s.series.some((m) => m.income || m.expense);

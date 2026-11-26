@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import { env, HttpError, sbAdmin } from '../server.js';
 import { providerById, type ConnectionView } from '../../../shared/integrations.js';
 import { buyz } from './buyz.js';
@@ -92,7 +92,7 @@ export async function disconnect(workspaceId: string, businessId: string, provid
 
 async function syncOne(connectionId: string) {
   const sb = sbAdmin();
-  const { data: c } = await sb.from('gd_integration_connections').select('id, provider, config, secret_enc').eq('id', connectionId).single();
+  const { data: c } = await sb.from('gd_integration_connections').select('id, workspace_id, business_id, provider, config, secret_enc, key_hint, created_by').eq('id', connectionId).single();
   if (!c?.secret_enc) throw new HttpError(409, 'החיבור מנותק');
   try {
     const snaps = await adapter(c.provider).sync((c.config ?? {}) as Record<string, string>, open(c.secret_enc));
@@ -100,6 +100,7 @@ async function syncOne(connectionId: string) {
     const rows = Object.entries(snaps).map(([kind, data]) => ({ connection_id: c.id, kind, data, fetched_at: now }));
     if (rows.length) { const { error } = await sb.from('gd_integration_snapshots').upsert(rows, { onConflict: 'connection_id,kind' }); if (error) throw error; }
     await sb.from('gd_integration_connections').update({ status: 'connected', last_sync_at: now, last_error: null }).eq('id', c.id);
+    if (c.provider === 'buyzdb' && !(c.config as any)?.auto) await provisionBuyzBranches(c, (snaps as any).discovery).catch((e) => console.error('buyz provision', e));
   } catch (e) {
     if (!(e instanceof HttpError)) console.error('integration sync', c.provider, e);
     await sb.from('gd_integration_connections').update({ status: 'error', last_error: errMsg(e) }).eq('id', c.id);
@@ -151,4 +152,37 @@ export async function syncAll() {
   if (error) throw error;
   const r = await Promise.allSettled((data ?? []).map((c: any) => syncOne(c.id)));
   return { total: r.length, ok: r.filter((x) => x.status === 'fulfilled').length };
+}
+
+/**
+ * Buyz database: every branch of the same network (e.g. OSPA Modiin + Rishon) gets its own business in the
+ * dashboard with its own connection (same credentials, different slug), created automatically.
+ */
+async function provisionBuyzBranches(c: any, discovery: any) {
+  const branches: { slug: string; name: string }[] = (discovery?.network ?? []).filter((b: any) => b.slug);
+  const selfSlug = String(c.config?.slug || 'ospa');
+  const sb = sbAdmin();
+  const { data: bizRows } = await sb.from('gd_records').select('id, data').eq('workspace_id', c.workspace_id).eq('collection', 'businesses');
+  const businesses = bizRows ?? [];
+  const src = businesses.find((b: any) => b.id === c.business_id);
+  if (src && !src.data?.buyz_slug) await sb.from('gd_records').update({ data: { ...src.data, buyz_slug: selfSlug }, updated_at: new Date().toISOString() }).eq('id', src.id);
+  const { data: conns } = await sb.from('gd_integration_connections').select('business_id, config').eq('workspace_id', c.workspace_id).eq('provider', 'buyzdb');
+  const linked = new Set((conns ?? []).map((x: any) => String(x.config?.slug || 'ospa')));
+  for (const b of branches) {
+    if (b.slug === selfSlug || linked.has(b.slug)) continue;
+    let biz = businesses.find((x: any) => x.data?.buyz_slug === b.slug);
+    if (!biz) {
+      const id = randomUUID();
+      const data = { name: b.name, kind: src?.data?.kind ?? 'ספא וטיפוח', owner_pct: src?.data?.owner_pct ?? 100, vat_mode: src?.data?.vat_mode ?? 'חודשי', site: '', buyz_slug: b.slug };
+      const { error } = await sb.from('gd_records').insert({ id, workspace_id: c.workspace_id, collection: 'businesses', data, created_by: c.created_by ?? null });
+      if (error) throw error;
+      biz = { id, data };
+    }
+    const { data: nc, error } = await sb.from('gd_integration_connections').upsert({
+      workspace_id: c.workspace_id, business_id: biz.id, provider: 'buyzdb', config: { ...c.config, slug: b.slug, auto: '1' },
+      secret_enc: c.secret_enc, key_hint: c.key_hint, status: 'connected', last_error: null, created_by: c.created_by,
+    }, { onConflict: 'workspace_id,business_id,provider' }).select('id').single();
+    if (error) throw error;
+    await syncOne(nc.id).catch(() => null);
+  }
 }

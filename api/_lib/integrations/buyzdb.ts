@@ -156,6 +156,13 @@ export const buyzdb: Adapter = {
            FROM supplier_leads l LEFT JOIN supplier_lead_sources ls ON ls.supplier_id = l.supplier_id AND ls.source_key = l.source
            WHERE l.supplier_id = ? AND l.created_at >= ? AND l.created_at < ? GROUP BY source ORDER BY n DESC`, [sid, w.monthFrom, w.nextMonth]),
       ]);
+      // Branches of the same network (e.g. Modiin + Rishon) are added to the dashboard automatically.
+      const network = await q(`SELECT id, name, slug FROM suppliers
+        WHERE network_id = (SELECT network_id FROM suppliers WHERE id = ?) AND network_id IS NOT NULL ORDER BY id`, [sid]).catch(() => []);
+      // The owner's own business list (Buyz owner dashboard). Columns that look like secrets are dropped.
+      const SECRET = /key|secret|token|pass|hash|otp|cookie|session/i;
+      const ownerBiz = await q('SELECT * FROM owner_businesses LIMIT 100').then((rows) =>
+        rows.map((r: any) => Object.fromEntries(Object.entries(r).filter(([k]) => !SECRET.test(k)).map(([k, v]) => [k, v == null ? null : String(v).slice(0, 120)])))).catch(() => []);
       const st = Object.fromEntries(bookings.map((r: any) => [str(r.status), { n: num(r.n), today: num(r.today), upcoming: num(r.upcoming) }]));
       return {
         ops: {
@@ -167,6 +174,11 @@ export const buyzdb: Adapter = {
             done: st.completed?.n ?? 0, cancelled: st.cancelled?.n ?? 0, noShow: st.no_show?.n ?? 0,
           },
           leads: leads.map((r: any) => ({ source: str(r.source), count: num(r.n) })),
+        },
+        discovery: {
+          self: { id: sid, slug: config.slug || 'ospa' },
+          network: network.map((r: any) => ({ id: num(r.id), name: str(r.name), slug: str(r.slug) })),
+          ownerBusinesses: ownerBiz,
         },
       };
     } finally { await c.end().catch(() => null); }

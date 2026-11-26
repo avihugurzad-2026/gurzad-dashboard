@@ -94,3 +94,10 @@ export function useBizOps(bizId: string) { return opsOf(useBizRevenueState(), bi
 export function externalExpense(ops: OpsSnapshot | null): Record<string, number> {
   return Object.fromEntries((ops?.expenses.byMonth ?? []).map((m) => [m.month, m.total]));
 }
+
+/** Monthly income before VAT: from the revenue API when connected, else from the Buyz database (invoices incl. VAT). */
+export function incomeFor(revs: BizRevenue[], ops: OpsSnapshot | null, vatRate: (date: string) => number): Record<string, number> {
+  if (revs.length) return externalIncome(revs, vatRate);
+  if (!ops) return {};
+  return Object.fromEntries(Object.entries(ops.revenue).map(([m, v]) => [m, v / (1 + vatRate(m + '-01'))]));
+}
