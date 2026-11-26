@@ -77,14 +77,26 @@ export function WhatsApp() {
     // The sandbox runs the same agent core as the webhook, against the data on screen.
     const local = { all: (c: string) => store.all(c as any), add: (c: string, d: any) => store.add(c as any, d), update: (c: string, id: string, p: any) => store.update(c as any, id, p) };
     let reply: string;
+    let attachments: { path: string; caption: string }[] = [];
     if (DEMO) reply = await ruleBasedReply(t, local);
     else {
       // Signed in: the real agent (Gemini + tools) on the server, with the last few turns as context.
       const history = sorted.slice(-8).map((m: any) => ({ role: m.direction === 'in' ? 'user' : 'model', text: m.text }));
-      try { reply = (await api<{ reply: string }>('/api/whatsapp-webhook?action=chat', { body: { text: t, history } })).reply; }
-      catch { reply = await ruleBasedReply(t, local); }
+      try {
+        const res = await api<{ reply: string; attachments?: { path: string; caption: string }[] }>('/api/whatsapp-webhook?action=chat', { body: { text: t, history } });
+        reply = res.reply;
+        attachments = res.attachments || [];
+      } catch {
+        reply = await ruleBasedReply(t, local);
+      }
     }
-    setTimeout(() => { store.add('wa_messages', { direction: 'out', text: reply, at: new Date().toISOString(), sandbox: true }); setTyping(false); }, 450);
+    setTimeout(() => {
+      for (const att of attachments) {
+        store.add('wa_messages', { direction: 'out', text: att.caption, media_path: att.path, media_type: 'image', at: new Date().toISOString(), sandbox: true });
+      }
+      store.add('wa_messages', { direction: 'out', text: reply, at: new Date().toISOString(), sandbox: true });
+      setTyping(false);
+    }, 450);
   };
 
   const can = [

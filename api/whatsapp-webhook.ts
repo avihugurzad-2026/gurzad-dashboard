@@ -4,6 +4,13 @@ import { env, handler, has, HttpError, recordsData, requireMember, sbAdmin } fro
 import { waitUntil } from '@vercel/functions';
 import { GeminiBusy, geminiAgentReply, whileBusy } from './_lib/gemini.js';
 import { downloadMedia, ingest, pickTarget, question, saveExpense, targets, type Receipt } from './_lib/receipts.js';
+import {
+  createCreativeDraft,
+  isCreativeReferenceCaption,
+  signedCreativeUrl,
+  storeCreativeBuffer,
+  type CreativeMediaAttachment,
+} from './_lib/meta-creative.js';
 import { ruleBasedReply } from '../shared/agent.js';
 import { notifyEvent } from './_lib/push.js';
 
@@ -40,6 +47,60 @@ async function sendWhatsApp(to: string, body: string) {
   });
   if (r.ok) console.log('wa: reply sent');
   if (!r.ok) console.error('Kapso send failed', r.status, (await r.text()).slice(0, 300));
+}
+
+async function sendWhatsAppImage(to: string, imageUrl: string, caption?: string) {
+  const r = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${env('KAPSO_PHONE_NUMBER_ID')}/messages`, {
+    method: 'POST', signal: AbortSignal.timeout(12000),
+    headers: { 'X-API-Key': env('KAPSO_API_KEY'), 'content-type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'image',
+      image: { link: imageUrl, ...(caption ? { caption } : {}) },
+    }),
+  });
+  if (r.ok) console.log('wa: image sent');
+  if (!r.ok) console.error('Kapso image send failed', r.status, (await r.text()).slice(0, 300));
+}
+
+function formatCreativeApprovalMessage(
+  draft: {
+    accountName?: string;
+    adName: string;
+    feedAspect: string;
+    primaryText: string;
+    headline: string;
+    description: string;
+    ctaType: string;
+  },
+  adsets: { id: string; name: string; campaignName: string; status: string }[] = [],
+) {
+  const lines = [
+    `🎨 *טיוטת מודעה מוכנה לאישור*${draft.accountName ? ` · ${draft.accountName}` : ''}`,
+    `שלחתי לך עכשיו *2 גרסאות*: פיד (${draft.feedAspect}) + סטורי/רילס (9:16) 👆`,
+    '',
+    `📝 *הצעת המלל למודעה:*`,
+    `*כותרת:* ${draft.headline}`,
+    `*טקסט ראשי:*\n${draft.primaryText}`,
+    `*תיאור קצר:* ${draft.description}`,
+    `*כפתור (CTA):* ${draft.ctaType}`,
+  ];
+  if (adsets.length) {
+    lines.push('', `🎯 *סדרות מודעות זמינות להעלאה:*`);
+    adsets.slice(0, 5).forEach((s, i) => {
+      lines.push(`${i + 1}. ${s.name}${s.campaignName ? ` (${s.campaignName})` : ''}${s.status === 'ACTIVE' ? ' 🟢' : ' ⏸️'}`);
+    });
+  }
+  lines.push(
+    '',
+    `✅ *איך מתקדמים?*`,
+    `• רוצה תיקון? תכתוב חופשי (למשל: _"תכהה את הרקע בסטורי"_ או _"תחליף כותרת ל..."_).`,
+    `• מרוצה מהמודעות + המלל? תכתוב *"מאושר, תעלה ל־[שם/מספר סט]"* — ואעלה ישר לאוויר 🚀`,
+    `• רוצה שאעלה בלי לפרסם? תוסיף *"תשמור מושהה"* ⏸️`,
+  );
+  return lines.join('\n');
 }
 
 const KAPSO_HOOKS = () => `https://api.kapso.ai/platform/v1/whatsapp/phone_numbers/${env('KAPSO_PHONE_NUMBER_ID')}/webhooks`;
@@ -101,10 +162,19 @@ async function chat(req: VercelRequest, res: any) {
   if (!text) throw new HttpError(400, 'הודעה ריקה');
   const history = (Array.isArray(body.history) ? body.history : []).slice(-8).map((h: any) => ({ role: h.role === 'model' ? 'model' as const : 'user' as const, text: String(h.text || '').slice(0, 2000) }));
   const db = recordsData(me.workspaceId);
+  const attachments: CreativeMediaAttachment[] = [];
   let reply: string;
-  try { reply = has('GEMINI_API_KEY') ? await geminiAgentReply(text, db, history, me.workspaceId) : await ruleBasedReply(text, db); }
-  catch (e) { console.error(e); reply = e instanceof GeminiBusy ? 'ה-AI עמוס כרגע ולא ביצעתי כלום. נסה שוב בעוד כמה דקות.' : 'משהו השתבש ולא ביצעתי את הבקשה. אפשר לנסח שוב?'; }
-  res.json({ reply, ai: has('GEMINI_API_KEY') });
+  try {
+    reply = has('GEMINI_API_KEY')
+      ? await geminiAgentReply(text, db, history, me.workspaceId, {
+          onAttachments: (atts) => attachments.push(...atts),
+        })
+      : await ruleBasedReply(text, db);
+  } catch (e) {
+    console.error(e);
+    reply = e instanceof GeminiBusy ? 'ה-AI עמוס כרגע ולא ביצעתי כלום. נסה שוב בעוד כמה דקות.' : 'משהו השתבש ולא ביצעתי את הבקשה. אפשר לנסח שוב?';
+  }
+  res.json({ reply, ai: has('GEMINI_API_KEY'), attachments });
 }
 
 export default handler(async (req, res) => {
@@ -152,8 +222,10 @@ async function processEvents(raw: Buffer, idemKey: string) {
     const pendingId = `wa-pending-${ws.id}-${from}`;
     const busyId = `wa-busy-${ws.id}-${from}`; // a receipt is being read right now (it can take up to a minute)
     const body: string = msg.text?.body ?? '';
+    const mediaCaption: string = String(msg.image?.caption || msg.document?.caption || '');
     const link = body.match(/https?:\/\/\S+/)?.[0];
     const media = msg.type === 'image' ? msg.image : msg.type === 'document' ? msg.document : null;
+    const outAttachments: CreativeMediaAttachment[] = [];
     try {
       const { data: pend } = await sb.from('gd_records').select('data, updated_at').eq('id', pendingId).maybeSingle();
       // A receipt waits for its answer for 2 hours. After that, or when the message is a full request
@@ -167,6 +239,24 @@ async function processEvents(raw: Buffer, idemKey: string) {
       if (reading && !media?.id && shortAnswer) {
         // "קיבלת?" while the photo is still being read: don't send it to the agent (it would guess), just say we're on it.
         reply = 'כן, קיבלתי את הקבלה ואני עדיין קורא אותה. עוד רגע אשלח את הפרטים ⏳';
+      } else if (msg.type === 'image' && media?.id && isCreativeReferenceCaption(mediaCaption)) {
+        // Ad Creative Studio flow: reference photo + instructions -> Feed + Story graphics + Hebrew copy
+        await sendWhatsApp(from, 'קיבלתי את הרפרנס! 🎨 מייצר לך עכשיו גרפיקה לפיד + סטורי (9:16) וכותב הצעת מלל לאישור… ⏳');
+        const src = await downloadMedia(media.id);
+        const refPath = await storeCreativeBuffer(ws.id, 'ref', src.buf, src.mime);
+        await sb
+          .from('gd_records')
+          .update({ data: { ...inLog, text: mediaCaption, media_path: refPath, media_type: 'image' } })
+          .eq('id', logId);
+        const created = await createCreativeDraft({
+          workspaceId: ws.id,
+          brief: mediaCaption,
+          referenceBuf: src.buf,
+          referenceMime: src.mime,
+          referencePath: refPath,
+        });
+        outAttachments.push(...created.attachments);
+        reply = formatCreativeApprovalMessage(created.draft, created.adsets);
       } else if (media?.id || (link && /קבל|חשבונ|receipt|invoice|pdf|jpg|png/i.test(body + link)) || (link && body.trim() === link)) {
         // A new receipt: keep a copy, read it, ask where it belongs.
         await sb.from('gd_records').upsert({ id: busyId, workspace_id: ws.id, collection: 'wa_pending', data: { reading: true }, updated_at: new Date().toISOString() });
@@ -189,12 +279,19 @@ async function processEvents(raw: Buffer, idemKey: string) {
           else reply = `לא הבנתי לאן לשייך. לענות במספר:\n${ts.map((x, i) => `${i + 1}. ${x.label}`).join('\n')}\nאו "בטל".`;
         }
       } else if (msg.type !== 'text' || !body) {
-        reply = 'אני מבין טקסט, תמונות של קבלות, קבצי PDF וקישורים לקבלות.';
+        reply = 'אני מבין טקסט, תמונות רפרנס למודעות (עם כיתוב של הלקוח/הנחיות), תמונות של קבלות, קבצי PDF וקישורים לקבלות.';
       } else {
         if (!has('GEMINI_API_KEY')) reply = await ruleBasedReply(body, db);
         else {
-          try { reply = await whileBusy(() => sendWhatsApp(from, 'רגע, ה-AI עמוס כרגע. אני ממשיך לנסות ואענה ברגע שזה יעבור ⏳'), () => geminiAgentReply(body, db, history.slice(0, -1), ws.id)); }
-          catch (e) {
+          try {
+            reply = await whileBusy(
+              () => sendWhatsApp(from, 'רגע, ה-AI עמוס כרגע. אני ממשיך לנסות ואענה ברגע שזה יעבור ⏳'),
+              () =>
+                geminiAgentReply(body, db, history.slice(0, -1), ws.id, {
+                  onAttachments: (atts) => outAttachments.push(...atts),
+                }),
+            );
+          } catch (e) {
             console.error('wa gemini', e);
             reply = e instanceof GeminiBusy
               ? 'ה-AI לא זמין כבר כמה דקות, אז לא ביצעתי כלום כדי לא לטעות. כדאי לשלוח שוב בעוד כמה דקות.'
@@ -203,8 +300,24 @@ async function processEvents(raw: Buffer, idemKey: string) {
         }
       }
     } catch (e) {
-      console.error('wa receipt', e);
-      reply = e instanceof GeminiBusy ? 'ה-AI לא זמין כבר כמה דקות ולא הספקתי לקרוא את הקבלה. אפשר לשלוח אותה שוב בעוד כמה דקות.' : 'לא הצלחתי לקרוא את הקבלה. אפשר לשלוח תמונה ברורה יותר או קישור אחר.';
+      console.error('wa receipt/creative', e);
+      reply = e instanceof GeminiBusy
+        ? 'ה-AI לא זמין כבר כמה דקות ולא הספקתי לסיים. אפשר לשלוח שוב בעוד כמה דקות.'
+        : `לא הצלחתי להשלים את הבקשה: ${(e as Error).message || 'שגיאה לא צפויה'}`;
+    }
+    // Send any generated creative images (Feed + Story) before the approval text
+    for (let i = 0; i < outAttachments.length; i++) {
+      const att = outAttachments[i];
+      const url = await signedCreativeUrl(att.path);
+      if (url) {
+        await sendWhatsAppImage(from, url, att.caption);
+        await sb.from('gd_records').insert({
+          id: `${logId}-img-${i}`,
+          workspace_id: ws.id,
+          collection: 'wa_messages',
+          data: { direction: 'out', text: att.caption, media_path: att.path, media_type: 'image', at: new Date().toISOString(), to: from },
+        });
+      }
     }
     await sendWhatsApp(from, reply);
     await sb.from('gd_records').insert({ id: `${logId}-r`, workspace_id: ws.id, collection: 'wa_messages', data: { direction: 'out', text: reply, at: new Date().toISOString(), to: from } });

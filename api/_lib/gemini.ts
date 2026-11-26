@@ -9,6 +9,14 @@ import {
   metaCampaignsReady,
   runMetaDailyAgent,
 } from './meta-campaigns.js';
+import {
+  createCreativeDraft,
+  getActiveCreativeDraft,
+  listClientAdSets,
+  publishCreativeDraftToMeta,
+  reviseCreativeDraft,
+  type CreativeMediaAttachment,
+} from './meta-creative.js';
 
 const MODELS = () => [env('GEMINI_MODEL') || 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i);
 const endpoint = (model: string) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -98,6 +106,59 @@ const META_WA_TOOLS = [
       required: ['client', 'deltaPct'],
     },
   },
+  {
+    name: 'create_meta_ad_creative',
+    description: 'מייצר טיוטת מודעה חדשה למטא: גרפיקת פיד (4:5 או 1:1) + גרסת סטורי/רילס (9:16) + הצעת מלל מלאה (טקסט ראשי, כותרת, תיאור, CTA), ושולח את התמונות לאישור אביהו',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        client: { type: 'STRING', description: 'שם הלקוח (למשל מונה מדיקל, אוספא, באלנס רחובות)' },
+        brief: { type: 'STRING', description: 'בריף מפורט: מה מוכרים, מבצע, סגנון עיצובי, כיתוב רצוי' },
+        feedAspect: { type: 'STRING', enum: ['4:5', '1:1'], description: 'יחס פיד (ברירת מחדל 4:5)' },
+      },
+      required: ['brief'],
+    },
+  },
+  {
+    name: 'revise_meta_ad_creative',
+    description: 'מעדכן את טיוטת המודעה הפעילה: תיקון מלל (טקסט ראשי/כותרת/תיאור/CTA) ו/או יצירה מחדש של גרפיקת הפיד, הסטורי או שניהם',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        editInstruction: { type: 'STRING', description: 'הנחיית התיקון המדויקת מאביהו' },
+        regenerate: { type: 'STRING', enum: ['none', 'feed', 'story', 'both'], description: 'אילו גרפיקות לייצר מחדש (none אם זה רק שינוי מלל)' },
+        primaryText: { type: 'STRING', description: 'טקסט ראשי חדש (אם השתנה)' },
+        headline: { type: 'STRING', description: 'כותרת חדשה (אם השתנתה)' },
+        description: { type: 'STRING', description: 'תיאור חדש (אם השתנה)' },
+        ctaType: { type: 'STRING', description: 'CTA חדש (אופציונלי)' },
+        client: { type: 'STRING', description: 'עדכון לקוח (אופציונלי)' },
+      },
+    },
+  },
+  {
+    name: 'list_meta_client_adsets',
+    description: 'מחזיר את רשימת סדרות המודעות (Ad Sets) הפעילות והמושהות של לקוח במטא כדי לבחור לאן להעלות מודעה',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        client: { type: 'STRING', description: 'שם הלקוח או מזהה החשבון' },
+      },
+      required: ['client'],
+    },
+  },
+  {
+    name: 'publish_meta_ad_creative',
+    description: 'מעלה בפועל את טיוטת המודעה המאושרת (פיד + סטורי + מלל) למטא. חובה לקרוא רק אחרי שאביהו אישר במפורש גם את המודעה וגם את המלל! ברירת מחדל ACTIVE (לאוויר), ו-PAUSED רק אם אביהו ביקש לא לפרסם אלא רק להעלות כמושהה',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        client: { type: 'STRING', description: 'שם הלקוח (אופציונלי אם כבר שמור בטיוטה)' },
+        adsetId: { type: 'STRING', description: 'מזהה סט המודעות המספרי (אם ידוע)' },
+        adsetQuery: { type: 'STRING', description: 'שם סט המודעות או הקמפיין שאביהו בחר' },
+        publishStatus: { type: 'STRING', enum: ['ACTIVE', 'PAUSED'], description: 'ACTIVE (ברירת מחדל באישור מלא) או PAUSED אם אביהו הנחה לא לפרסם אלא לשמור מושהה' },
+      },
+    },
+  },
 ];
 
 async function resolveMetaAccount(workspaceId: string, query: string) {
@@ -113,7 +174,12 @@ async function resolveMetaAccount(workspaceId: string, query: string) {
   );
 }
 
-async function execMetaWaTool(workspaceId: string, name: string, args: Record<string, any>): Promise<unknown> {
+async function execMetaWaTool(
+  workspaceId: string,
+  name: string,
+  args: Record<string, any>,
+  opts?: { referencePath?: string | null; onAttachments?: (atts: CreativeMediaAttachment[]) => void },
+): Promise<unknown> {
   if (name === 'get_meta_campaigns_overview') {
     const ov: any = await campaignsOverview(workspaceId, { days: Number(args.days) || 7 });
     if (!ov.configured) return { error: 'חיבור Meta Ads לא מוגדר בשרת' };
@@ -187,19 +253,94 @@ async function execMetaWaTool(workspaceId: string, name: string, args: Record<st
     });
     return res.receipt;
   }
+  if (name === 'create_meta_ad_creative') {
+    const res = await createCreativeDraft({
+      workspaceId,
+      client: args.client ? String(args.client) : undefined,
+      brief: String(args.brief || ''),
+      referencePath: opts?.referencePath ?? null,
+      feedAspect: args.feedAspect === '1:1' ? '1:1' : '4:5',
+    });
+    if (res.attachments.length) opts?.onAttachments?.(res.attachments);
+    return {
+      draftId: res.draft.id,
+      client: res.draft.accountName || res.draft.clientQuery || 'לא צוין',
+      feedAspect: res.draft.feedAspect,
+      generatedImagesSent: res.attachments.map((a) => a.caption),
+      adName: res.draft.adName,
+      primaryText: res.draft.primaryText,
+      headline: res.draft.headline,
+      description: res.draft.description,
+      ctaType: res.draft.ctaType,
+      availableAdSets: (res.adsets || []).slice(0, 6),
+    };
+  }
+  if (name === 'revise_meta_ad_creative') {
+    const res = await reviseCreativeDraft({
+      workspaceId,
+      editInstruction: args.editInstruction ? String(args.editInstruction) : undefined,
+      regenerate: args.regenerate ? (String(args.regenerate) as any) : 'none',
+      primaryText: args.primaryText ? String(args.primaryText) : undefined,
+      headline: args.headline ? String(args.headline) : undefined,
+      description: args.description ? String(args.description) : undefined,
+      ctaType: args.ctaType ? String(args.ctaType) : undefined,
+      client: args.client ? String(args.client) : undefined,
+    });
+    if (res.attachments.length) opts?.onAttachments?.(res.attachments);
+    return {
+      draftId: res.draft.id,
+      client: res.draft.accountName || 'לא צוין',
+      updatedImagesSent: res.attachments.map((a) => a.caption),
+      adName: res.draft.adName,
+      primaryText: res.draft.primaryText,
+      headline: res.draft.headline,
+      description: res.draft.description,
+      ctaType: res.draft.ctaType,
+    };
+  }
+  if (name === 'list_meta_client_adsets') {
+    const res = await listClientAdSets(workspaceId, String(args.client || ''));
+    return { account: res.account.name, adsets: res.adsets };
+  }
+  if (name === 'publish_meta_ad_creative') {
+    return await publishCreativeDraftToMeta({
+      workspaceId,
+      client: args.client ? String(args.client) : undefined,
+      adsetId: args.adsetId ? String(args.adsetId) : undefined,
+      adsetQuery: args.adsetQuery ? String(args.adsetQuery) : undefined,
+      publishStatus: args.publishStatus === 'PAUSED' ? 'PAUSED' : 'ACTIVE',
+    });
+  }
   return { error: 'כלי לא מוכר' };
 }
 
 /** Free-text → tool calls → Hebrew reply. Max 4 tool rounds. */
-export async function geminiAgentReply(text: string, db: AgentData, history: { role: 'user' | 'model'; text: string }[] = [], workspaceId?: string): Promise<string> {
+export async function geminiAgentReply(
+  text: string,
+  db: AgentData,
+  history: { role: 'user' | 'model'; text: string }[] = [],
+  workspaceId?: string,
+  opts?: { referencePath?: string | null; onAttachments?: (atts: CreativeMediaAttachment[]) => void },
+): Promise<string> {
   const contents: any[] = [...history.filter((h) => h.text).map((h) => ({ role: h.role, parts: [{ text: h.text }] })), { role: 'user', parts: [{ text }] }];
   // Gemini requires the conversation to start with a user turn.
   while (contents.length > 1 && contents[0].role !== 'user') contents.shift();
   const metaEnabled = Boolean(workspaceId && metaCampaignsReady());
+  const activeDraft = metaEnabled && workspaceId ? await getActiveCreativeDraft(workspaceId).catch(() => null) : null;
   const allTools = metaEnabled ? [...TOOL_DECLARATIONS, ...META_WA_TOOLS] : [...TOOL_DECLARATIONS];
+  const draftHint = activeDraft
+    ? `\n\n[סטטוס טיוטת מודעה פעילה כרגע: לקוח=${activeDraft.accountName || 'לא נבחר'}, כותרת="${activeDraft.headline}", טקסט="${activeDraft.primaryText.slice(0, 120)}...", יש פיד=${!!activeDraft.feedPath}, יש סטורי=${!!activeDraft.storyPath}${activeDraft.adsetName ? `, סט מודעות=${activeDraft.adsetName}` : ''}]`
+    : '';
   const systemText = metaEnabled
-    ? `${SYSTEM_PROMPT}\nבנוסף, אתה מחובר ישירות גם לסוכן ניהול הקמפיינים במטא של אדיג׳יטל (מנהל מדיה בכיר): אפשר לבדוק מצב קמפיינים כללי או של לקוח ספציפי (לידים, התכתבויות, חשיפות, ביקורי פרופיל, מודעות מנצחות ושורפות), להריץ סקירה יומית, להשהות/להפעיל מודעות ולשנות תקציבים במטא.
-כשעונים על קמפיינים במטא: ענה בצורה חכמה, מעמיקה ומעוצבת לוואטסאפ — עם *כותרות מודגשות*, אמוג׳ים מדויקים (📊 🔥 ⚠️ ✅ 🎯 💡 💰), תובנות עסקיות אמיתיות (השוואת מודעות, זיהוי שחיקת תדירות, איפה לשפוך תקציב ומה לעצור) והמלצות קונקרטיות ממוספרות (1️⃣ 2️⃣ 3️⃣) כדי שאביהו יוכל לענות במספר. אחרי ביצוע פעולה במטא ציין תמיד את האימות החי שהתקבל (לפני -> אחרי ✅).`
+    ? `${SYSTEM_PROMPT}\nבנוסף, אתה מחובר ישירות גם לסוכן ניהול הקמפיינים והקריאייטיב במטא של אדיג׳יטל (מנהל מדיה וקריאייטיב בכיר):
+- אפשר לבדוק מצב קמפיינים כללי או של לקוח ספציפי (לידים, התכתבויות, חשיפות, ביקורי פרופיל, מודעות מנצחות ושורפות), להריץ סקירה יומית, להשהות/להפעיל מודעות ולשנות תקציבים במטא.
+- **סטודיו קריאייטיב והעלאת מודעות למטא**: אתה יודע לייצר גרפיקות מודעה (תמיד **גם פיד וגם סטורי 9:16** ביחד!) + הצעת מלל מלאה (טקסט ראשי, כותרת, תיאור, CTA), לבצע תיקונים לפי בקשת אביהו (במלל, בפיד, בסטורי או בשניהם), ולהעלות בפועל למטא.
+- **כללי אישור והעלאה קשיחים**:
+  1. לעולם אל תעלה למטא (\`publish_meta_ad_creative\`) לפני שאביהו אישר במפורש **גם את המלל וגם את המודעות (פיד + סטורי)**.
+  2. ברגע שאביהו אישר את המלל + המודעות וציין לאיזה לקוח/סט מודעות להעלות — העלה בסטטוס \`ACTIVE\` (ישר לאוויר!).
+  3. אם אביהו הנחה במפורש לא לפרסם אלא רק להעלות/לשמור מושהה (למשל "תעלה מושהה", "אל תפעיל עדיין", "רק תעלה בלי לפרסם") — העלה בסטטוס \`PAUSED\`.
+  4. כשמציגים טיוטת מודעה לאישור, הצג בצורה מסודרת ויפה לוואטסאפ את *הטקסט הראשי*, *הכותרת*, *התיאור* וה־*CTA*, וציין את סדרות המודעות הפעילות שאפשר להעלות אליהן.
+- כשעונים על קמפיינים במטא: ענה בצורה חכמה, מעמיקה ומעוצבת לוואטסאפ — עם *כותרות מודגשות*, אמוג׳ים מדויקים (📊 🔥 ⚠️ ✅ 🎯 💡 💰 🎨 🚀), תובנות עסקיות אמיתיות והמלצות קונקרטיות ממוספרות (1️⃣ 2️⃣ 3️⃣). אחרי ביצוע פעולה במטא ציין תמיד את האימות החי שהתקבל (לפני -> אחרי ✅).${draftHint}`
     : SYSTEM_PROMPT;
 
   for (let round = 0; round < 4; round++) {
@@ -218,7 +359,7 @@ export async function geminiAgentReply(text: string, db: AgentData, history: { r
       const fnArgs = c.functionCall.args ?? {};
       let result: unknown;
       if (metaEnabled && workspaceId && META_WA_TOOLS.some((t) => t.name === fnName)) {
-        try { result = await execMetaWaTool(workspaceId, fnName, fnArgs); }
+        try { result = await execMetaWaTool(workspaceId, fnName, fnArgs, opts); }
         catch (e: any) { result = { error: e.message || 'שגיאה בפעולת Meta Ads' }; }
       } else {
         result = await execTool(fnName, fnArgs, db);
