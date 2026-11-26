@@ -1,12 +1,15 @@
-import { handler, HttpError, requireMember } from './_lib/server.js';
-import { connect, disconnect, list, sync } from './_lib/integrations/index.js';
+import { handler, HttpError, isCron, requireMember } from './_lib/server.js';
+import { connect, disconnect, list, listAll, sync, syncAll } from './_lib/integrations/index.js';
 import { PROVIDERS } from '../shared/integrations.js';
 
 // GET  ?business=<id>                                   → providers catalog + this business's connections (no secrets)
 // POST { action: 'connect', business, provider, fields } → test the key, store it encrypted, first sync (owner only)
 // POST { action: 'sync', business, provider }            → pull now
 // POST { action: 'disconnect', business, provider }      → wipe the key, keep history (owner only)
+// GET  (no business)                                    → connections of all businesses, keyed by business id
+// GET  with the cron secret                             → sync every connection (Vercel cron)
 export default handler(async (req, res) => {
+  if (req.method === 'GET' && isCron(req.headers.authorization)) { res.json(await syncAll()); return; }
   const m = await requireMember(req);
   if (m.role !== 'owner' && !(m.areas ?? []).includes('business')) throw new HttpError(403, 'אין גישה לעסקים');
 
@@ -23,6 +26,6 @@ export default handler(async (req, res) => {
   }
 
   const business = String(req.query.business || '');
-  if (!business) throw new HttpError(400, 'חסר עסק');
+  if (!business) { res.json({ providers: PROVIDERS, byBusiness: await listAll(m.workspaceId) }); return; }
   res.json({ providers: PROVIDERS, connections: await list(m.workspaceId, business) });
 });

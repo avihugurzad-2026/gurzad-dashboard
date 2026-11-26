@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, Link2, ListChecks, Megaphone, Pencil, Plus, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, ListChecks, Megaphone, Pencil, Plus, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
 import { isAdigitalBusiness } from './MetaCampaignsPage';
-import { IntegrationsPanel } from './IntegrationsPanel';
+import { RevenueView } from './IntegrationsPanel';
+import { externalIncome, useBizRevenue } from '../../lib/bizRevenue';
 import type { Rec } from '../../data/types';
 import { useCollection, useDerived, store } from '../../data/store';
 import { bizSummary, gross, invoiceState, needsAllocation, vatRate } from '../../data/derive';
@@ -21,7 +22,6 @@ const TABS = [
   { value: 'clients', label: 'לקוחות', icon: Users },
   { value: 'expenses', label: 'הוצאות', icon: Receipt },
   { value: 'tasks', label: 'משימות', icon: ListChecks },
-  { value: 'connections', label: 'חיבורים', icon: Link2 },
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
 
@@ -46,7 +46,7 @@ export function BusinessArea() {
   const tabsForBiz = isAgency
     ? [...TABS.slice(0, 3), { value: 'meta-campaigns' as const, label: 'ניהול קמפיינים במטא', icon: Megaphone }, ...TABS.slice(3)]
     : [...TABS];
-  const View = { overview: BizOverview, invoices: Invoices, clients: Clients, expenses: Expenses, tasks: BizTasks, connections: Connections }[tab as Tab] ?? BizOverview;
+  const View = { overview: BizOverview, invoices: Invoices, clients: Clients, expenses: Expenses, tasks: BizTasks }[tab as Tab] ?? BizOverview;
 
   return (
     <>
@@ -84,10 +84,15 @@ export function BusinessArea() {
 function BizOverview({ biz }: { biz: Rec }) {
   const prefs = usePrefs();
   const nav = useNavigate();
-  const [mine, setMine] = useState(false);
-  const s = useDerived(() => bizSummary(biz.id), [biz.id, prefs.hide]);
-  const k = mine ? (biz.owner_pct ?? 100) / 100 : 1;
   const partial = (biz.owner_pct ?? 100) < 100;
+  const [mine, setMine] = useState(partial);
+  useEffect(() => setMine(partial), [biz.id, partial]);
+  const revs = useBizRevenue(biz.id);
+  const ext = useMemo(() => externalIncome(revs, vatRate), [revs]);
+  const s = useDerived(() => bizSummary(biz.id, ext), [biz.id, prefs.hide, ext]);
+  const k = mine ? (biz.owner_pct ?? 100) / 100 : 1;
+  const src = revs.map((r) => r.name).join(' + ');
+  const synced = revs.map((r) => r.lastSyncAt).filter(Boolean).sort().pop();
   const d = (a: number, b: number) => (b ? (a - b) / Math.abs(b) : null);
   const hasData = s.series.some((m) => m.income || m.expense);
   const x = useDerived(() => {
@@ -121,7 +126,7 @@ function BizOverview({ biz }: { biz: Rec }) {
           <PillTabs id="basis" items={[{ value: 'all', label: '100% מהעסק' }, { value: 'mine', label: `החלק שלי (${biz.owner_pct}%)` }]} value={mine ? 'mine' : 'all'} onChange={(v) => setMine(v === 'mine')} />
         </div>
       )}
-      <Card className="lg-3 md-6 sm-6"><Kpi label="הכנסות החודש" icon={TrendingUp} tone={TONE} value={hasData ? money(s.cur.income * k) : 'אין נתונים עדיין'} delta={d(s.cur.income, s.prev.income)} foot="לפני מע״מ" /></Card>
+      <Card className="lg-3 md-6 sm-6"><Kpi label="הכנסות החודש" icon={TrendingUp} tone={TONE} value={hasData ? money(s.cur.income * k) : 'אין נתונים עדיין'} delta={d(s.cur.income, s.prev.income)} foot={src ? `לפני מע״מ · כולל ${src}` : 'לפני מע״מ'} /></Card>
       <Card className="lg-3 md-6 sm-6"><Kpi label="הוצאות החודש" icon={Receipt} tone={TONE} value={hasData ? money(s.cur.expense * k) : 'אין נתונים עדיין'} delta={d(s.cur.expense, s.prev.expense)} invert foot="לפני מע״מ" /></Card>
       <Card className="lg-3 md-6 sm-6"><Kpi label="רווח החודש" icon={Wallet} tone={TONE} value={hasData ? <span className={s.cur.profit < 0 ? 'neg' : ''}>{money(s.cur.profit * k)}</span> : 'אין נתונים עדיין'} delta={d(s.cur.profit, s.prev.profit)} foot={s.cur.income ? `שולי רווח ${percent(s.cur.profit / s.cur.income)}` : undefined} /></Card>
       <Card className="lg-3 md-6 sm-6" to={`/business/${biz.id}/invoices`}><Kpi label="לקוחות חייבים" icon={Banknote} tone={TONE} value={money(s.receivable)} foot={s.overdue.length ? <span className="neg">{money(s.overdueTotal)} באיחור</span> : 'כולל מע״מ · אין איחורים'} /></Card>
@@ -152,6 +157,9 @@ function BizOverview({ biz }: { biz: Rec }) {
         )}
         {s.mrr > 0 && <div style={{ padding: 20, borderTop: '1px solid var(--line)' }}><Kpi label="ריטיינרים פעילים (חודשי)" value={money(s.mrr * k)} foot="לפני מע״מ" /></div>}
       </Card>
+
+      {revs.map((r) => <RevenueView key={r.provider} name={r.name} snap={r.snap} k={k} />)}
+      {synced && <p className="meta lg-12">עודכן אוטומטית מ־{src} ב־{new Date(synced).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}. מתעדכן לבד כל כמה דקות.</p>}
 
       <Card className="lg-6 md-12">
         <CardHead title="גיל החוב" sub="חשבוניות פתוחות לפי ימי איחור · כולל מע״מ" />
@@ -297,28 +305,3 @@ function BizTasks({ biz }: { biz: Rec }) {
   return <Stagger><Card className="flush lg-12"><TaskList collection="biz_tasks" rows={rows} scope={{ business_id: biz.id }} /></Card></Stagger>;
 }
 
-function Connections({ biz }: { biz: Rec }) {
-  const rows = useCollection('integrations', (r) => r.business_id === biz.id, [biz.id]);
-  const crud = useCrud('integrations', { business_id: biz.id });
-  return (
-    <Stagger>
-      <IntegrationsPanel biz={biz} />
-      <Card className="flush lg-8 md-12">
-        <div className="card-head" style={{ padding: '20px 20px 8px', marginBottom: 0 }}><div><h2>מקורות נתונים של {biz.name}</h2><div className="sub">מערכות חיצוניות שיזינו את העסק אוטומטית</div></div><AddButton small label="חיבור" onClick={() => crud.openNew()} /></div>
-        <RecordList collection="integrations" rows={rows} scope={{ business_id: biz.id }} icon={Link2} emptyTitle="אין חיבורים עדיין"
-          title={(r) => r.name} meta={(r) => <>{r.kind}{r.note ? ` · ${r.note}` : ''}</>}
-          end={(r) => <Badge kind={r.status === 'מחובר' ? 'pos' : r.status === 'שגיאה' ? 'neg' : 'none'}>{r.status}</Badge>} />
-      </Card>
-      <Card className="soft lg-4 md-12" style={{ alignSelf: 'start' }}>
-        <CardHead title="איך זה יעבוד" />
-        <ol className="steps">
-          <li>בוחרים ספק (למשל מערכת החשבוניות של העסק) ומוסיפים מפתח API במסך ההגדרות.</li>
-          <li>סנכרון מושך חשבוניות והוצאות לתוך אותם מסכים שכבר קיימים כאן.</li>
-          <li>רשומות שהגיעו מסנכרון מסומנות, והזנה ידנית ממשיכה לעבוד לצדן.</li>
-        </ol>
-        <p className="meta" style={{ marginTop: 14 }}>עדיין לא מחובר לאף ספק חשבוניות.</p>
-      </Card>
-      {crud.sheet}
-    </Stagger>
-  );
-}

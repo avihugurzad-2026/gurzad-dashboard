@@ -7,11 +7,12 @@ import { money, monthName, number, shortDate } from '../../lib/format';
 import { BarChart } from '../../ui/charts';
 import { Badge, Card, CardHead, Empty, Kpi } from '../../ui/kit';
 import type { ConnectionView, ProviderInfo, RevenueSnapshot } from '../../../shared/integrations';
+import { setBizConnections } from '../../lib/bizRevenue';
 
 const TONE = 'var(--tone-business)';
 type Resp = { providers: ProviderInfo[]; connections: ConnectionView[] };
 
-/** Live API connections of one business (keys stored encrypted on the server), plus the data they pulled. */
+/** API keys of one business's systems (stored encrypted on the server). Lives in Settings; the data shows on the business page. */
 export function IntegrationsPanel({ biz }: { biz: Rec }) {
   const [data, setData] = useState<Resp | null>(null);
   const [err, setErr] = useState('');
@@ -20,14 +21,14 @@ export function IntegrationsPanel({ biz }: { biz: Rec }) {
 
   const load = useCallback(() => {
     setErr('');
-    api<Resp>(`/api/integrations?business=${encodeURIComponent(biz.id)}`).then(setData).catch((e) => setErr(e.message));
+    api<Resp>(`/api/integrations?business=${encodeURIComponent(biz.id)}`).then((r) => { setData(r); setBizConnections(biz.id, r.connections); }).catch((e) => setErr(e.message));
   }, [biz.id]);
   useEffect(() => { if (!DEMO) load(); }, [load]);
 
   async function act(provider: string, action: 'sync' | 'disconnect') {
     if (action === 'disconnect' && !confirm('לנתק את החיבור? המפתח יימחק מהשרת והנתונים האחרונים יישמרו.')) return;
     setBusy(provider); setErr('');
-    try { const r = await api<{ connections: ConnectionView[] }>('/api/integrations', { body: { action, business: biz.id, provider } }); setData((d) => d && { ...d, connections: r.connections }); }
+    try { const r = await api<{ connections: ConnectionView[] }>('/api/integrations', { body: { action, business: biz.id, provider } }); setData((d) => d && { ...d, connections: r.connections }); setBizConnections(biz.id, r.connections); }
     catch (e: any) { setErr(e.message); load(); }
     finally { setBusy(''); }
   }
@@ -41,7 +42,7 @@ export function IntegrationsPanel({ biz }: { biz: Rec }) {
         const c = data.connections.find((x) => x.provider === p.id);
         const live = c && c.status !== 'disconnected';
         return (
-          <Card key={p.id} className="lg-12">
+          <Card key={p.id} className="lg-6 md-12">
             <CardHead title={<><Plug size={16} /> {p.name}</>} sub={p.kind}>
               {live ? <Badge kind={c.status === 'connected' ? 'pos' : 'neg'}>{c.status === 'connected' ? 'מחובר' : 'שגיאה'}</Badge> : <Badge>לא מחובר</Badge>}
             </CardHead>
@@ -65,12 +66,11 @@ export function IntegrationsPanel({ biz }: { biz: Rec }) {
                 {open !== p.id && <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={() => setOpen(p.id)}><KeyRound size={14} />חיבור</button>}
               </>
             )}
-            {open === p.id && <ConnectForm biz={biz} p={p} onDone={(conns) => { setOpen(null); setData((d) => d && { ...d, connections: conns }); }} onCancel={() => setOpen(null)} />}
+            {open === p.id && <ConnectForm biz={biz} p={p} onDone={(conns) => { setOpen(null); setData((d) => d && { ...d, connections: conns }); setBizConnections(biz.id, conns); }} onCancel={() => setOpen(null)} />}
             {err && busy === '' && open === null && <p className="neg" style={{ marginTop: 8 }}><CircleAlert size={14} /> {err}</p>}
           </Card>
         );
       })}
-      {data.connections.filter((c) => c.snapshots.revenue).map((c) => <RevenueView key={c.provider} name={data.providers.find((p) => p.id === c.provider)?.name ?? c.provider} snap={c.snapshots.revenue.data as RevenueSnapshot} />)}
     </>
   );
 }
@@ -107,23 +107,24 @@ function ConnectForm({ biz, p, onDone, onCancel }: { biz: Rec; p: ProviderInfo; 
   );
 }
 
-function RevenueView({ name, snap }: { name: string; snap: RevenueSnapshot }) {
+/** Details pulled from a connected system, shown on the business overview. k scales amounts (my share). */
+export function RevenueView({ name, snap, k = 1 }: { name: string; snap: RevenueSnapshot; k?: number }) {
   const s = snap.summary;
   const hasMonthly = snap.monthly.some((m) => m.total > 0);
   return (
     <>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="הכנסות החודש" icon={TrendingUp} tone={TONE} value={money(s.total)} foot={snap.vatIncluded === false ? `${name} · לפני מע״מ` : `${name} · כפי שמופק (כולל מע״מ)`} /></Card>
+      <Card className="lg-3 md-6 sm-6"><Kpi label={`מחזור החודש · ${name}`} icon={TrendingUp} tone={TONE} value={money(s.total * k)} foot={snap.vatIncluded === false ? 'לפני מע״מ' : 'כפי שמופק (כולל מע״מ)'} /></Card>
       <Card className="lg-3 md-6 sm-6"><Kpi label="עסקאות החודש" tone={TONE} value={number(s.count)} foot={s.average ? `ממוצע ${money(s.average)}` : undefined} /></Card>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="ממתין לתשלום" tone={TONE} value={money(s.unpaid)} /></Card>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="אמצעי תשלום מוביל" tone={TONE} value={snap.methods[0]?.label || 'אין נתונים עדיין'} foot={snap.methods[0] ? money(snap.methods[0].total) : undefined} /></Card>
+      <Card className="lg-3 md-6 sm-6"><Kpi label="ממתין לתשלום" tone={TONE} value={money(s.unpaid * k)} /></Card>
+      <Card className="lg-3 md-6 sm-6"><Kpi label="אמצעי תשלום מוביל" tone={TONE} value={snap.methods[0]?.label || 'אין נתונים עדיין'} foot={snap.methods[0] ? money(snap.methods[0].total * k) : undefined} /></Card>
       <Card className="lg-8 md-12">
         <CardHead title={`הכנסות לפי חודש · ${name}`} sub={snap.range.monthsFrom ? `${monthName(snap.range.monthsFrom)} – ${monthName(snap.range.monthsTo)}` : undefined} />
-        {hasMonthly ? <BarChart data={snap.monthly.map((m) => ({ month: m.month, a: m.total }))} aLabel="הכנסות" height={220} width={720} /> : <Empty icon={TrendingUp} title="אין נתונים עדיין" />}
+        {hasMonthly ? <BarChart data={snap.monthly.map((m) => ({ month: m.month, a: m.total * k }))} aLabel="הכנסות" height={220} width={720} /> : <Empty icon={TrendingUp} title="אין נתונים עדיין" />}
       </Card>
       <Card className="lg-4 md-12">
         <CardHead title={snap.sellersTitle ?? 'מכירות לפי מוכרנית'} sub="החודש" />
         {snap.sellers.length ? (
-          <ul className="list">{snap.sellers.slice(0, 6).map((x) => <li key={x.name} className="spread"><bdi>{x.name}</bdi><span className="li-amount">{money(x.total)}</span></li>)}</ul>
+          <ul className="list">{snap.sellers.slice(0, 6).map((x) => <li key={x.name} className="spread"><bdi>{x.name}</bdi><span className="li-amount">{money(x.total * k)}</span></li>)}</ul>
         ) : <p className="meta">אין נתונים עדיין</p>}
       </Card>
     </>

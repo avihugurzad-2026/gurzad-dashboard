@@ -13,6 +13,7 @@ import { api } from '../lib/api';
 import { addDays, clock, shortDate, today } from '../lib/format';
 import { useGoogle } from '../lib/google';
 import { GoogleCard, RemindersCard, ReminderSheet } from './Planner';
+import { BizSettings } from './business/BizSettings';
 import { isDark, setPrefs, usePrefs } from '../lib/prefs';
 import { AddButton, useCrud } from '../ui/crud';
 import { Badge, Card, CardHead, Empty, Kpi, PageHead, Stagger, Toggle, easeOut } from '../ui/kit';
@@ -565,7 +566,7 @@ export function SettingsPage() {
     { icon: Code2, name: 'מעקב אתרים והמרות (סקריפט הטמעה)', desc: `תנועה בזמן אמת, דפים, מקורות, מכשירים והמרות בכל אתר${trackedSites ? ` · ${trackedSites} אתרים עם קוד` : ''}`, env: '/api/t?s=<site_key>', ok: DEMO || !!health?.sites_tracker, to: '/marketing/sites', action: 'ניהול אתרים' },
     { icon: BarChart3, name: 'Google Analytics & Search Console', desc: 'חיפושים בגוגל (קליקים, הופעות, מיקום) ונתוני GA4 משלימים', env: 'GOOGLE_SERVICE_ACCOUNT_JSON', ok: !!health?.google_analytics, to: '/marketing/sites', action: 'אתרים' },
     { icon: CalendarDays, name: 'Google Calendar', desc: 'סנכרון דו־כיווני של אירועים ומשימות עם היומן האישי', env: 'GOOGLE_CLIENT_ID · GOOGLE_CLIENT_SECRET', ok: !!health?.google_calendar || !!google.status?.connected, to: '/planner', action: 'יומן' },
-    { icon: Plus, name: 'מערכת חשבוניות', desc: 'משיכת חשבוניות לכל עסק. נבחר ספק בהמשך', env: 'בהמשך', ok: false },
+    { icon: Plus, name: 'מערכות העסקים (Buyz, מורנינג)', desc: 'הכנסות שנמשכות אוטומטית לכל עסק. המפתחות מוזנים למטה, ב"העסקים שלי"', env: 'INTEGRATIONS_KEY', ok: !DEMO },
   ];
   return (
     <>
@@ -606,6 +607,8 @@ export function SettingsPage() {
           )}
         </div>
       </Stagger>
+
+      <BizSettings />
 
       <div className="card-head" style={{ marginTop: 28, marginBottom: 12, padding: '0 4px' }}><div><h2>יומן ותזכורות</h2><div className="sub">היומן של Google, והמיילים שנשלחים לאנשים שצוותו למשימות</div></div></div>
       <Stagger className="grid">

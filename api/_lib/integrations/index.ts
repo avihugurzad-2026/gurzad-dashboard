@@ -17,7 +17,7 @@ export type Adapter = {
 };
 const ADAPTERS: Record<string, Adapter> = { buyz, morning };
 
-const STALE_MS = 60 * 60e3; // re-sync on view when the last sync is older than an hour
+const STALE_MS = 15 * 60e3; // re-sync on view when the last sync is older than 15 minutes
 
 function key() {
   const k = env('INTEGRATIONS_KEY');
@@ -132,4 +132,22 @@ export async function list(workspaceId: string, businessId: string, refresh = tr
     provider: c.provider, status: c.status, keyHint: c.key_hint, lastSyncAt: c.last_sync_at, lastError: c.last_error,
     snapshots: Object.fromEntries((c.gd_integration_snapshots ?? []).map((x: any) => [x.kind, { data: x.data, fetchedAt: x.fetched_at }])),
   }));
+}
+
+/** Connections of every business in the workspace, keyed by business id (stale ones re-synced first). */
+export async function listAll(workspaceId: string): Promise<Record<string, ConnectionView[]>> {
+  const { data, error } = await sbAdmin().from('gd_integration_connections').select('business_id').eq('workspace_id', workspaceId);
+  if (error) throw error;
+  const ids = [...new Set((data ?? []).map((r: any) => r.business_id as string))];
+  const out: Record<string, ConnectionView[]> = {};
+  await Promise.all(ids.map(async (id) => { out[id] = await list(workspaceId, id); }));
+  return out;
+}
+
+/** Cron: pull every live connection of every workspace. Errors are recorded per connection. */
+export async function syncAll() {
+  const { data, error } = await sbAdmin().from('gd_integration_connections').select('id').neq('status', 'disconnected').neq('secret_enc', '');
+  if (error) throw error;
+  const r = await Promise.allSettled((data ?? []).map((c: any) => syncOne(c.id)));
+  return { total: r.length, ok: r.filter((x) => x.status === 'fulfilled').length };
 }
