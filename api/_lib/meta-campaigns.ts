@@ -1205,47 +1205,117 @@ export async function sendMetaYesterdayWhatsAppReport(
   const to = sched.phone || fallbackPhone;
   if (!to) throw new HttpError(400, 'לא הוגדר מספר יעד לוואטסאפ (WHATSAPP_ALLOWED_NUMBERS או בהגדרות)');
 
-  // Fetch yesterday (days: 1) live from Meta Graph API
-  const ov: any = await campaignsOverview(workspaceId, { days: 1, force: true });
+  // Fetch yesterday (days: 1) AND 7-day baseline in parallel for deep comparison
+  const [ov, ov7]: [any, any] = await Promise.all([
+    campaignsOverview(workspaceId, { days: 1, force: true }),
+    campaignsOverview(workspaceId, { days: 7 }).catch(() => null),
+  ]);
   if (!ov.configured) throw new HttpError(503, 'META_ADS_ACCESS_TOKEN לא מוגדר');
 
   const yDate = String(ov.range?.since || '');
   const ddmm = yDate ? `${yDate.slice(8, 10)}/${yDate.slice(5, 7)}` : 'אתמול';
   const active = (ov.accounts as AccountOverviewItem[]).filter((a) => a.spend > 0).sort((a, b) => b.spend - a.spend);
+  const weekMap = new Map<string, AccountOverviewItem>();
+  for (const a of (ov7?.accounts ?? []) as AccountOverviewItem[]) weekMap.set(a.accountId, a);
 
-  const lines: string[] = [];
-  lines.push(`*📊 דוח קמפיינים במטא — אתמול (${ddmm})*`);
-  lines.push(
-    `סה״כ הוצאה: *₪${Math.round(ov.totals.spend).toLocaleString('he-IL')}* · *${ov.totals.leads}* לידים · *${ov.totals.messages}* התכתבויות` +
-      (ov.totals.profileVisits > 0 ? ` · ${ov.totals.profileVisits} ביקורי פרופיל` : ''),
-  );
-  lines.push('');
+  let text = '';
 
-  if (active.length === 0) {
-    lines.push('לא נרשמה הוצאה פעילה בחשבונות המודעות אתמול.');
-  } else {
-    for (const a of active.slice(0, 14)) {
-      const resParts: string[] = [];
-      if (a.leads > 0) resParts.push(`${a.leads} לידים`);
-      if (a.messages > 0) resParts.push(`${a.messages} שיחות`);
-      if (!resParts.length && a.profileVisits > 0) resParts.push(`${a.profileVisits} ביקורי פרופיל`);
-      const cplStr = a.costPerResult != null ? ` (₪${a.costPerResult.toFixed(0)}/תוצאה)` : '';
-      const alertIcon = a.health === 'alert' ? '⚠️ ' : a.health === 'winner' ? '✅ ' : '';
-      lines.push(`• ${alertIcon}*${a.name}*: ₪${Math.round(a.spend)}${resParts.length ? ` · ${resParts.join(' + ')}${cplStr}` : ''}`);
+  // Use Gemini to craft a deep, executive, emoji-rich WhatsApp morning brief
+  if (has('GEMINI_API_KEY') && active.length > 0) {
+    try {
+      const payload = active.slice(0, 14).map((a) => {
+        const w = weekMap.get(a.accountId);
+        return {
+          name: a.name,
+          accountId: a.accountId,
+          yesterday: {
+            spend: Math.round(a.spend),
+            leads: a.leads,
+            messages: a.messages,
+            impressions: a.impressions,
+            reach: a.reach,
+            profileVisits: a.profileVisits,
+            ctr: Number(a.ctr.toFixed(2)),
+            frequency: Number(a.frequency.toFixed(2)),
+            costPerResult: a.costPerResult ? Number(a.costPerResult.toFixed(1)) : null,
+          },
+          weekAvgDailySpend: w ? Math.round(w.spend / 7) : null,
+          weekCpl: w?.costPerResult ? Number(w.costPerResult.toFixed(1)) : null,
+          weekFreq: w ? Number(w.frequency.toFixed(2)) : null,
+          winners: a.winners.slice(0, 2).map((x) => ({ name: x.name, id: x.id, spend: Math.round(x.spend), results: x.primaryResults, cpl: x.costPerResult ? Number(x.costPerResult.toFixed(1)) : null })),
+          bleeding: a.bleeding.slice(0, 2).map((x) => ({ name: x.name, id: x.id, spend: Math.round(x.spend), results: x.primaryResults, cpl: x.costPerResult ? Number(x.costPerResult.toFixed(1)) : null })),
+        };
+      });
+
+      const prompt = `אתה מנהל המדיה הבכיר של סוכנות אדיג׳יטל (Adigital). כתוב לאביהו *דוח בוקר יומי לוואטסאפ* על ביצועי אתמול (${ddmm}) מול ממוצע 7 הימים האחרונים.
+
+כללי עיצוב ואיכות (לוואטסאפ בלבד):
+- השתמש בעיצוב וואטסאפ נקי: *כוכביות להדגשה* (בלי # ובלי טבלאות Markdown!), אמוג׳ים מדויקים (☀️ 📊 💰 🔥 ⚠️ ✅ 🎯 💡), ושורות מרווחות שקריאות ב-3 שניות מהנייד.
+- חלק 1: *☀️ בוקר טוב אביהו · דוח מטא לאתמול (${ddmm})* + שורת סיכום מנהלים (סה״כ הוצאה ₪${Math.round(ov.totals.spend).toLocaleString('he-IL')}, ${ov.totals.leads} לידים, ${ov.totals.messages} התכתבויות, ${ov.totals.profileVisits} ביקורי פרופיל).
+- חלק 2: *🔥 כוכבי אתמול* (2–3 החשבונות/המודעות שהביאו את העלות הכי טובה או קפצו לטובה מול ממוצע 7 הימים).
+- חלק 3: *⚠️ דורש תשומת לב* (חריגות CPL, מודעות שורפות תקציב, או חשבונות עם תדירות/שחיקה גבוהה — ציין שם מודעה מדויק ונתון).
+- חלק 4: *📊 תמונת מצב מהירה לפי לקוח* — שורה קצרה ונקייה לכל חשבון פעיל.
+- חלק 5${sched.includeRecommendations ? ' (חובה!)' : ' (קצר)'}: *🎯 המלצות פעולה קונקרטיות להיום* — ממוספרות (1️⃣, 2️⃣, 3️⃣, 4️⃣): בדיוק מה לעצור, איפה להעלות תקציב, ורעיון קריאייטיב/הוק אחד חד.
+- משפט סיום קצר: "ענה לי במספר (למשל: *תבצע 1 ו-2*) ואבצע מיד במטא עם אימות חי ✅".
+- אל תמציא שום מספר או שם מודעה שלא נמצאים בנתונים. שמור עד ~3,200 תווים כדי שייכנס בהודעת וואטסאפ אחת מושלמת.
+
+הנתונים האמיתיים:
+${JSON.stringify(payload)}`;
+
+      const out: any = await callGeminiJson({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
+      const aiText = (out.candidates?.[0]?.content?.parts ?? [])
+        .map((p: any) => p.text || '')
+        .join('')
+        .trim();
+      if (aiText.length > 80) text = aiText;
+    } catch (e) {
+      console.warn('Gemini WA daily brief fallback to structured template:', e);
     }
   }
 
-  if (sched.includeRecommendations && ov.recommendations?.length) {
+  if (!text) {
+    const lines: string[] = [];
+    lines.push(`*☀️ בוקר טוב אביהו · דוח מטא לאתמול (${ddmm})*`);
+    lines.push('━━━━━━━━━━━━━━━');
+    lines.push(
+      `💰 הוצאה: *₪${Math.round(ov.totals.spend).toLocaleString('he-IL')}*\n` +
+        `🎯 לידים: *${ov.totals.leads}* · 💬 התכתבויות: *${ov.totals.messages}*` +
+        (ov.totals.profileVisits > 0 ? ` · 👤 פרופיל: *${ov.totals.profileVisits}*` : ''),
+    );
     lines.push('');
-    lines.push('*⚡ לטיפול היום:*');
-    for (const r of (ov.recommendations as AgentRecommendation[]).slice(0, 4)) {
-      lines.push(`- ${r.title} (${r.reason})`);
+
+    if (active.length === 0) {
+      lines.push('😴 לא נרשמה הוצאה פעילה בחשבונות המודעות אתמול.');
+    } else {
+      lines.push('*📊 פירוט לפי לקוח:*');
+      for (const a of active.slice(0, 14)) {
+        const resParts: string[] = [];
+        if (a.leads > 0) resParts.push(`${a.leads} לידים`);
+        if (a.messages > 0) resParts.push(`${a.messages} שיחות`);
+        if (!resParts.length && a.profileVisits > 0) resParts.push(`${a.profileVisits} ביקורי פרופיל`);
+        const cplStr = a.costPerResult != null ? ` · ₪${a.costPerResult.toFixed(0)} לתוצאה` : '';
+        const icon = a.health === 'alert' ? '🔴' : a.health === 'winner' ? '🟢' : '🔵';
+        lines.push(`${icon} *${a.name}* — ₪${Math.round(a.spend)}${resParts.length ? ` (${resParts.join(' + ')}${cplStr})` : ''}`);
+      }
     }
+
+    if (sched.includeRecommendations && ov.recommendations?.length) {
+      const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'];
+      lines.push('');
+      lines.push('*🎯 המלצות פעולה להיום:*');
+      (ov.recommendations as AgentRecommendation[]).slice(0, 4).forEach((r, i) => {
+        lines.push(`${nums[i] || '•'} *${r.title}*\n   💡 ${r.reason}`);
+      });
+    }
+
+    lines.push('');
+    lines.push('👇 ענה לי כאן (למשל *"תבצע 1 ו-2"* או *"תן לי פירוט על אוספא"*) ואטפל בזה מיד עם אימות חי במטא ✅');
+    text = lines.join('\n');
   }
 
-  lines.push('');
-  lines.push('רוצה שאשהה מודעה או אבדוק לקוח לעומק? פשוט ענה לי כאן.');
-  const text = lines.join('\n').slice(0, 3900);
+  text = text.slice(0, 3900);
 
   await sendKapsoText(to, text);
 
