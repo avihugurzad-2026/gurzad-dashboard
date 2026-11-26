@@ -48,9 +48,16 @@ export type RevenueSnapshot = {
   sellers: { name: string; total: number; count: number }[];
   sellersTitle?: string;   // what 'sellers' groups by (default: מוכרנית)
   vatIncluded?: boolean;
-  transactions: { id: string; date: string; amount: number; type: string; status: string; customer: string; description: string }[];
+  transactions: Tx[];
   range: { monthsFrom: string; monthsTo: string };
+  /** Today's sales (Buyz). */
+  today?: { date: string; total: number; count: number; average: number; methods: { label: string; total: number; count: number }[]; staff: StaffRow[]; transactions: Tx[] };
+  /** Sales per employee, from every transaction of the period (Buyz). */
+  staff?: { thisMonth: StaffRow[]; lastMonth: StaffRow[]; txCount: number };
 };
+
+export type Tx = { id: string; date: string; amount: number; type: string; status: string; customer: string; description: string; seller?: string };
+export type StaffRow = { name: string; total: number; count: number; byType: Record<string, number> };
 
 /** Connection as the browser sees it: never includes the secret. */
 export type ConnectionView = {

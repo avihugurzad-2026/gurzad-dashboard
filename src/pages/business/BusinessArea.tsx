@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, ListChecks, Megaphone, Pencil, Plus, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Award, Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, ListChecks, Megaphone, Pencil, Plus, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
 import { isAdigitalBusiness } from './MetaCampaignsPage';
 import { RevenueView } from './IntegrationsPanel';
+import { TeamView } from './TeamView';
 import { externalIncome, useBizRevenue } from '../../lib/bizRevenue';
 import type { Rec } from '../../data/types';
 import { useCollection, useDerived, store } from '../../data/store';
@@ -18,12 +19,20 @@ import { RecordList, TaskList } from '../../ui/lists';
 const TONE = 'var(--tone-business)';
 const TABS = [
   { value: 'overview', label: 'מצב כספי', icon: LayoutGrid },
+  { value: 'team', label: 'צוות ומכירות', icon: Award },
   { value: 'invoices', label: 'חשבוניות', icon: FileText },
   { value: 'clients', label: 'לקוחות', icon: Users },
   { value: 'expenses', label: 'הוצאות', icon: Receipt },
   { value: 'tasks', label: 'משימות', icon: ListChecks },
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
+
+/** The tabs a business can show (the owner hides some in Settings → העסקים שלי). */
+export function bizTabs(isAgency: boolean) {
+  const tabs: { value: string; label: string; icon: typeof LayoutGrid }[] = [...TABS];
+  if (isAgency) tabs.splice(4, 0, { value: 'meta-campaigns', label: 'ניהול קמפיינים במטא', icon: Megaphone });
+  return tabs;
+}
 
 export function BusinessArea() {
   const { bizId, tab = 'overview' } = useParams();
@@ -43,15 +52,14 @@ export function BusinessArea() {
   );
 
   const isAgency = isAdigitalBusiness(biz);
-  const tabsForBiz = isAgency
-    ? [...TABS.slice(0, 3), { value: 'meta-campaigns' as const, label: 'ניהול קמפיינים במטא', icon: Megaphone }, ...TABS.slice(3)]
-    : [...TABS];
-  const View = { overview: BizOverview, invoices: Invoices, clients: Clients, expenses: Expenses, tasks: BizTasks }[tab as Tab] ?? BizOverview;
+  const hidden: string[] = Array.isArray(biz.hidden_tabs) ? biz.hidden_tabs : [];
+  const tabsForBiz = bizTabs(isAgency).filter((t) => t.value === 'overview' || !hidden.includes(t.value));
+  const View = hidden.includes(tab) ? BizOverview : ({ overview: BizOverview, team: TeamView, invoices: Invoices, clients: Clients, expenses: Expenses, tasks: BizTasks }[tab as Tab] ?? BizOverview);
 
   return (
     <>
       <PageHead tag="ניהול עסקים" tone={TONE} title={biz.name} sub={<>{biz.kind}{biz.owner_pct != null && biz.owner_pct < 100 ? ` · החלק שלי ${biz.owner_pct}%` : ''}</>}>
-        {isAgency && (
+        {isAgency && !hidden.includes('meta-campaigns') && (
           <button className="btn btn-primary" onClick={() => nav(`/business/${biz.id}/meta-campaigns`)}>
             <Megaphone size={15} />ניהול קמפיינים במטא
           </button>

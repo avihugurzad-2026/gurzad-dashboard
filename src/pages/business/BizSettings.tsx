@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Percent } from 'lucide-react';
+import { LayoutGrid, Percent } from 'lucide-react';
 import { store, useCollection } from '../../data/store';
-import { Card, CardHead, Stagger, spring } from '../../ui/kit';
+import { Card, CardHead, Stagger, Toggle, spring } from '../../ui/kit';
+import type { Rec } from '../../data/types';
+import { bizTabs } from './BusinessArea';
+import { isAdigitalBusiness } from './MetaCampaignsPage';
 import { IntegrationsPanel } from './IntegrationsPanel';
 
 /** Settings → per business: my ownership share and the API keys of its systems (Buyz, Morning…). */
@@ -29,6 +32,7 @@ export function BizSettings() {
       </div>
       <Stagger key={biz.id}>
         <OwnershipCard bizId={biz.id} name={biz.name} pct={biz.owner_pct ?? 100} />
+        <TabsCard biz={biz} />
         <IntegrationsPanel biz={biz} />
       </Stagger>
     </>
@@ -48,7 +52,7 @@ function OwnershipCard({ bizId, name, pct }: { bizId: string; name: string; pct:
     setSaved(true); setTimeout(() => setSaved(false), 2000);
   }
   return (
-    <Card className="lg-12">
+    <Card className="lg-6 md-12">
       <CardHead title={<><Percent size={16} /> החלק שלי ב{name}</>} sub="לפי האחוז הזה הדשבורד מחשב כמה הכנסת וכמה הרווחת אתה" />
       <form onSubmit={save} className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <label className="row" style={{ gap: 8 }}>
@@ -59,6 +63,23 @@ function OwnershipCard({ bizId, name, pct }: { bizId: string; name: string; pct:
         {saved && <span className="meta">נשמר</span>}
         {!valid && <span className="neg">מספר בין 1 ל־100</span>}
       </form>
+    </Card>
+  );
+}
+
+function TabsCard({ biz }: { biz: Rec }) {
+  const hidden: string[] = Array.isArray(biz.hidden_tabs) ? biz.hidden_tabs : [];
+  const tabs = bizTabs(isAdigitalBusiness(biz)).filter((t) => t.value !== 'overview');
+  const set = (value: string, on: boolean) =>
+    store.update('businesses', biz.id, { hidden_tabs: on ? hidden.filter((x) => x !== value) : [...new Set([...hidden, value])] });
+  return (
+    <Card className="lg-6 md-12">
+      <CardHead title={<><LayoutGrid size={16} /> מה מוצג בדף העסק</>} sub="מצב כספי מוצג תמיד" />
+      <div className="stack" style={{ gap: 10 }}>
+        {tabs.map((t) => (
+          <label key={t.value} className="switch"><span className="row"><t.icon size={16} />{t.label}</span><Toggle checked={!hidden.includes(t.value)} onChange={(v) => set(t.value, v)} label={t.label} /></label>
+        ))}
+      </div>
     </Card>
   );
 }

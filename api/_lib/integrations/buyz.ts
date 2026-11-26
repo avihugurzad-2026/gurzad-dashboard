@@ -1,5 +1,7 @@
-import { HttpError } from '../server.js';
-import type { RevenueSnapshot } from '../../../shared/integrations.js';
+import { HttpError, israelDay } from '../server.js';
+
+const israelToday = () => israelDay();
+import type { RevenueSnapshot, StaffRow } from '../../../shared/integrations.js';
 import type { Adapter } from './index.js';
 
 // Buyz (the owners' own business system). Read-only: GET /api/revenue.php with X-Api-Key.
@@ -27,6 +29,44 @@ async function revenue(config: Record<string, string>, secret: string, params: R
 const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const s = (v: unknown) => (v == null ? '' : String(v));
 
+const sellerName = (t: any) => {
+  const v = t?.seller;
+  const name = v && typeof v === 'object' ? v.name ?? v.full_name ?? v.label : v;
+  return s(name).trim() || 'ללא שיוך';
+};
+const TYPE_HE: Record<string, string> = { booking: 'טיפולים', voucher: 'שוברים', payment_link: 'קישורי תשלום', product_sale: 'מוצרים' };
+
+/** All transactions of a period (paged, capped at 3,000). */
+async function allTx(config: Record<string, string>, secret: string, period: string) {
+  const out: any[] = [];
+  for (let offset = 0; offset < 3000; offset += 500) {
+    const j = await revenue(config, secret, { period, include: 'transactions', limit: '500', offset: String(offset) });
+    const rows: any[] = Array.isArray(j.transactions) ? j.transactions : [];
+    out.push(...rows);
+    if (rows.length < 500) break;
+  }
+  return out;
+}
+
+function bySeller(tx: any[]): StaffRow[] {
+  const m = new Map<string, StaffRow>();
+  for (const t of tx) {
+    const name = sellerName(t);
+    const r = m.get(name) ?? { name, total: 0, count: 0, byType: {} };
+    const a = n(t.amount);
+    r.total += a; r.count++;
+    const ty = TYPE_HE[s(t.type)] ?? (s(t.type) || 'אחר');
+    r.byType[ty] = (r.byType[ty] ?? 0) + a;
+    m.set(name, r);
+  }
+  return [...m.values()].sort((a, b) => b.total - a.total);
+}
+
+const txView = (t: any) => ({
+  id: s(t.id ?? t.reference), date: s(t.date), amount: n(t.amount), type: TYPE_HE[s(t.type)] ?? s(t.type), status: s(t.payment_status),
+  customer: s(t.customer_name), description: s(t.description), seller: sellerName(t),
+});
+
 function normalize(year: any, month: any): RevenueSnapshot {
   const sum = month.summary ?? {};
   const bySource: Record<string, number> = {};
@@ -40,10 +80,7 @@ function normalize(year: any, month: any): RevenueSnapshot {
     daily: (month.daily ?? []).map((d: any) => ({ date: s(d.date).slice(0, 10), total: n(d.revenue_total ?? d.total), count: n(d.count) })),
     methods: (month.by_payment_method ?? []).map((m: any) => ({ label: s(m.label || m.method), total: n(m.total), count: n(m.count) })),
     sellers: (month.sales?.by_seller ?? []).map((x: any) => ({ name: s(x.name ?? x.seller ?? x.label), total: n(x.total), count: n(x.count ?? x.orders_count) })),
-    transactions: (month.transactions ?? []).slice(0, 50).map((t: any) => ({
-      id: s(t.id ?? t.reference), date: s(t.date), amount: n(t.amount), type: s(t.type), status: s(t.payment_status),
-      customer: s(t.customer_name), description: s(t.description),
-    })),
+    transactions: (month.transactions ?? []).slice(0, 50).map(txView),
     range: { monthsFrom: monthly[0]?.month ?? '', monthsTo: monthly[monthly.length - 1]?.month ?? '' },
   };
 }
@@ -54,11 +91,25 @@ export const buyz: Adapter = {
     return `החיבור תקין · היום ${Math.round(n(j.summary?.revenue_total)).toLocaleString('he-IL')} ₪`;
   },
   async sync(config, secret) {
-    // Two calls: 12 months of monthly totals, and this month in detail.
-    const [year, month] = await Promise.all([
+    // 12 months of monthly totals, this month in detail, and every transaction of today / this month /
+    // last month so sales can be split per employee.
+    const [year, month, today, txThis, txLast] = await Promise.all([
       revenue(config, secret, { months: '12', include: 'monthly' }),
       revenue(config, secret, { period: 'this_month', include: 'summary,daily,methods,sales,transactions', limit: '50' }),
+      revenue(config, secret, { period: 'today', include: 'summary,methods' }),
+      allTx(config, secret, 'this_month'),
+      allTx(config, secret, 'last_month'),
     ]);
-    return { revenue: normalize(year, month) };
+    const snap = normalize(year, month);
+    const todayTx = txThis.filter((t) => s(t.date).slice(0, 10) === israelToday());
+    snap.today = {
+      date: israelToday(),
+      total: n(today.summary?.revenue_total), count: n(today.summary?.transactions_count), average: n(today.summary?.average_transaction),
+      methods: (today.by_payment_method ?? []).map((m: any) => ({ label: s(m.label || m.method), total: n(m.total), count: n(m.count) })),
+      staff: bySeller(todayTx),
+      transactions: todayTx.sort((a, b) => s(b.date).localeCompare(s(a.date))).slice(0, 40).map(txView),
+    };
+    snap.staff = { thisMonth: bySeller(txThis), lastMonth: bySeller(txLast), txCount: txThis.length };
+    return { revenue: snap };
   },
 };
