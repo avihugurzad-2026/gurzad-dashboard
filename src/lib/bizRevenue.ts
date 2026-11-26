@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { api } from './api';
 import { DEMO } from './config';
-import type { ConnectionView, ProviderInfo, RevenueSnapshot } from '../../shared/integrations';
+import type { ConnectionView, OpsSnapshot, ProviderInfo, RevenueSnapshot } from '../../shared/integrations';
 
 // Live revenue pulled from each business's connected systems (Buyz, Morning…).
 // Fetched once per app session, refreshed every few minutes while the app is open and when the tab
@@ -81,4 +81,16 @@ export function externalIncome(revs: BizRevenue[], vatRate: (date: string) => nu
 export function useBizRevenue(bizId: string) {
   const s = useBizRevenueState();
   return revenueOf(s, bizId);
+}
+
+/** Operational data from the Buyz database connection, if connected. */
+export function opsOf(s: State, bizId: string): OpsSnapshot | null {
+  const c = (s.byBusiness[bizId] ?? []).find((x) => x.status !== 'disconnected' && x.snapshots.ops);
+  return c ? (c.snapshots.ops.data as OpsSnapshot) : null;
+}
+export function useBizOps(bizId: string) { return opsOf(useBizRevenueState(), bizId); }
+
+/** Monthly expenses from the connected system (Buyz fixed/variable expenses), as { 'YYYY-MM': amount }. */
+export function externalExpense(ops: OpsSnapshot | null): Record<string, number> {
+  return Object.fromEntries((ops?.expenses.byMonth ?? []).map((m) => [m.month, m.total]));
 }

@@ -45,20 +45,20 @@ export function homeTrend(n = 6) {
 
 /* ---------- business ---------- */
 /** ext: monthly income before VAT pulled from connected systems (Buyz…), added to invoice income. */
-export function bizSeries(bizId: string, n = 6, ext: Record<string, number> = {}) {
+export function bizSeries(bizId: string, n = 6, ext: Record<string, number> = {}, extExp: Record<string, number> = {}) {
   const inv = store.all('invoices').filter((i) => i.business_id === bizId && i.status !== 'בוטלה' && i.status !== 'טיוטה');
   const exp = store.all('biz_expenses').filter((e) => e.business_id === bizId);
   return monthsBack(n).map((m) => {
     const income = sum(inv.filter((i) => (i.issue_date || '').startsWith(m)), 'amount_net') + (ext[m] ?? 0);
-    const expense = sum(exp.filter((e) => (e.date || '').startsWith(m)), 'amount_net');
+    const expense = sum(exp.filter((e) => (e.date || '').startsWith(m)), 'amount_net') + (extExp[m] ?? 0);
     return { month: m, income, expense, profit: income - expense };
   });
 }
-export function bizSummary(bizId: string, ext: Record<string, number> = {}) {
+export function bizSummary(bizId: string, ext: Record<string, number> = {}, extExp: Record<string, number> = {}) {
   const inv = store.all('invoices').filter((i) => i.business_id === bizId);
   const open = inv.filter((i) => ['open', 'overdue'].includes(invoiceState(i)));
   const overdue = inv.filter((i) => invoiceState(i) === 'overdue');
-  const series = bizSeries(bizId, 6, ext);
+  const series = bizSeries(bizId, 6, ext, extExp);
   const cur = series[series.length - 1];
   const prev = series[series.length - 2];
   const mrr = sum(store.all('clients').filter((c) => c.business_id === bizId && c.status === 'פעיל'), 'monthly_fee');

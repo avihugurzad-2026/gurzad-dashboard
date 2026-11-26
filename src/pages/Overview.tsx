@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Briefcase, Building2, CalendarDays, ChevronLeft, CircleAlert, CircleCheck, Home, Wallet } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { alerts, bizSummary, homeMonth, homeTrend, portfolio, upcoming, vatRate } from '../data/derive';
-import { externalIncome, revenueOf, useBizRevenueState } from '../lib/bizRevenue';
+import { externalExpense, externalIncome, opsOf, revenueOf, useBizRevenueState } from '../lib/bizRevenue';
 import { canSee, useCollection, useDerived } from '../data/store';
 import { greeting, money, moneyRaw, percent, relDay, shortDate } from '../lib/format';
 import { usePrefs } from '../lib/prefs';
@@ -22,7 +22,7 @@ export function Overview() {
   const d = useDerived(() => {
     const hm = homeMonth();
     const trend = homeTrend();
-    const biz = businesses.map((b) => ({ b, s: bizSummary(b.id, externalIncome(revenueOf(rev, b.id), vatRate)) }));
+    const biz = businesses.map((b) => ({ b, s: bizSummary(b.id, externalIncome(revenueOf(rev, b.id), vatRate), externalExpense(opsOf(rev, b.id))) }));
     const pf = portfolio();
     const bizProfit = biz.reduce((a, x) => a + x.s.cur.profit * ((x.b.owner_pct ?? 100) / 100), 0);
     const bizProfitPrev = biz.reduce((a, x) => a + x.s.prev.profit * ((x.b.owner_pct ?? 100) / 100), 0);

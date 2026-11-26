@@ -3,6 +3,7 @@ import { env, HttpError, sbAdmin } from '../server.js';
 import { providerById, type ConnectionView } from '../../../shared/integrations.js';
 import { buyz } from './buyz.js';
 import { morning } from './morning.js';
+import { buyzdb } from './buyzdb.js';
 
 // Generic per-business integrations. Each provider is an Adapter; secrets are sealed with INTEGRATIONS_KEY
 // and live in gd_integration_connections (service role only). The browser never receives a secret back.
@@ -15,7 +16,7 @@ export type Adapter = {
   /** Pull data; returns snapshots keyed by kind (e.g. { revenue: {...} }). */
   sync(config: Record<string, string>, secret: string): Promise<Record<string, unknown>>;
 };
-const ADAPTERS: Record<string, Adapter> = { buyz, morning };
+const ADAPTERS: Record<string, Adapter> = { buyz, morning, buyzdb };
 
 const STALE_MS = 15 * 60e3; // re-sync on view when the last sync is older than 15 minutes
 

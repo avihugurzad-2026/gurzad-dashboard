@@ -24,6 +24,21 @@ export const PROVIDERS: ProviderInfo[] = [
     provides: ['הכנסות לפי חודש ויום', 'אמצעי תשלום', 'מכירות לפי מוכרנית', 'עסקאות אחרונות'],
   },
   {
+    id: 'buyzdb',
+    name: 'Buyz · מסד נתונים',
+    kind: 'הוצאות, עובדות ותורים',
+    description: 'חיבור לקריאה בלבד למסד של Buyz, בשביל נתונים שאין להם API: הוצאות, עובדות ותורים. המשתמש במסד צריך הרשאת גישה מכל כתובת (host %).',
+    fields: [
+      { key: 'host', label: 'כתובת השרת', placeholder: 'db.example.co.il' },
+      { key: 'port', label: 'פורט', optional: true, placeholder: '3306' },
+      { key: 'user', label: 'שם משתמש' },
+      { key: 'database', label: 'שם המסד' },
+      { key: 'password', label: 'סיסמה', secret: true },
+      { key: 'slug', label: 'כינוי העסק ב־Buyz', optional: true, placeholder: 'ospa', help: 'להשאיר ריק עבור OSPA' },
+    ],
+    provides: ['הוצאות לפי חודש (רווח אמיתי)', 'ביצועי עובדות: מכירות, טיפולים, מוצרים ושעות', 'תורים, ביטולים ואי־הגעות', 'לידים לפי מקור'],
+  },
+  {
     id: 'morning',
     name: 'מורנינג (חשבונית ירוקה)',
     kind: 'חשבוניות',
@@ -67,4 +82,15 @@ export type ConnectionView = {
   lastSyncAt: string | null;
   lastError: string | null;
   snapshots: Record<string, { data: unknown; fetchedAt: string }>;
+};
+
+/** Operational data read from the Buyz database (buyzdb provider). */
+export type OpsStaff = { name: string; sold: number; soldCount: number; treatments: number; treatmentsValue: number; products: number; productsCount: number; hours: number };
+export type OpsSnapshot = {
+  months: string[];
+  revenue: Record<string, number>;
+  expenses: { byMonth: { month: string; total: number }[]; lines: { label: string; calc: string; amount: number; rate: number }[] };
+  staff: { today: OpsStaff[]; thisMonth: OpsStaff[]; lastMonth: OpsStaff[] };
+  bookings: { today: number; upcoming: number; done: number; cancelled: number; noShow: number };
+  leads: { source: string; count: number }[];
 };

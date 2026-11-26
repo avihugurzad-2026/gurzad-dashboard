@@ -5,7 +5,7 @@ import { Award, Banknote, Briefcase, CircleAlert, FileText, LayoutGrid, ListChec
 import { isAdigitalBusiness } from './MetaCampaignsPage';
 import { RevenueView } from './IntegrationsPanel';
 import { TeamView } from './TeamView';
-import { externalIncome, useBizRevenue } from '../../lib/bizRevenue';
+import { externalExpense, externalIncome, useBizOps, useBizRevenue } from '../../lib/bizRevenue';
 import type { Rec } from '../../data/types';
 import { useCollection, useDerived, store } from '../../data/store';
 import { bizSummary, gross, invoiceState, needsAllocation, vatRate } from '../../data/derive';
@@ -96,8 +96,10 @@ function BizOverview({ biz }: { biz: Rec }) {
   const [mine, setMine] = useState(partial);
   useEffect(() => setMine(partial), [biz.id, partial]);
   const revs = useBizRevenue(biz.id);
+  const ops = useBizOps(biz.id);
   const ext = useMemo(() => externalIncome(revs, vatRate), [revs]);
-  const s = useDerived(() => bizSummary(biz.id, ext), [biz.id, prefs.hide, ext]);
+  const extExp = useMemo(() => externalExpense(ops), [ops]);
+  const s = useDerived(() => bizSummary(biz.id, ext, extExp), [biz.id, prefs.hide, ext, extExp]);
   const k = mine ? (biz.owner_pct ?? 100) / 100 : 1;
   const src = revs.map((r) => r.name).join(' + ');
   const synced = revs.map((r) => r.lastSyncAt).filter(Boolean).sort().pop();
@@ -135,7 +137,7 @@ function BizOverview({ biz }: { biz: Rec }) {
         </div>
       )}
       <Card className="lg-3 md-6 sm-6"><Kpi label="הכנסות החודש" icon={TrendingUp} tone={TONE} value={hasData ? money(s.cur.income * k) : 'אין נתונים עדיין'} delta={d(s.cur.income, s.prev.income)} foot={src ? `לפני מע״מ · כולל ${src}` : 'לפני מע״מ'} /></Card>
-      <Card className="lg-3 md-6 sm-6"><Kpi label="הוצאות החודש" icon={Receipt} tone={TONE} value={hasData ? money(s.cur.expense * k) : 'אין נתונים עדיין'} delta={d(s.cur.expense, s.prev.expense)} invert foot="לפני מע״מ" /></Card>
+      <Card className="lg-3 md-6 sm-6"><Kpi label="הוצאות החודש" icon={Receipt} tone={TONE} value={hasData ? money(s.cur.expense * k) : 'אין נתונים עדיין'} delta={d(s.cur.expense, s.prev.expense)} invert foot={ops ? 'כולל הוצאות מ־Buyz' : 'לפני מע״מ'} /></Card>
       <Card className="lg-3 md-6 sm-6"><Kpi label="רווח החודש" icon={Wallet} tone={TONE} value={hasData ? <span className={s.cur.profit < 0 ? 'neg' : ''}>{money(s.cur.profit * k)}</span> : 'אין נתונים עדיין'} delta={d(s.cur.profit, s.prev.profit)} foot={s.cur.income ? `שולי רווח ${percent(s.cur.profit / s.cur.income)}` : undefined} /></Card>
       <Card className="lg-3 md-6 sm-6" to={`/business/${biz.id}/invoices`}><Kpi label="לקוחות חייבים" icon={Banknote} tone={TONE} value={money(s.receivable)} foot={s.overdue.length ? <span className="neg">{money(s.overdueTotal)} באיחור</span> : 'כולל מע״מ · אין איחורים'} /></Card>
 
