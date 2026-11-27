@@ -1,29 +1,38 @@
 {
   "name": "gurzad-dashboard",
-  "version": "2.0.0",
-  "description": "דשבורד בעלים — אביהו גורזד",
-  "main": "server.js",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "דשבורד בית, עסקים והשקעות — אביהו גורזאד",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "sync:dry": "node scripts/sync-from-obsidian.js --dry",
-    "sync:apply": "node scripts/sync-from-obsidian.js --apply",
-    "backup": "supabase db dump -f backup-$(date +%Y%m%d-%H%M).sql",
-    "hash-password": "node -e \"const b=require('bcryptjs');b.hash(process.argv[1],10).then(h=>{console.log(h);process.exit(0)})\" "
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.6",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
-    "glob": "^10.3.10",
-    "js-yaml": "^4.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.10.0"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:artifact": "vite build --base ./ --outDir dist-artifact",
+    "preview": "vite preview",
+    "typecheck": "tsc -b"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.47.10",
+    "@vercel/functions": "^3.11.3",
+    "lucide-react": "^0.468.0",
+    "motion": "^11.15.0",
+    "mysql2": "^3.24.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "sharp": "^0.34.5",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/web-push": "^3.6.4",
+    "@vercel/node": "^3.2.29",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
   }
 }
