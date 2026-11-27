@@ -4,6 +4,7 @@ import { providerById, type ConnectionView } from '../../../shared/integrations.
 import { buyz } from './buyz.js';
 import { morning } from './morning.js';
 import { buyzdb } from './buyzdb.js';
+import { buyzops } from './buyzops.js';
 
 // Generic per-business integrations. Each provider is an Adapter; secrets are sealed with INTEGRATIONS_KEY
 // and live in gd_integration_connections (service role only). The browser never receives a secret back.
@@ -16,7 +17,7 @@ export type Adapter = {
   /** Pull data; returns snapshots keyed by kind (e.g. { revenue: {...} }). */
   sync(config: Record<string, string>, secret: string): Promise<Record<string, unknown>>;
 };
-const ADAPTERS: Record<string, Adapter> = { buyz, morning, buyzdb };
+const ADAPTERS: Record<string, Adapter> = { buyz, morning, buyzdb, buyzops };
 
 const STALE_MS = 15 * 60e3; // re-sync on view when the last sync is older than 15 minutes
 
@@ -100,7 +101,7 @@ async function syncOne(connectionId: string) {
     const rows = Object.entries(snaps).map(([kind, data]) => ({ connection_id: c.id, kind, data, fetched_at: now }));
     if (rows.length) { const { error } = await sb.from('gd_integration_snapshots').upsert(rows, { onConflict: 'connection_id,kind' }); if (error) throw error; }
     await sb.from('gd_integration_connections').update({ status: 'connected', last_sync_at: now, last_error: null }).eq('id', c.id);
-    if (c.provider === 'buyzdb' && !(c.config as any)?.auto) await provisionBuyzBranches(c, (snaps as any).discovery).catch((e) => console.error('buyz provision', e));
+    if ((c.provider === 'buyzdb' || c.provider === 'buyzops') && !(c.config as any)?.auto) await provisionBuyzBranches(c, (snaps as any).discovery).catch((e) => console.error('buyz provision', e));
   } catch (e) {
     if (!(e instanceof HttpError)) console.error('integration sync', c.provider, e);
     await sb.from('gd_integration_connections').update({ status: 'error', last_error: errMsg(e) }).eq('id', c.id);
@@ -166,7 +167,7 @@ async function provisionBuyzBranches(c: any, discovery: any) {
   const businesses = bizRows ?? [];
   const src = businesses.find((b: any) => b.id === c.business_id);
   if (src && !src.data?.buyz_slug) await sb.from('gd_records').update({ data: { ...src.data, buyz_slug: selfSlug }, updated_at: new Date().toISOString() }).eq('id', src.id);
-  const { data: conns } = await sb.from('gd_integration_connections').select('business_id, config').eq('workspace_id', c.workspace_id).eq('provider', 'buyzdb');
+  const { data: conns } = await sb.from('gd_integration_connections').select('business_id, config').eq('workspace_id', c.workspace_id).eq('provider', c.provider);
   const linked = new Set((conns ?? []).map((x: any) => String(x.config?.slug || 'ospa')));
   for (const b of branches) {
     if (b.slug === selfSlug || linked.has(b.slug)) continue;
@@ -179,7 +180,7 @@ async function provisionBuyzBranches(c: any, discovery: any) {
       biz = { id, data };
     }
     const { data: nc, error } = await sb.from('gd_integration_connections').upsert({
-      workspace_id: c.workspace_id, business_id: biz.id, provider: 'buyzdb', config: { ...c.config, slug: b.slug, auto: '1' },
+      workspace_id: c.workspace_id, business_id: biz.id, provider: c.provider, config: { ...c.config, slug: b.slug, auto: '1' },
       secret_enc: c.secret_enc, key_hint: c.key_hint, status: 'connected', last_error: null, created_by: c.created_by,
     }, { onConflict: 'workspace_id,business_id,provider' }).select('id').single();
     if (error) throw error;

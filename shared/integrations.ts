@@ -24,6 +24,18 @@ export const PROVIDERS: ProviderInfo[] = [
     provides: ['הכנסות לפי חודש ויום', 'אמצעי תשלום', 'מכירות לפי מוכרנית', 'עסקאות אחרונות'],
   },
   {
+    id: 'buyzops',
+    name: 'Buyz · נתוני תפעול',
+    kind: 'הוצאות, עובדות, תורים ולידים',
+    description: 'קורא מהקובץ dashboard_ops.php שמותקן בשרת של Buyz. ככה לא צריך לפתוח את המסד לגישה מבחוץ. כל הסניפים ברשת נוספים לבד.',
+    fields: [
+      { key: 'key', label: 'מפתח הקובץ', secret: true, help: 'המפתח שהוגדר בראש הקובץ (DASHBOARD_KEY)' },
+      { key: 'url', label: 'כתובת הקובץ', optional: true, placeholder: 'https://buyz.co.il/api/dashboard_ops.php', help: 'להשאיר ריק אם הקובץ הותקן בכתובת הזו' },
+      { key: 'slug', label: 'כינוי העסק ב־Buyz', optional: true, placeholder: 'ospa', help: 'להשאיר ריק עבור OSPA' },
+    ],
+    provides: ['הוצאות לפי חודש (רווח אמיתי)', 'ביצועי עובדות: מכירות, טיפולים, מוצרים ושעות', 'תורים, ביטולים ואי־הגעות', 'לידים לפי מקור', 'כל הסניפים ברשת'],
+  },
+  {
     id: 'buyzdb',
     name: 'Buyz · מסד נתונים',
     kind: 'הוצאות, עובדות ותורים',
