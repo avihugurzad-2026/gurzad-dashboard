@@ -2,10 +2,10 @@ import { ReceiptThumb } from '../ui/receipt';
 import { useEffect, useRef, useState, type FormEvent, Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Activity, BarChart3, BellRing, Bot, CalendarDays, Check, Clock, Code2, Eye, EyeOff, Globe, KeyRound, Mail, Megaphone, MessageCircle, Moon, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
+import { Activity, BarChart3, BellRing, Bot, CalendarDays, Check, Clock, Code2, Eye, EyeOff, Globe, KeyRound, Mail, Megaphone, MessageCircle, Moon, Pencil, Plus, RefreshCw, RotateCcw, ScanLine, Send, Server, ShieldCheck, Sun, Trash2, UserPlus, Users, Webhook } from 'lucide-react';
 import { ruleBasedReply } from '../../shared/agent';
-import type { Area, Rec, Role } from '../data/types';
-import { resetDemo, store, useCollection } from '../data/store';
+import type { Permission, Rec, Role } from '../data/types';
+import { getAccess, resetDemo, store, useCollection } from '../data/store';
 import { useAuth } from '../auth/AuthProvider';
 import { DEMO } from '../lib/config';
 import { supabase } from '../lib/supabase';
@@ -58,22 +58,36 @@ function useKapsoHook() {
 }
 const conn = (ok?: boolean) => ok ? <Badge kind="pos">מחובר</Badge> : <Badge>לא מחובר</Badge>;
 
-/* ================= WhatsApp ================= */
+/* ================= WhatsApp / Agent Chat ================= */
 export function WhatsApp() {
-  const msgs = useCollection('wa_messages');
+  const access = getAccess();
+  const isOwner = DEMO || access.role === 'owner';
+  const waMsgs = useCollection('wa_messages');
+  const [localMsgs, setLocalMsgs] = useState<{ id: string; direction: 'in' | 'out'; text: string; at: string; media_path?: string }[]>([
+    {
+      id: 'welcome',
+      direction: 'out',
+      text: access.areas.includes('business') || access.areas.includes('invest')
+        ? 'היי! אני העוזר החכם שלך במערכת. אפשר לשאול אותי ולעדכן נתונים בתחומים שפתוחים עבורך.'
+        : 'היי! אני עוזר הבית החכם 🏠 אפשר להוסיף דרכי קניות, משימות בית, הוצאות או לבדוק מה קרוב השבוע.',
+      at: new Date().toISOString(),
+    },
+  ]);
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const sorted = [...msgs].sort((a, b) => a.at.localeCompare(b.at));
+  const sorted = isOwner ? [...waMsgs].sort((a, b) => a.at.localeCompare(b.at)) : localMsgs;
 
-  useEffect(() => { box.current?.scrollTo({ top: box.current.scrollHeight, behavior: 'smooth' }); }, [msgs.length, typing]);
+  useEffect(() => { box.current?.scrollTo({ top: box.current.scrollHeight, behavior: 'smooth' }); }, [sorted.length, typing]);
 
   const send = async (e?: FormEvent, preset?: string) => {
     e?.preventDefault();
     const t = (preset ?? text).trim();
     if (!t || typing) return;
     setText('');
-    store.add('wa_messages', { direction: 'in', text: t, at: new Date().toISOString(), sandbox: true });
+    const now = new Date().toISOString();
+    if (isOwner) store.add('wa_messages', { direction: 'in', text: t, at: now, sandbox: true });
+    else setLocalMsgs((prev) => [...prev, { id: `u-${Date.now()}`, direction: 'in', text: t, at: now }]);
     setTyping(true);
     // The sandbox runs the same agent core as the webhook, against the data on screen.
     const local = { all: (c: string) => store.all(c as any), add: (c: string, d: any) => store.add(c as any, d), update: (c: string, id: string, p: any) => store.update(c as any, id, p) };
@@ -81,38 +95,77 @@ export function WhatsApp() {
     let attachments: { path: string; caption: string }[] = [];
     if (DEMO) reply = await ruleBasedReply(t, local);
     else {
-      // Signed in: the real agent (Gemini + tools) on the server, with the last few turns as context.
+      // Signed in: the real agent (Gemini + tools) on the server, strictly scoped to this user's permissions.
       const history = sorted.slice(-8).map((m: any) => ({ role: m.direction === 'in' ? 'user' : 'model', text: m.text }));
       try {
         const res = await api<{ reply: string; attachments?: { path: string; caption: string }[] }>('/api/whatsapp-webhook?action=chat', { body: { text: t, history } });
         reply = res.reply;
         attachments = res.attachments || [];
-      } catch {
-        reply = await ruleBasedReply(t, local);
+      } catch (err: any) {
+        reply = isOwner ? await ruleBasedReply(t, local) : (err?.message || 'לא הצלחתי לשלוח הודעה לסוכן.');
       }
     }
     setTimeout(() => {
-      for (const att of attachments) {
-        store.add('wa_messages', { direction: 'out', text: att.caption, media_path: att.path, media_type: 'image', at: new Date().toISOString(), sandbox: true });
+      if (isOwner) {
+        for (const att of attachments) {
+          store.add('wa_messages', { direction: 'out', text: att.caption, media_path: att.path, media_type: 'image', at: new Date().toISOString(), sandbox: true });
+        }
+        store.add('wa_messages', { direction: 'out', text: reply, at: new Date().toISOString(), sandbox: true });
+      } else {
+        setLocalMsgs((prev) => [
+          ...prev,
+          ...attachments.map((att, i) => ({ id: `a-${Date.now()}-${i}`, direction: 'out' as const, text: att.caption, media_path: att.path, at: new Date().toISOString() })),
+          { id: `m-${Date.now()}`, direction: 'out' as const, text: reply, at: new Date().toISOString() },
+        ]);
       }
-      store.add('wa_messages', { direction: 'out', text: reply, at: new Date().toISOString(), sandbox: true });
       setTyping(false);
-    }, 450);
+    }, 350);
   };
 
-  const can = [
-    ['להזין', 'קניות, משימות (בית / עסק / נכס), הוצאות, סימון שכירות ששולמה'],
-    ['לשלוף', 'רשימת קניות, משימות פתוחות, הוצאות ותקציב, מצב כספי של עסק, מי שילם שכירות, מה קרוב'],
-    ['בהמשך', 'צילום קבלה → הוצאה אוטומטית (Gemini), התראות יזומות על נכסים'],
-  ];
+  const scopeLabels = [
+    access.areas.includes('home') ? 'בית' : '',
+    access.areas.includes('business') ? 'עסקים' : '',
+    access.areas.includes('invest') ? 'השקעות' : '',
+  ].filter(Boolean);
+
+  const chips = isOwner
+    ? ['תוסיף לקניות קפה, בננות', 'הוצאה 85 פיצה', 'כמה הוצאנו החודש?', 'מי שילם שכירות?', 'מה מצב הקמפיינים היום?']
+    : [
+        ...(access.areas.includes('home') ? ['תוסיף לקניות חלב, לחם', 'מה ברשימת הקניות?', 'מה המשימות הפתוחות בבית?', 'כמה הוצאנו החודש?', 'מה קרוב השבוע?'] : []),
+        ...(access.areas.includes('business') ? ['מה מצב העסקים החודש?'] : []),
+        ...(access.areas.includes('invest') ? ['מי שילם שכירות?'] : []),
+      ];
+
+  const can = isOwner
+    ? [
+        ['להזין', 'קניות, משימות (בית / עסק / נכס), הוצאות, סימון שכירות ששולמה'],
+        ['לשלוף', 'רשימת קניות, משימות פתוחות, הוצאות ותקציב, מצב כספי של עסק, מי שילם שכירות, מה קרוב'],
+        ['מטא', 'סקירת קמפיינים, השהיה/הפעלה, עדכון תקציב ויצירת מודעות (פיד + סטורי)'],
+      ]
+    : [
+        ['תחומים', scopeLabels.join(' · ') || 'בית'],
+        ['הרשאה', access.role === 'viewer' ? 'קריאה בלבד (שאילתות ומידע)' : 'קריאה + הוספת קניות, משימות והוצאות'],
+        ['פרטיות', 'השיחה הזו אישית ומוגבלת אך ורק לתחומים שפתוחים עבורך.'],
+      ];
 
   return (
     <>
-      <PageHead tag="סוכן" tone="var(--ink-2)" title="וואטסאפ" sub="כותבים לסוכן בוואטסאפ, והוא מזין ושולף מהמערכת." />
+      <PageHead
+        tag="סוכן"
+        tone="var(--ink-2)"
+        title={isOwner ? 'וואטסאפ וסוכן AI' : 'עוזר הבית · צ׳אט AI'}
+        sub={isOwner ? 'כותבים לסוכן בוואטסאפ או כאן, והוא מזין ושולף מהמערכת.' : `גישה מאובטחת לתחומים: ${scopeLabels.join(', ') || 'בית'}.`}
+      />
       <Stagger>
         <Card className="flush lg-7 md-12">
           <div className="card-head" style={{ padding: '16px 20px', marginBottom: 0, borderBottom: '1px solid var(--line)' }}>
-            <div className="row"><span className="avatar"><Bot size={18} /></span><div><h2>ארגז חול</h2><div className="sub">אותו סוכן, בלי וואטסאפ. משנה נתונים אמיתיים בדשבורד.</div></div></div>
+            <div className="row">
+              <span className="avatar"><Bot size={18} /></span>
+              <div>
+                <h2>{isOwner ? 'ארגז חול' : 'שיחה עם העוזר'}</h2>
+                <div className="sub">{isOwner ? 'אותו סוכן, בלי וואטסאפ. משנה נתונים אמיתיים בדשבורד.' : 'מחובר לנתוני הבית שלך בזמן אמת.'}</div>
+              </div>
+            </div>
           </div>
           <div className="chat" ref={box} aria-live="polite">
             <AnimatePresence initial={false}>
@@ -125,10 +178,10 @@ export function WhatsApp() {
             </AnimatePresence>
           </div>
           <div className="chips" style={{ padding: '10px 12px 0' }}>
-            {['תוסיף לקניות קפה, בננות', 'הוצאה 85 פיצה', 'כמה הוצאנו החודש?', 'מי שילם שכירות?', 'מה המצב בספא?'].map((s) => <button key={s} className="chip" onClick={() => send(undefined, s)}>{s}</button>)}
+            {chips.map((s) => <button key={s} className="chip" onClick={() => send(undefined, s)}>{s}</button>)}
           </div>
           <form className="chat-input" onSubmit={send}>
-            <input className="input" dir="auto" placeholder="כתוב הודעה כמו בוואטסאפ…" value={text} onChange={(e) => setText(e.target.value)} aria-label="הודעה" enterKeyHint="send" />
+            <input className="input" dir="auto" placeholder="כתוב הודעה לסוכן…" value={text} onChange={(e) => setText(e.target.value)} aria-label="הודעה" enterKeyHint="send" />
             <button className="btn btn-primary" style={{ width: 48, padding: 0, height: 48 }} aria-label="שליחה" disabled={!text.trim()}><Send size={18} style={{ transform: 'scaleX(-1)' }} /></button>
           </form>
         </Card>
@@ -241,21 +294,51 @@ export function Status() {
 
 /* ================= Team ================= */
 const ROLE: Record<Role, string> = { owner: 'בעלים', editor: 'עורך', viewer: 'צופה' };
-const AREAS: [Area, string][] = [['home', 'בית'], ['business', 'עסקים'], ['invest', 'השקעות']];
+const AREAS: [Permission, string][] = [['home', 'בית'], ['business', 'עסקים'], ['invest', 'השקעות']];
+const EXTRAS: [Permission, string, string][] = [
+  ['chat', 'צ׳אט עם סוכן AI', 'מוגבל אוטומטית רק לתחומים שפתחת למשתמש'],
+  ['meta_campaigns', 'קמפיינים במטא', 'גישה ללוח הקמפיינים והסוכן של אדיג׳יטל'],
+  ['status', 'סטטוס מערכות', 'ניטור אתרים וזמינות שרתים'],
+];
+const ALL_PERMS: [Permission, string][] = [...AREAS, ...EXTRAS.map(([a, l]) => [a, l] as [Permission, string])];
 
 export function Team({ embedded = false }: { embedded?: boolean }) {
   const members = useCollection('members');
   const { user } = useAuth();
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Rec | null>(null);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('editor');
-  const [areas, setAreas] = useState<Area[]>(['home']);
+  const [areas, setAreas] = useState<Permission[]>(['home', 'chat']);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const me = members.find((m) => m.email === user?.email);
   const isOwner = DEMO || me?.role === 'owner';
+
+  const openInvite = () => {
+    setEditing(null);
+    setEmail('');
+    setName('');
+    setRole('editor');
+    setAreas(['home', 'chat']);
+    setErr('');
+    setOpen(true);
+  };
+
+  const openEdit = (m: Rec) => {
+    if (!isOwner || m.role === 'owner') return;
+    setEditing(m);
+    setEmail(m.email || '');
+    setName(m.name || '');
+    setRole((m.role === 'viewer' ? 'viewer' : 'editor') as Role);
+    setAreas(Array.isArray(m.areas) ? [...m.areas] : ['home']);
+    setErr('');
+    setOpen(true);
+  };
+
+  const togglePerm = (a: Permission) => setAreas((x) => (x.includes(a) ? x.filter((y) => y !== a) : [...x, a]));
 
   const resend = async (m: Rec) => {
     try {
@@ -271,66 +354,99 @@ export function Team({ embedded = false }: { embedded?: boolean }) {
     } catch (x: any) { toast(x.message); }
   };
 
-  const invite = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const mail = email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(mail)) { setErr('כתובת המייל לא תקינה'); return; }
-    if (members.some((m) => m.email === mail)) { setErr('המייל הזה כבר ברשימה'); return; }
-    if (!areas.length) { setErr('בחר לפחות תחום אחד'); return; }
+    if (!editing && members.some((m) => m.email === mail)) { setErr('המייל הזה כבר ברשימה'); return; }
+    if (!areas.some((a) => ['home', 'business', 'invest'].includes(a))) { setErr('בחר לפחות תחום ראשי אחד (בית / עסקים / השקעות)'); return; }
     setBusy(true); setErr('');
     try {
-      if (!DEMO) await api('/api/invite', { body: { email: mail, name, role, areas } });
-      store.add('members', { email: mail, name: name || mail.split('@')[0], role, areas, status: 'invited', invited_at: today() });
-      toast(DEMO ? 'ההזמנה נרשמה (במצב הדגמה לא נשלח מייל)' : `הזמנה נשלחה אל ${mail}`);
-      setOpen(false); setEmail(''); setName('');
+      if (editing) {
+        if (!DEMO) await api('/api/invite', { method: 'PATCH', body: { email: mail, name, role, areas } });
+        store.update('members', editing.id, { name: name || editing.name, role, areas });
+        toast(`ההרשאות של ${name || mail} עודכנו בהצלחה`);
+        setOpen(false);
+      } else {
+        if (!DEMO) await api('/api/invite', { body: { email: mail, name, role, areas } });
+        store.add('members', { email: mail, name: name || mail.split('@')[0], role, areas, status: 'invited', invited_at: today() });
+        toast(DEMO ? 'ההזמנה נרשמה (במצב הדגמה לא נשלח מייל)' : `הזמנה נשלחה אל ${mail}`);
+        setOpen(false); setEmail(''); setName('');
+      }
     } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
   };
 
   return (
     <>
-      {!embedded && <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל. כל אחד רואה רק את התחומים שפתחת לו.">{isOwner && <button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button>}</PageHead>}
-      {embedded && isOwner && <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-4px 0 12px' }}><button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button></div>}
+      {!embedded && <PageHead tag="שיתוף" tone="var(--ink-2)" title="צוות ושיתוף" sub="מזמינים במייל ומגדירים בדיוק מה כל משתמש רואה ומקבל.">{isOwner && <button className="btn btn-primary" onClick={openInvite}><UserPlus size={16} />הזמנה במייל</button>}</PageHead>}
+      {embedded && isOwner && <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-4px 0 12px' }}><button className="btn btn-primary" onClick={openInvite}><UserPlus size={16} />הזמנה במייל</button></div>}
       <Stagger>
         <Card className="flush lg-8 md-12">
           <div className="list">
             {members.map((m: Rec) => (
-              <div key={m.id} className="li">
+              <div key={m.id} className="li" style={{ cursor: isOwner && m.role !== 'owner' ? 'pointer' : undefined }} onClick={() => openEdit(m)}>
                 <span className="avatar">{(m.name || m.email).slice(0, 1)}</span>
-                <div className="li-main"><div className="li-title">{m.name}{m.email === user?.email || m.role === 'owner' ? '' : ''}</div><div className="li-meta"><span className="ltr">{m.email}</span></div>
-                  <div className="chips" style={{ marginTop: 6 }}>{AREAS.filter(([a]) => m.areas?.includes(a)).map(([a, l]) => <span key={a} className="badge">{l}</span>)}</div></div>
-                <div className="li-end">
+                <div className="li-main"><div className="li-title">{m.name}</div><div className="li-meta"><span className="ltr">{m.email}</span></div>
+                  <div className="chips" style={{ marginTop: 6 }}>
+                    {m.role === 'owner'
+                      ? <span className="badge">גישה מלאה לכל המערכת</span>
+                      : ALL_PERMS.filter(([a]) => m.areas?.includes(a)).map(([a, l]) => <span key={a} className="badge">{l}</span>)}
+                  </div>
+                </div>
+                <div className="li-end" onClick={(e) => e.stopPropagation()}>
                   {m.status === 'invited' ? <Badge kind="warn">הזמנה ממתינה</Badge> : <Badge kind={m.role === 'owner' ? 'info' : 'none'} icon={false}>{ROLE[m.role as Role]}</Badge>}
+                  {isOwner && m.role !== 'owner' && <button className="icon-btn bare" aria-label={`עריכת הרשאות ${m.name}`} title="עריכת הרשאות" onClick={() => openEdit(m)}><Pencil size={15} /></button>}
                   {isOwner && m.status === 'invited' && <button className="icon-btn bare" aria-label={`שליחה חוזרת אל ${m.name}`} title="שליחת ההזמנה שוב" onClick={() => void resend(m)}><Send size={15} /></button>}
                   {isOwner && m.role !== 'owner' && <button className="icon-btn bare" aria-label={`הסרת ${m.name}`} onClick={() => void revoke(m)}><Trash2 size={15} /></button>}
                 </div>
               </div>
             ))}
           </div>
-          {members.length <= 1 && <Empty icon={Users} title="רק אתה כאן בינתיים" text="הזמן בן/בת זוג לניהול הבית, רואה חשבון לעסקים או מנהל נכסים להשקעות." action={isOwner ? <button className="btn btn-primary" onClick={() => setOpen(true)}><UserPlus size={16} />הזמנה במייל</button> : undefined} />}
+          {members.length <= 1 && <Empty icon={Users} title="רק אתה כאן בינתיים" text="הזמן בן/בת זוג לניהול הבית, רואה חשבון לעסקים או מנהל נכסים להשקעות." action={isOwner ? <button className="btn btn-primary" onClick={openInvite}><UserPlus size={16} />הזמנה במייל</button> : undefined} />}
         </Card>
         <Card className="soft lg-4 md-12" style={{ alignSelf: 'start' }}>
           <CardHead title="הרשאות" />
           <dl className="kv" style={{ gridTemplateColumns: '56px 1fr' }}>
-            <dt>בעלים</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>הכול, כולל הזמנות והגדרות</dd>
-            <dt>עורך</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>הוספה ועריכה בתחומים שנפתחו לו</dd>
-            <dt>צופה</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>קריאה בלבד</dd>
+            <dt>בעלים</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>הכול, כולל הזמנות, וואטסאפ והגדרות</dd>
+            <dt>עורך</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>הוספה ועריכה רק בתחומים שנפתחו לו</dd>
+            <dt>צופה</dt><dd style={{ textAlign: 'start', fontWeight: 400 }}>קריאה בלבד (גם בצ׳אט AI)</dd>
           </dl>
-          <p className="meta" style={{ marginTop: 14 }}>המוזמן מקבל מייל עם קישור, ונכנס עם קוד חד־פעמי למייל. בלי סיסמאות. אחרי הכניסה כל אחד מחבר את היומן של Google שלו בהגדרות.</p>
+          <p className="meta" style={{ marginTop: 14 }}>לחץ על כל משתמש ברשימה כדי לשנות לו הרשאות בכל רגע. כשפותחים <b>צ׳אט עם סוכן AI</b>, הסוכן מוגבל אוטומטית בשרת רק לתחומים שסימנת עבור אותו משתמש.</p>
         </Card>
       </Stagger>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title="הזמנה לדשבורד">
-        <form onSubmit={invite} style={{ display: 'contents' }} noValidate>
+      <Sheet open={open} onClose={() => setOpen(false)} title={editing ? `הרשאות · ${editing.name || editing.email}` : 'הזמנה לדשבורד'}>
+        <form onSubmit={submit} style={{ display: 'contents' }} noValidate>
           <div className="sheet-body">
             <div className="form">
-              <label className="field full"><span>מייל</span><input className="input" type="email" dir="ltr" style={{ textAlign: 'right' }} value={email} onChange={(e) => { setEmail(e.target.value); setErr(''); }} placeholder="name@example.com" /></label>
+              <label className="field full"><span>מייל</span><input className="input" type="email" dir="ltr" style={{ textAlign: 'right' }} value={email} disabled={Boolean(editing)} onChange={(e) => { setEmail(e.target.value); setErr(''); }} placeholder="name@example.com" /></label>
               <label className="field full"><span>שם</span><input className="input" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></label>
               <div className="field full"><span>תפקיד</span><div className="chips">{(['editor', 'viewer'] as Role[]).map((r) => <button type="button" key={r} className="chip" aria-pressed={role === r} onClick={() => setRole(r)}>{ROLE[r]}</button>)}</div></div>
-              <div className="field full"><span>גישה לתחומים</span><div className="chips">{AREAS.map(([a, l]) => <button type="button" key={a} className="chip" aria-pressed={areas.includes(a)} onClick={() => setAreas((x) => (x.includes(a) ? x.filter((y) => y !== a) : [...x, a]))}>{areas.includes(a) && <Check size={14} />}{l}</button>)}</div></div>
+              <div className="field full">
+                <span>גישה לתחומים</span>
+                <div className="chips">{AREAS.map(([a, l]) => <button type="button" key={a} className="chip" aria-pressed={areas.includes(a)} onClick={() => togglePerm(a)}>{areas.includes(a) && <Check size={14} />}{l}</button>)}</div>
+              </div>
+              <div className="field full">
+                <span>יכולות ומסכים נוספים</span>
+                <div className="stack" style={{ gap: 8, marginTop: 4 }}>
+                  {EXTRAS.map(([a, label, hint]) => {
+                    const on = areas.includes(a);
+                    return (
+                      <div key={a} className="spread" style={{ padding: '10px 12px', borderRadius: 12, background: 'var(--bg-soft)', gap: 10 }}>
+                        <div>
+                          <div style={{ fontWeight: 500, fontSize: 13 }}>{label}</div>
+                          <div className="meta" style={{ fontSize: 11.5 }}>{hint}</div>
+                        </div>
+                        <Toggle checked={on} onChange={() => togglePerm(a)} label={label} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
               {err && <small className="neg full" role="alert">{err}</small>}
             </div>
           </div>
-          <div className="sheet-foot"><span className="grow" /><button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>ביטול</button><button className="btn btn-primary" disabled={busy}><Mail size={16} />{busy ? 'שולח…' : 'שליחת הזמנה'}</button></div>
+          <div className="sheet-foot"><span className="grow" /><button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>ביטול</button><button className="btn btn-primary" disabled={busy}>{editing ? <Check size={16} /> : <Mail size={16} />}{busy ? 'שומר…' : editing ? 'שמירת הרשאות' : 'שליחת הזמנה'}</button></div>
         </form>
       </Sheet>
     </>

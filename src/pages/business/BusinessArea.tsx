@@ -7,7 +7,7 @@ import { RevenueView } from './IntegrationsPanel';
 import { TeamView } from './TeamView';
 import { externalExpense, incomeFor, useBizOps, useBizRevenue } from '../../lib/bizRevenue';
 import type { Rec } from '../../data/types';
-import { useCollection, useDerived, store } from '../../data/store';
+import { canSee, useCollection, useDerived, store } from '../../data/store';
 import { bizSummary, gross, invoiceState, needsAllocation, vatRate } from '../../data/derive';
 import { daysUntil, money, percent, shortDate } from '../../lib/format';
 import { usePrefs } from '../../lib/prefs';
@@ -51,7 +51,7 @@ export function BusinessArea() {
     </>
   );
 
-  const isAgency = isAdigitalBusiness(biz);
+  const isAgency = isAdigitalBusiness(biz) && canSee('meta_campaigns');
   const hidden: string[] = Array.isArray(biz.hidden_tabs) ? biz.hidden_tabs : [];
   const tabsForBiz = bizTabs(isAgency).filter((t) => t.value === 'overview' || !hidden.includes(t.value));
   const View = hidden.includes(tab) ? BizOverview : ({ overview: BizOverview, team: TeamView, invoices: Invoices, clients: Clients, expenses: Expenses, tasks: BizTasks }[tab as Tab] ?? BizOverview);

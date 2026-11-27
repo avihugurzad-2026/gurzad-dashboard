@@ -8,6 +8,12 @@ export interface AgentData {
   update(collection: string, id: string, patch: Record<string, any>): Promise<unknown> | unknown;
 }
 
+export interface AgentScope {
+  areas: ('home' | 'business' | 'invest')[];
+  allowMeta?: boolean;
+  readOnly?: boolean;
+}
+
 const ils = (n: number) => '₪' + Math.round(n).toLocaleString('he-IL');
 // Dates in Israel time, summer time included (a fixed UTC+2 put "tomorrow" on the wrong day after 21:00 in summer).
 const israelDay = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(d);
@@ -33,6 +39,71 @@ export const SYSTEM_PROMPT = `אתה העוזר האישי של בעל הדשב�
 השתמש בכלים כדי להזין ולשלוף מידע מהמערכת: בית (קניות, משימות, הוצאות), עסקים (מצב כספי, חשבוניות), נכסים (שכירות, חוזים).
 לעולם אל תמציא נתונים. אם חסר פרט חיוני (למשל סכום), שאל שאלה אחת קצרה. התאריך היום: ${todayIso()}.`;
 
+/** Return only the tool declarations permitted for a member's scope (defense-in-depth). */
+export function toolsForScope(scope?: AgentScope) {
+  if (!scope) return [...TOOL_DECLARATIONS];
+  const has = (a: 'home' | 'business' | 'invest') => scope.areas.includes(a);
+  const ro = Boolean(scope.readOnly);
+  const out: any[] = [];
+  for (const t of TOOL_DECLARATIONS) {
+    if (t.name === 'add_shopping_items' || t.name === 'add_expense') {
+      if (has('home') && !ro) out.push(t);
+    } else if (t.name === 'get_shopping_list' || t.name === 'get_home_spending') {
+      if (has('home')) out.push(t);
+    } else if (t.name === 'get_business_summary') {
+      if (has('business')) out.push(t);
+    } else if (t.name === 'get_rent_status') {
+      if (has('invest')) out.push(t);
+    } else if (t.name === 'mark_rent_paid') {
+      if (has('invest') && !ro) out.push(t);
+    } else if (t.name === 'add_task') {
+      if (!ro && scope.areas.length) {
+        out.push({
+          ...t,
+          parameters: {
+            ...t.parameters,
+            properties: {
+              ...t.parameters.properties,
+              area: { type: 'STRING', enum: scope.areas },
+            },
+          },
+        });
+      }
+    } else if (t.name === 'get_tasks') {
+      if (scope.areas.length) {
+        out.push({
+          ...t,
+          parameters: {
+            ...t.parameters,
+            properties: {
+              area: { type: 'STRING', enum: [...scope.areas, 'all'] },
+            },
+          },
+        });
+      }
+    } else if (t.name === 'get_upcoming') {
+      if (scope.areas.length) out.push(t);
+    }
+  }
+  return out;
+}
+
+export function systemPromptForScope(scope?: AgentScope) {
+  if (!scope) return SYSTEM_PROMPT;
+  const labels: string[] = [];
+  if (scope.areas.includes('home')) labels.push('בית (קניות, משימות בית, הוצאות ותקציב, חשבונות קרובים)');
+  if (scope.areas.includes('business')) labels.push('עסקים (מצב כספי, משימות עסקיות, חשבוניות)');
+  if (scope.areas.includes('invest')) labels.push('השקעות ונכסים (שכירות, חוזים, משימות נכסים)');
+  const denied: string[] = [];
+  if (!scope.areas.includes('business')) denied.push('עסקים');
+  if (!scope.allowMeta) denied.push('קמפיינים ופרסום במטא');
+  if (!scope.areas.includes('invest')) denied.push('נכסים והשקעות');
+  return `אתה העוזר האישי של המשתמש במערכת. ענה בעברית, קצר, נעים וענייני (עד 5 שורות).
+הגישה של המשתמש מוגבלת אך ורק לתחומים הבאים: ${labels.join(', ') || 'ללא תחומים'}.${scope.readOnly ? ' המשתמש במצב צפייה בלבד (קריאה בלבד, ללא הוספה או שינוי נתונים).' : ''}
+${denied.length ? `אין למשתמש גישה למידע על ${denied.join(', ')} — אם הוא שואל על תחומים אלו, ענה בנימוס שאין לך גישה לנתונים האלו עבור המשתמש הזה.` : ''}
+לעולם אל תמציא נתונים. התאריך היום: ${todayIso()}.`;
+}
+
 /* ---------- tool implementations ---------- */
 const match = (rows: Row[], q?: string) => {
   if (!q) return rows[0];
@@ -40,32 +111,40 @@ const match = (rows: Row[], q?: string) => {
   return rows.find((r) => String(r.name || '').replace(/[׳'"״]/g, '').toLowerCase().includes(n)) ?? rows.find((r) => n.includes(String(r.name || '').split(' ')[0].toLowerCase()));
 };
 
-export async function execTool(name: string, args: Record<string, any>, db: AgentData): Promise<string> {
+export async function execTool(name: string, args: Record<string, any>, db: AgentData, scope?: AgentScope): Promise<string> {
+  const allow = (a: 'home' | 'business' | 'invest') => !scope || scope.areas.includes(a);
+  const ro = Boolean(scope?.readOnly);
   const ym = todayIso().slice(0, 7);
   switch (name) {
     case 'add_shopping_items': {
+      if (!allow('home') || ro) return 'אין הרשאה להוסיף פריטים לרשימת הקניות.';
       const items: { name: string; qty?: string }[] = args.items ?? [];
       for (const it of items) await db.add('shopping', { name: it.name, qty: it.qty ?? '', dept: 'אחר', done: false, source: 'whatsapp' });
       return `הוספתי לרשימת הקניות: ${items.map((i) => i.name + (i.qty ? ` (${i.qty})` : '')).join(', ')} ✅`;
     }
     case 'get_shopping_list': {
+      if (!allow('home')) return 'אין גישה לרשימת הקניות.';
       const open = (await db.all('shopping')).filter((r) => !r.done);
       return open.length ? `ברשימה ${open.length} פריטים:\n` + open.map((r) => `• ${r.name}${r.qty ? ` · ${r.qty}` : ''}`).join('\n') : 'רשימת הקניות ריקה.';
     }
     case 'add_task': {
-      const area = args.area ?? 'home';
+      if (ro) return 'אין הרשאת עריכה להוספת משימות.';
+      const area = (args.area ?? (allow('home') ? 'home' : scope?.areas[0] ?? 'home')) as 'home' | 'business' | 'property';
       if (area === 'business') {
+        if (!allow('business')) return 'אין גישה לתחום העסקים.';
         const b = match(await db.all('businesses'), args.target);
         if (!b) return 'לא מצאתי עסק כזה.';
         await db.add('biz_tasks', { business_id: b.id, title: args.title, due: args.due ?? '', priority: 'רגילה', done: false, source: 'whatsapp' });
         return `נוספה משימה ל${b.name}: ${args.title}${args.due ? ` (עד ${dd(args.due)})` : ''} ✅`;
       }
       if (area === 'property') {
+        if (!allow('invest')) return 'אין גישה לתחום הנכסים.';
         const p = match(await db.all('properties'), args.target);
         if (!p) return 'לא מצאתי נכס כזה.';
         await db.add('prop_tasks', { property_id: p.id, title: args.title, due: args.due ?? '', priority: 'רגילה', done: false, source: 'whatsapp' });
         return `נוספה משימה לנכס ${p.name}: ${args.title} ✅`;
       }
+      if (!allow('home')) return 'אין גישה לתחום הבית.';
       await db.add('home_tasks', { title: args.title, due: args.due ?? '', priority: 'רגילה', repeat: 'לא חוזר', done: false, source: 'whatsapp' });
       return `נוספה משימת בית: ${args.title}${args.due ? ` (עד ${dd(args.due)})` : ''} ✅`;
     }
@@ -73,16 +152,18 @@ export async function execTool(name: string, args: Record<string, any>, db: Agen
       const area = args.area ?? 'all';
       const out: string[] = [];
       const fmt = (t: Row, tag: string) => `• ${t.title}${t.due ? ` · ${dd(t.due)}` : ''}${tag ? ` (${tag})` : ''}`;
-      if (area === 'all' || area === 'home') (await db.all('home_tasks')).filter((t) => !t.done).forEach((t) => out.push(fmt(t, area === 'all' ? 'בית' : '')));
-      if (area === 'all' || area === 'business') { const bs = await db.all('businesses'); (await db.all('biz_tasks')).filter((t) => !t.done).forEach((t) => out.push(fmt(t, bs.find((b) => b.id === t.business_id)?.name ?? 'עסק'))); }
-      if (area === 'all' || area === 'property') { const ps = await db.all('properties'); (await db.all('prop_tasks')).filter((t) => !t.done).forEach((t) => out.push(fmt(t, ps.find((p) => p.id === t.property_id)?.name ?? 'נכס'))); }
+      if ((area === 'all' || area === 'home') && allow('home')) (await db.all('home_tasks')).filter((t) => !t.done).forEach((t) => out.push(fmt(t, area === 'all' && (!scope || scope.areas.length > 1) ? 'בית' : '')));
+      if ((area === 'all' || area === 'business') && allow('business')) { const bs = await db.all('businesses'); (await db.all('biz_tasks')).filter((t) => !t.done).forEach((t) => out.push(fmt(t, bs.find((b) => b.id === t.business_id)?.name ?? 'עסק'))); }
+      if ((area === 'all' || area === 'property') && allow('invest')) { const ps = await db.all('properties'); (await db.all('prop_tasks')).filter((t) => !t.done).forEach((t) => out.push(fmt(t, ps.find((p) => p.id === t.property_id)?.name ?? 'נכס'))); }
       return out.length ? `${out.length} משימות פתוחות:\n${out.slice(0, 12).join('\n')}${out.length > 12 ? `\nועוד ${out.length - 12}…` : ''}` : 'אין משימות פתוחות 🎉';
     }
     case 'add_expense': {
+      if (!allow('home') || ro) return 'אין הרשאה לרשום הוצאות בית.';
       await db.add('transactions', { title: args.title, amount: Number(args.amount), kind: 'הוצאה', category: args.category ?? guessCategory(args.title), date: todayIso(), method: 'אשראי', source: 'whatsapp' });
       return `נרשמה הוצאה: ${args.title} · ${ils(Number(args.amount))} (${args.category ?? guessCategory(args.title)}) ✅`;
     }
     case 'get_home_spending': {
+      if (!allow('home')) return 'אין גישה לנתוני הוצאות הבית.';
       const tx = (await db.all('transactions')).filter((t) => t.kind === 'הוצאה' && String(t.date || '').startsWith(ym));
       const budgets = await db.all('budgets');
       if (args.category) {
@@ -96,6 +177,7 @@ export async function execTool(name: string, args: Record<string, any>, db: Agen
       return `החודש יצאו ${ils(spent)}` + (bud ? ` מתוך תקציב ${ils(bud)}. נשאר ${ils(bud - spent)}.` : '.');
     }
     case 'get_business_summary': {
+      if (!allow('business')) return 'אין גישה לנתוני העסקים.';
       const bs = await db.all('businesses');
       const list = args.business ? [match(bs, args.business)].filter(Boolean) as Row[] : bs;
       if (!list.length) return 'לא מצאתי עסק כזה.';
@@ -109,6 +191,7 @@ export async function execTool(name: string, args: Record<string, any>, db: Agen
       }).join('\n');
     }
     case 'get_rent_status': {
+      if (!allow('invest')) return 'אין גישה לנתוני נכסים ושכירות.';
       const ps = await db.all('properties'); const pay = (await db.all('rent_payments')).filter((r) => r.month === ym);
       if (!pay.length) return 'אין תשלומי שכירות רשומים לחודש הזה.';
       return pay.map((r) => {
@@ -118,6 +201,7 @@ export async function execTool(name: string, args: Record<string, any>, db: Agen
       }).join('\n');
     }
     case 'mark_rent_paid': {
+      if (!allow('invest') || ro) return 'אין הרשאה לעדכן תשלומי שכירות.';
       const p = match(await db.all('properties'), args.property);
       if (!p) return 'לא מצאתי נכס כזה.';
       const r = (await db.all('rent_payments')).find((x) => x.property_id === p.id && x.month === ym);
@@ -129,10 +213,16 @@ export async function execTool(name: string, args: Record<string, any>, db: Agen
       const until = addDays(Number(args.days) || 7); const now = todayIso();
       const within = (d?: string) => !!d && d >= now && d <= until;
       const out: [string, string][] = [];
-      (await db.all('bills')).filter((b) => within(b.next_due)).forEach((b) => out.push([b.next_due, `${b.name} · ${ils(b.amount || 0)}`]));
-      (await db.all('home_tasks')).filter((t) => !t.done && within(t.due)).forEach((t) => out.push([t.due, t.title]));
-      (await db.all('biz_tasks')).filter((t) => !t.done && within(t.due)).forEach((t) => out.push([t.due, t.title]));
-      (await db.all('leases')).filter((l) => within(l.end)).forEach((l) => out.push([l.end, 'סיום חוזה שכירות']));
+      if (allow('home')) {
+        (await db.all('bills')).filter((b) => within(b.next_due)).forEach((b) => out.push([b.next_due, `${b.name} · ${ils(b.amount || 0)}`]));
+        (await db.all('home_tasks')).filter((t) => !t.done && within(t.due)).forEach((t) => out.push([t.due, t.title]));
+      }
+      if (allow('business')) {
+        (await db.all('biz_tasks')).filter((t) => !t.done && within(t.due)).forEach((t) => out.push([t.due, t.title]));
+      }
+      if (allow('invest')) {
+        (await db.all('leases')).filter((l) => within(l.end)).forEach((l) => out.push([l.end, 'סיום חוזה שכירות']));
+      }
       out.sort((a, b) => a[0].localeCompare(b[0]));
       return out.length ? `בימים הקרובים:\n${out.slice(0, 10).map(([d, t]) => `• ${dd(d)} — ${t}`).join('\n')}` : 'אין מועדים בימים הקרובים.';
     }

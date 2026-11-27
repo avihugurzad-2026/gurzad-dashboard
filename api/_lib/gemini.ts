@@ -1,5 +1,5 @@
 import { env, israelDay } from './server.js';
-import { execTool, SYSTEM_PROMPT, TOOL_DECLARATIONS, type AgentData } from '../../shared/agent.js';
+import { execTool, systemPromptForScope, toolsForScope, type AgentData, type AgentScope } from '../../shared/agent.js';
 import {
   campaignsAccountDetail,
   campaignsOverview,
@@ -320,19 +320,23 @@ export async function geminiAgentReply(
   db: AgentData,
   history: { role: 'user' | 'model'; text: string }[] = [],
   workspaceId?: string,
-  opts?: { referencePath?: string | null; onAttachments?: (atts: CreativeMediaAttachment[]) => void },
+  opts?: { referencePath?: string | null; onAttachments?: (atts: CreativeMediaAttachment[]) => void; scope?: AgentScope },
 ): Promise<string> {
   const contents: any[] = [...history.filter((h) => h.text).map((h) => ({ role: h.role, parts: [{ text: h.text }] })), { role: 'user', parts: [{ text }] }];
   // Gemini requires the conversation to start with a user turn.
   while (contents.length > 1 && contents[0].role !== 'user') contents.shift();
-  const metaEnabled = Boolean(workspaceId && metaCampaignsReady());
+  const scope = opts?.scope;
+  const metaAllowed = scope ? Boolean(scope.allowMeta) : true;
+  const metaEnabled = Boolean(metaAllowed && workspaceId && metaCampaignsReady());
+  const baseTools = toolsForScope(scope);
+  const allTools = metaEnabled ? [...baseTools, ...META_WA_TOOLS] : baseTools;
   const activeDraft = metaEnabled && workspaceId ? await getActiveCreativeDraft(workspaceId).catch(() => null) : null;
-  const allTools = metaEnabled ? [...TOOL_DECLARATIONS, ...META_WA_TOOLS] : [...TOOL_DECLARATIONS];
   const draftHint = activeDraft
     ? `\n\n[סטטוס טיוטת מודעה פעילה כרגע: לקוח=${activeDraft.accountName || 'לא נבחר'}, כותרת="${activeDraft.headline}", טקסט="${activeDraft.primaryText.slice(0, 120)}...", יש פיד=${!!activeDraft.feedPath}, יש סטורי=${!!activeDraft.storyPath}${activeDraft.adsetName ? `, סט מודעות=${activeDraft.adsetName}` : ''}]`
     : '';
+  const basePrompt = systemPromptForScope(scope);
   const systemText = metaEnabled
-    ? `${SYSTEM_PROMPT}\nבנוסף, אתה מחובר ישירות גם לסוכן ניהול הקמפיינים והקריאייטיב במטא של אדיג׳יטל (מנהל מדיה וקריאייטיב בכיר):
+    ? `${basePrompt}\nבנוסף, אתה מחובר ישירות גם לסוכן ניהול הקמפיינים והקריאייטיב במטא של אדיג׳יטל (מנהל מדיה וקריאייטיב בכיר):
 - אפשר לבדוק מצב קמפיינים כללי או של לקוח ספציפי (לידים, התכתבויות, חשיפות, ביקורי פרופיל, מודעות מנצחות ושורפות), להריץ סקירה יומית, להשהות/להפעיל מודעות ולשנות תקציבים במטא.
 - **סטודיו קריאייטיב והעלאת מודעות למטא**: אתה יודע לייצר גרפיקות מודעה (תמיד **גם פיד וגם סטורי 9:16** ביחד!) + הצעת מלל מלאה (טקסט ראשי, כותרת, תיאור, CTA), לבצע תיקונים לפי בקשת אביהו (במלל, בפיד, בסטורי או בשניהם), ולהעלות בפועל למטא.
 - **כללי אישור והעלאה קשיחים**:
@@ -341,12 +345,12 @@ export async function geminiAgentReply(
   3. אם אביהו הנחה במפורש לא לפרסם אלא רק להעלות/לשמור מושהה (למשל "תעלה מושהה", "אל תפעיל עדיין", "רק תעלה בלי לפרסם") — העלה בסטטוס \`PAUSED\`.
   4. כשמציגים טיוטת מודעה לאישור, הצג בצורה מסודרת ויפה לוואטסאפ את *הטקסט הראשי*, *הכותרת*, *התיאור* וה־*CTA*, וציין את סדרות המודעות הפעילות שאפשר להעלות אליהן.
 - כשעונים על קמפיינים במטא: ענה בצורה חכמה, מעמיקה ומעוצבת לוואטסאפ — עם *כותרות מודגשות*, אמוג׳ים מדויקים (📊 🔥 ⚠️ ✅ 🎯 💡 💰 🎨 🚀), תובנות עסקיות אמיתיות והמלצות קונקרטיות ממוספרות (1️⃣ 2️⃣ 3️⃣). אחרי ביצוע פעולה במטא ציין תמיד את האימות החי שהתקבל (לפני -> אחרי ✅).${draftHint}`
-    : SYSTEM_PROMPT;
+    : basePrompt;
 
   for (let round = 0; round < 4; round++) {
     const out = await call({
       systemInstruction: { parts: [{ text: systemText }] },
-      tools: [{ functionDeclarations: allTools }],
+      ...(allTools.length ? { tools: [{ functionDeclarations: allTools }] } : {}),
       contents,
     });
     const parts: any[] = out.candidates?.[0]?.content?.parts ?? [];
@@ -362,7 +366,7 @@ export async function geminiAgentReply(
         try { result = await execMetaWaTool(workspaceId, fnName, fnArgs, opts); }
         catch (e: any) { result = { error: e.message || 'שגיאה בפעולת Meta Ads' }; }
       } else {
-        result = await execTool(fnName, fnArgs, db);
+        result = await execTool(fnName, fnArgs, db, scope);
       }
       results.push({ functionResponse: { name: fnName, response: { result } } });
     }

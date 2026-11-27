@@ -68,3 +68,30 @@ export function recordsData(workspaceId: string): AgentData {
     },
   };
 }
+
+const COLLECTIONS_BY_AREA: Record<string, string[]> = {
+  home: ['home_tasks', 'shopping', 'transactions', 'budgets', 'bills', 'maintenance', 'documents'],
+  business: ['businesses', 'invoices', 'clients', 'biz_expenses', 'biz_tasks', 'integrations'],
+  invest: ['properties', 'tenants', 'leases', 'rent_payments', 'prop_tasks', 'photos', 'alert_rules'],
+};
+
+/** Hard server-side isolation: restricts AgentData strictly to the collections allowed for a member's areas & role. */
+export function scopedRecordsData(workspaceId: string, scope: { areas: string[]; readOnly?: boolean }): AgentData {
+  const base = recordsData(workspaceId);
+  const allowed = new Set<string>();
+  for (const a of scope.areas) for (const c of COLLECTIONS_BY_AREA[a] ?? []) allowed.add(c);
+  return {
+    async all(collection) {
+      if (!allowed.has(collection)) return [];
+      return base.all(collection);
+    },
+    async add(collection, data) {
+      if (scope.readOnly || !allowed.has(collection)) throw new HttpError(403, 'אין הרשאת עריכה בתחום זה');
+      return base.add(collection, data);
+    },
+    async update(collection, id, patch) {
+      if (scope.readOnly || !allowed.has(collection)) throw new HttpError(403, 'אין הרשאת עריכה בתחום זה');
+      return base.update(collection, id, patch);
+    },
+  };
+}

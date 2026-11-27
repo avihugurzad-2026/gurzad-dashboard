@@ -27,8 +27,8 @@ const ALL_TOOLS = [
   { to: '/team', label: 'שיתוף ומשתמשים', icon: Users, owner: true },
   { to: '/marketing', label: 'שיווק · מטא ואתרים', icon: Megaphone, mobileOnly: true, area: 'business' },
   { to: '/notifications', label: 'התראות', icon: Bell },
-  { to: '/whatsapp', label: 'וואטסאפ', icon: MessageCircle, owner: true },
-  { to: '/status', label: 'סטטוס מערכות', icon: Activity, owner: true },
+  { to: '/whatsapp', label: 'צ׳אט סוכן', icon: MessageCircle, area: 'chat' },
+  { to: '/status', label: 'סטטוס מערכות', icon: Activity, area: 'status' },
   { to: '/settings', label: 'הגדרות וחיבורים', icon: Settings },
 ];
 const allowed = <T extends { area?: string; owner?: boolean }>(xs: T[]) =>

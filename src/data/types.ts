@@ -16,13 +16,14 @@ export type FieldDef = {
 
 export type Role = 'owner' | 'editor' | 'viewer';
 export type Area = 'home' | 'business' | 'invest';
+export type Permission = Area | 'chat' | 'meta_campaigns' | 'status';
 
 export type Member = {
   id: string;
   email: string;
   name: string;
   role: Role;
-  areas: Area[];
+  areas: Permission[];
   status: 'active' | 'invited';
   invited_at?: string;
 };

@@ -28,9 +28,11 @@ import { portfolioReport, siteDetailReport } from './_lib/tracker.js';
 // POST { action: 'run_agent' | 'set_entity_status' | 'rec_state' }
 export default handler(async (req, res) => {
   const m = await requireMember(req);
-  if (m.role !== 'owner' && !(m.areas ?? []).includes('business')) throw new HttpError(403, 'אין גישה לשיווק');
+  const canMeta = m.role === 'owner' || (m.areas ?? []).includes('meta_campaigns');
+  if (m.role !== 'owner' && !(m.areas ?? []).includes('business') && !canMeta) throw new HttpError(403, 'אין גישה לשיווק');
 
   if (req.method === 'POST') {
+    if (!canMeta) throw new HttpError(403, 'אין הרשאה לניהול קמפיינים במטא');
     const b = req.body ?? {};
     if (b.action === 'run_agent') {
       const days = [1, 3, 7, 14, 28, 30].includes(Number(b.days)) ? Number(b.days) : 7;
@@ -119,6 +121,7 @@ export default handler(async (req, res) => {
     return;
   }
   if (source === 'campaigns_overview') {
+    if (!canMeta) throw new HttpError(403, 'אין הרשאה לקמפיינים במטא');
     const d = req.query.days ? days : 7;
     const [ov, actionLogs] = await Promise.all([
       campaignsOverview(m.workspaceId, { days: d, since, until, force: req.query.force === '1' }),
@@ -128,15 +131,18 @@ export default handler(async (req, res) => {
     return;
   }
   if (source === 'verify_entity') {
+    if (!canMeta) throw new HttpError(403, 'אין הרשאה לקמפיינים במטא');
     const entityId = String(req.query.entityId || '');
     res.json(await verifyMetaEntityLive(entityId));
     return;
   }
   if (source === 'wa_schedule') {
+    if (!canMeta) throw new HttpError(403, 'אין הרשאה לקמפיינים במטא');
     res.json(await getMetaWaSchedule(m.workspaceId));
     return;
   }
   if (source === 'campaigns_account') {
+    if (!canMeta) throw new HttpError(403, 'אין הרשאה לקמפיינים במטא');
     const accountId = String(req.query.accountId || '');
     if (!accountId) throw new HttpError(400, 'חסר מזהה חשבון');
     const d = req.query.days ? days : 14;

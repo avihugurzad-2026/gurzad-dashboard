@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
-import { env, handler, has, HttpError, recordsData, requireMember, sbAdmin } from './_lib/server.js';
+import { env, handler, has, HttpError, recordsData, requireMember, sbAdmin, scopedRecordsData } from './_lib/server.js';
 import { waitUntil } from '@vercel/functions';
 import { GeminiBusy, geminiAgentReply, whileBusy } from './_lib/gemini.js';
 import { downloadMedia, ingest, pickTarget, question, saveExpense, targets, type Receipt } from './_lib/receipts.js';
@@ -150,23 +150,33 @@ async function recentHistory(wsId: string, phone: string) {
     .map((d) => ({ role: d.direction === 'in' ? 'user' as const : 'model' as const, text: /^\[(image|document)\]$/.test(String(d.text)) ? '[נשלחה קבלה. מערכת הקבלות קוראת אותה ותשלח את הפרטים בנפרד, אין צורך להגיב עליה]' : String(d.text || '') }));
 }
 
-/** Signed-in members: the in-app chat talks to the same Gemini agent (POST ?action=chat {text, history}). */
+/** Signed-in members: the in-app chat talks to the same Gemini agent, strictly scoped to each user's allowed areas & role. */
 async function chat(req: VercelRequest, res: any) {
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   const me = await requireMember(req);
-  // The agent works with the server key on the whole workspace, so only the owner may talk to it
-  // (a member with home-only access must not reach business or investment data through the chat).
-  if (me.role !== 'owner') throw new HttpError(403, 'רק הבעלים');
+  const isOwner = me.role === 'owner';
+  const myAreas = Array.isArray(me.areas) ? me.areas : [];
+  if (!isOwner && !myAreas.includes('chat')) throw new HttpError(403, 'אין הרשאה לצ׳אט סוכן');
   const body = JSON.parse((await rawBody(req)).toString('utf8') || '{}');
   const text = String(body.text || '').slice(0, 2000);
   if (!text) throw new HttpError(400, 'הודעה ריקה');
   const history = (Array.isArray(body.history) ? body.history : []).slice(-8).map((h: any) => ({ role: h.role === 'model' ? 'model' as const : 'user' as const, text: String(h.text || '').slice(0, 2000) }));
-  const db = recordsData(me.workspaceId);
+
+  const allowedMainAreas = isOwner
+    ? (['home', 'business', 'invest'] as ('home' | 'business' | 'invest')[])
+    : (myAreas.filter((a) => ['home', 'business', 'invest'].includes(a)) as ('home' | 'business' | 'invest')[]);
+  const scope = {
+    areas: allowedMainAreas,
+    allowMeta: isOwner || (myAreas.includes('meta_campaigns') && myAreas.includes('business')),
+    readOnly: !isOwner && me.role === 'viewer',
+  };
+  const db = isOwner ? recordsData(me.workspaceId) : scopedRecordsData(me.workspaceId, scope);
   const attachments: CreativeMediaAttachment[] = [];
   let reply: string;
   try {
     reply = has('GEMINI_API_KEY')
       ? await geminiAgentReply(text, db, history, me.workspaceId, {
+          scope,
           onAttachments: (atts) => attachments.push(...atts),
         })
       : await ruleBasedReply(text, db);
